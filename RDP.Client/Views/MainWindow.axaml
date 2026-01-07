@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RDP.Client.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="RDP.Client.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="RDP.Client">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="5" Margin="5">
+            <TextBox Text="{Binding Host}" Watermark="Host"/>
+            <TextBox Text="{Binding Domain}" Watermark="Domain"/>
+            <TextBox Text="{Binding Username}" Watermark="Username"/>
+            <TextBox Text="{Binding Password}" Watermark="Password" PasswordChar="*"/>
+            <TextBox Text="{Binding GatewayHost}" Watermark="Gateway host"/>
+            <TextBox Text="{Binding GatewayDomain}" Watermark="Gateway domain"/>
+            <TextBox Text="{Binding GatewayUsername}" Watermark="Gateway Username"/>
+            <TextBox Text="{Binding GatewayPassword}" Watermark="Gateway Password" PasswordChar="*"/>
+            <Button Content="Connect" Command="{Binding ConnectCommand}"/>
+            <Button Content="Disconnect" Command="{Binding DisconnectCommand}"/>
+        </StackPanel>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <Image Source="{Binding Screen}" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
+                   PointerMoved="OnPointerMoved"
+                   PointerPressed="OnPointerPressed"
+                   PointerReleased="OnPointerReleased"
+                   KeyDown="OnKeyDown"
+                   KeyUp="OnKeyUp"
+                   Focusable="True"
+                   Name="RdpImage"/>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
