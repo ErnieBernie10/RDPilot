@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <freerdp/client/disp.h>
 
 static FrameCallback g_callback = NULL;
 static freerdp* g_instance = NULL;
