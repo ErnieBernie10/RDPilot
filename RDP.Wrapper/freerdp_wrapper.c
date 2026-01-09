@@ -164,7 +164,6 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
             usleep(10000); // 10ms is plenty for RDP
         }
 
-
     freerdp_disconnect(g_instance);
     freerdp_context_free(g_instance);
     freerdp_free(g_instance);
@@ -222,5 +221,17 @@ void send_mouse_event(uint16_t flags, uint16_t x, uint16_t y) {
 void send_keyboard_event(uint16_t flags, uint16_t code) {
     if (g_instance && g_instance->context && g_instance->context->input) {
         freerdp_input_send_keyboard_event(g_instance->context->input, flags, code);
+    }
+}
+
+void update_resolution(int width, int height) {
+    if (g_instance && g_instance->context && g_instance->context->settings) {
+        freerdp_settings_set_uint32(g_instance->context->settings, FreeRDP_DesktopWidth, width);
+        freerdp_settings_set_uint32(g_instance->context->settings, FreeRDP_DesktopHeight, height);
+
+        // Send a dynamic resolution update request
+        if (g_instance->context->update) {
+            g_instance->context->update->DesktopResize(g_instance->context);
+        }
     }
 }

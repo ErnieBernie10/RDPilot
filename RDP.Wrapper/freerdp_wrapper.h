@@ -11,3 +11,4 @@ bool connect_rdp(const char* host, const char* domain, const char* user, const c
 void disconnect_rdp(void);
 void send_mouse_event(uint16_t flags, uint16_t x, uint16_t y);
 void send_keyboard_event(uint16_t flags, uint16_t code);
+void update_resolution(int width, int height);

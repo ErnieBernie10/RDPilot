@@ -20,7 +20,6 @@ public static class NativeWrapper
             string? gatewayHost, string? gatewayDomain, string? gatewayUser, string? gatewayPassword,
             int width, int height);
 
-
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void disconnect_rdp();
 
@@ -29,4 +28,7 @@ public static class NativeWrapper
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void send_keyboard_event(ushort flags, ushort code);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void update_resolution(int width, int height);
 }
