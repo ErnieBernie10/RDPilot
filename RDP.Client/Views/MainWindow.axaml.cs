@@ -17,6 +17,16 @@ public partial class MainWindow : Window
                 vm.RequestRedraw += (s, e) => RdpImage.InvalidateVisual();
             }
         };
+
+        // Add window resize handling
+        this.GetObservable(Window.ClientSizeProperty).Subscribe(size =>
+        {
+            if (size.Width > 0 && size.Height > 0 && DataContext is MainWindowViewModel vm)
+            {
+                // Update the resolution when window size changes
+                NativeWrapper.update_resolution((int)size.Width, (int)size.Height);
+            }
+        });
     }
 
     private const ushort PTR_FLAGS_MOVE = 0x0800;
