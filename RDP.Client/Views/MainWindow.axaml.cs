@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using RDP.Client.Models;
 using RDP.Client.ViewModels;
 
 namespace RDP.Client.Views;
@@ -14,7 +16,9 @@ public partial class MainWindow : Window
 {
     private const int MinimumRemoteWidth = 640;
     private const int MinimumRemoteHeight = 480;
+    private static readonly GridLength SidebarOpenWidth = new(260);
     private bool _rdpKeyboardActive;
+    private bool _sidebarOpen = true;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly DispatcherTimer _clipboardPollTimer;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardTextCallback;
@@ -110,6 +114,62 @@ public partial class MainWindow : Window
         {
             Console.WriteLine($"[CLIPRDR] failed to poll local clipboard: {ex.Message}");
         }
+    }
+
+    private async void OnAddConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+
+        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel());
+        if (result != null)
+        {
+            await vm.SaveConnectionAsync(result);
+        }
+    }
+
+    private async void OnEditConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm || vm.SelectedConnection == null)
+        {
+            return;
+        }
+
+        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel(vm.SelectedConnection));
+        if (result != null)
+        {
+            await vm.SaveConnectionAsync(result);
+        }
+    }
+
+    private async void OnDeleteConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            await vm.DeleteSelectedConnectionAsync();
+        }
+    }
+
+    private Task<ConnectionEditResult?> ShowConnectionEditorAsync(ConnectionEditorViewModel viewModel)
+    {
+        var window = new ConnectionEditorWindow
+        {
+            DataContext = viewModel,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        return window.ShowDialog<ConnectionEditResult?>(this);
+    }
+
+    private void OnToggleSidebarClicked(object? sender, RoutedEventArgs e)
+    {
+        _sidebarOpen = !_sidebarOpen;
+        ShellGrid.ColumnDefinitions[0].Width = _sidebarOpen ? SidebarOpenWidth : new GridLength(0);
+        Sidebar.IsVisible = _sidebarOpen;
+        ShowSidebarButton.IsVisible = !_sidebarOpen;
+        QueueViewportResolutionUpdate();
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)

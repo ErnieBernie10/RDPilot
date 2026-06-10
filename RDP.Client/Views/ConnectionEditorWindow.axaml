@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RDP.Client.ViewModels"
+        x:Class="RDP.Client.Views.ConnectionEditorWindow"
+        x:DataType="vm:ConnectionEditorViewModel"
+        Width="600"
+        Height="620"
+        MinWidth="560"
+        MinHeight="560"
+        CanResize="False"
+        Title="Connection">
+    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="Auto,*,Auto">
+        <Border Classes="ShellBar" Padding="18,14">
+            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="SemiBold"/>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="18">
+            <StackPanel Spacing="14">
+                <Border Classes="Section">
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                        <TextBlock Text="Remote PC" FontWeight="SemiBold"/>
+                        <TextBox Grid.Column="1" Text="{Binding Name}" Watermark="Connection name"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Host}" Watermark="Host or IP address"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Domain}" Watermark="Domain optional"/>
+                    </Grid>
+                </Border>
+
+                <Border Classes="Section">
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                        <TextBlock Text="Credentials" FontWeight="SemiBold"/>
+                        <TextBox Grid.Column="1" Text="{Binding Username}" Watermark="Username"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Password}" Watermark="{Binding PasswordWatermark}" PasswordChar="*"/>
+                    </Grid>
+                </Border>
+
+                <Border Classes="Section">
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                        <TextBlock Text="Gateway" FontWeight="SemiBold"/>
+                        <TextBox Grid.Column="1" Text="{Binding GatewayHost}" Watermark="Gateway host optional"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GatewayDomain}" Watermark="Gateway domain optional"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GatewayUsername}" Watermark="Gateway username optional"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GatewayPassword}" Watermark="{Binding GatewayPasswordWatermark}" PasswordChar="*"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Classes="ShellBar" BorderThickness="0,1,0,0" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                <TextBlock Text="{Binding ValidationMessage}" Foreground="#D13438" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                <Button Grid.Column="1" Content="Cancel" MinWidth="96" Classes="Compact" Click="OnCancelClicked"/>
+                <Button Grid.Column="2" Content="Save" MinWidth="112" Classes="Accent Compact" Click="OnSaveClicked"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

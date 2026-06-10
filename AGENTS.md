@@ -86,6 +86,21 @@ Clipboard redirection is text-only at the moment:
 
 ## Avalonia Notes
 
+Connection management UI:
+
+- `MainWindow` is a management shell with a saved-connections sidebar, selected profile summary, status bar, and RDP viewport.
+- Add/edit runs through `ConnectionEditorWindow`; keep password fields out of the main shell.
+- `MainWindowViewModel` owns saved profile loading, selected connection state, connect/disconnect commands, and the rendering/input path.
+- `ConnectionStore` stores non-secret metadata in per-user `connections.json` via `AppDataPaths`.
+- `connection.local.json` is only a local development/import convenience and must remain ignored by Git.
+
+Credential storage:
+
+- Do not store passwords in `connections.json` or source files.
+- `SecretStore.CreateDefault()` selects Windows Credential Manager, macOS Keychain, or Linux Secret Service via `secret-tool`.
+- Linux password save/load requires a working Secret Service session and `secret-tool`; do not silently fall back to plaintext.
+- Secret keys are derived from the saved connection ID with `SecretStore.PasswordKey` and `SecretStore.GatewayPasswordKey`.
+
 The initial RDP size comes from the measured `ScrollViewer` viewport, not from the `Image` bounds. The `Image` uses `Stretch="None"`, so its bounds can remain at the old remote bitmap size and should not be used as the target resolution.
 
 The startup window is intentionally large (`1440x900`) with `MinWidth="900"` and `MinHeight="600"` so the first connection gets a usable initial desktop size.

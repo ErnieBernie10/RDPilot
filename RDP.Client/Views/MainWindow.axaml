@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:RDP.Client.ViewModels"
+        xmlns:model="using:RDP.Client.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
@@ -11,7 +12,7 @@
         Height="900"
         MinWidth="900"
         MinHeight="600"
-        Title="RDP.Client">
+        Title="RDP Client">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
@@ -19,30 +20,87 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="5" Margin="5">
-            <TextBox Text="{Binding Host}" Watermark="Host"/>
-            <TextBox Text="{Binding Domain}" Watermark="Domain"/>
-            <TextBox Text="{Binding Username}" Watermark="Username"/>
-            <TextBox Text="{Binding Password}" Watermark="Password" PasswordChar="*"/>
-            <TextBox Text="{Binding GatewayHost}" Watermark="Gateway host"/>
-            <TextBox Text="{Binding GatewayDomain}" Watermark="Gateway domain"/>
-            <TextBox Text="{Binding GatewayUsername}" Watermark="Gateway Username"/>
-            <TextBox Text="{Binding GatewayPassword}" Watermark="Gateway Password" PasswordChar="*"/>
-            <Button Content="Connect" Command="{Binding ConnectCommand}"/>
-            <Button Content="Disconnect" Command="{Binding DisconnectCommand}"/>
-        </StackPanel>
-        <ScrollViewer Name="RdpScrollViewer"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      SizeChanged="OnRdpViewportSizeChanged">
-            <Image Source="{Binding Screen}" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
-                   PointerMoved="OnPointerMoved"
-                   PointerPressed="OnPointerPressed"
-                   PointerReleased="OnPointerReleased"
-                   PointerWheelChanged="OnPointerWheelChanged"
-                   Focusable="True"
-                   Name="RdpImage"/>
-        </ScrollViewer>
-    </DockPanel>
+    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="*,Auto">
+        <Grid x:Name="ShellGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="Sidebar" Grid.Column="0" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="ShellBar">
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Connections" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="Hide" Classes="Compact" Click="OnToggleSidebarClicked"/>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                <Button Content="Add" Classes="Accent Compact" Click="OnAddConnectionClicked"/>
+                                <Button Grid.Column="1" Content="Edit" Classes="Compact" Click="OnEditConnectionClicked"/>
+                                <Button Grid.Column="2" Content="Delete" Classes="Compact" Click="OnDeleteConnectionClicked"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}" Background="Transparent" BorderThickness="0" Padding="6">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="model:SavedConnection">
+                                <Border Padding="10,8" CornerRadius="4">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Host}" FontSize="12" Opacity="0.72"/>
+                                        <TextBlock Text="{Binding Username}" FontSize="12" Opacity="0.56"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="8" RowSpacing="8">
+                <Border Classes="Card">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Button x:Name="ShowSidebarButton" Content="Connections" Classes="Compact" Click="OnToggleSidebarClicked" IsVisible="False"/>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SelectedConnection.Name, TargetNullValue=No connection selected}" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding SelectedConnection.Host}" Opacity="0.74"/>
+                            <TextBlock Text="{Binding SelectedConnection.Username}" Opacity="0.58"/>
+                            <TextBlock Text="{Binding SelectedConnection.GatewayHost}" Opacity="0.58"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                            <Button Content="Connect" Classes="Accent Compact" MinWidth="96" Command="{Binding ConnectCommand}"/>
+                            <Button Content="Disconnect" Classes="Compact" MinWidth="96" Command="{Binding DisconnectCommand}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Classes="ViewportCard">
+                    <Grid>
+                        <ScrollViewer Name="RdpScrollViewer"
+                                      Background="#0F1115"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"
+                                      SizeChanged="OnRdpViewportSizeChanged">
+                            <Image Source="{Binding Screen}" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                   PointerMoved="OnPointerMoved"
+                                   PointerPressed="OnPointerPressed"
+                                   PointerReleased="OnPointerReleased"
+                                   PointerWheelChanged="OnPointerWheelChanged"
+                                   Focusable="True"
+                                   Name="RdpImage"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12"/>
+        </Border>
+    </Grid>
 </Window>

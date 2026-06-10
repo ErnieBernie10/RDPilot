@@ -1,30 +1,29 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RDP.Client.Models;
+using RDP.Client.Services;
 
 namespace RDP.Client.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
     [ObservableProperty] private WriteableBitmap? _screen;
+    [ObservableProperty] private SavedConnection? _selectedConnection;
+    [ObservableProperty] private string _statusMessage = "Loading saved connections...";
+    [ObservableProperty] private bool _isConnected;
 
-    [ObservableProperty] private string _host = "";
-    [ObservableProperty] private string _domain = "";
-    [ObservableProperty] private string _username = "";
-    [ObservableProperty] private string _password = "";
-    [ObservableProperty] private string _gatewayHost = "";
-    [ObservableProperty] private string _gatewayDomain = "";
-    [ObservableProperty] private string _gatewayUsername = "";
-    [ObservableProperty] private string _gatewayPassword = "";
+    private readonly ConnectionStore _connectionStore;
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly object _frameLock = new();
     private int _requestedWidth = 1280;
@@ -47,44 +46,118 @@ public partial class MainWindowViewModel : ViewModelBase
     private double _lastInputToFrameMs;
     private double _inputToFrameMaxMs;
 
-    public MainWindowViewModel()
+    public ObservableCollection<SavedConnection> Connections { get; } = new();
+    public string ConnectionsFilePath => _connectionStore.ConnectionsFilePath;
+    public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
+
+    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()))
     {
+    }
+
+    public MainWindowViewModel(ConnectionStore connectionStore)
+    {
+        _connectionStore = connectionStore;
         _frameCallback = OnFrameReceived;
         NativeWrapper.set_frame_callback(_frameCallback);
-        LoadLocalConnectionSettings();
+        _ = LoadConnectionsAsync();
     }
 
-    private void LoadLocalConnectionSettings()
+    public async Task LoadConnectionsAsync()
     {
-        var settingsPath = Path.Combine(AppContext.BaseDirectory, "connection.local.json");
-        if (!File.Exists(settingsPath))
+        try
+        {
+            var connections = await _connectionStore.LoadAsync();
+            Connections.Clear();
+            foreach (var connection in connections)
+            {
+                Connections.Add(connection);
+            }
+
+            SelectedConnection = Connections.FirstOrDefault();
+            StatusMessage = Connections.Count == 0
+                ? "Add a connection to get started."
+                : $"Loaded {Connections.Count} saved connection{(Connections.Count == 1 ? "" : "s")}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to load saved connections: {ex.Message}";
+        }
+    }
+
+    public async Task SaveConnectionAsync(ConnectionEditResult result)
+    {
+        try
+        {
+            await _connectionStore.SaveAsync(
+                result.Connection,
+                result.Password,
+                result.PasswordChanged,
+                result.GatewayPassword,
+                result.GatewayPasswordChanged);
+
+            await LoadConnectionsAsync();
+            SelectedConnection = Connections.FirstOrDefault(c => c.Id == result.Connection.Id) ?? Connections.FirstOrDefault();
+            StatusMessage = $"Saved {result.Connection.Name}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to save {result.Connection.Name}: {ex.Message}";
+        }
+    }
+
+    public async Task DeleteSelectedConnectionAsync()
+    {
+        if (SelectedConnection == null)
         {
             return;
         }
 
-        var settings = JsonSerializer.Deserialize<LocalConnectionSettings>(File.ReadAllText(settingsPath), new JsonSerializerOptions
+        try
         {
-            PropertyNameCaseInsensitive = true
-        });
+            var deletedName = SelectedConnection.Name;
+            await _connectionStore.DeleteAsync(SelectedConnection);
+            await LoadConnectionsAsync();
+            StatusMessage = $"Deleted {deletedName}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to delete connection: {ex.Message}";
+        }
+    }
 
-        if (settings == null)
+    private bool CanConnect()
+    {
+        return SelectedConnection != null;
+    }
+
+    partial void OnSelectedConnectionChanged(SavedConnection? value)
+    {
+        ConnectCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConnect))]
+    private async Task ConnectAsync()
+    {
+        if (SelectedConnection == null)
         {
             return;
         }
 
-        Host = settings.Host ?? "";
-        Domain = settings.Domain ?? "";
-        Username = settings.Username ?? "";
-        Password = settings.Password ?? "";
-        GatewayHost = settings.GatewayHost ?? "";
-        GatewayDomain = settings.GatewayDomain ?? "";
-        GatewayUsername = settings.GatewayUsername ?? "";
-        GatewayPassword = settings.GatewayPassword ?? "";
-    }
+        var connection = SelectedConnection;
+        string? password;
+        string? gatewayPassword;
 
-    [RelayCommand]
-    private void Connect()
-    {
+        try
+        {
+            password = await _connectionStore.GetPasswordAsync(connection) ?? "";
+            gatewayPassword = await _connectionStore.GetGatewayPasswordAsync(connection) ?? "";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to read password from {SecretStoreDescription}: {ex.Message}";
+            return;
+        }
+
         int width = _requestedWidth;
         int height = _requestedHeight;
 
@@ -93,13 +166,28 @@ public partial class MainWindowViewModel : ViewModelBase
             Screen = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         }
 
-        NativeWrapper.connect_rdp(Host, Domain, Username, Password, GatewayHost, GatewayDomain, GatewayUsername, GatewayPassword, width, height);
+        StatusMessage = $"Connecting to {connection.Name}...";
+        NativeWrapper.connect_rdp(
+            connection.Host,
+            connection.Domain,
+            connection.Username,
+            password,
+            connection.GatewayHost,
+            connection.GatewayDomain,
+            connection.GatewayUsername,
+            gatewayPassword,
+            width,
+            height);
+        IsConnected = true;
+        StatusMessage = $"Connected to {connection.Name}.";
     }
 
     [RelayCommand]
     private void Disconnect()
     {
         NativeWrapper.disconnect_rdp();
+        IsConnected = false;
+        StatusMessage = SelectedConnection == null ? "Disconnected." : $"Disconnected from {SelectedConnection.Name}.";
     }
 
     public void UpdateResolution(int width, int height)
@@ -298,15 +386,4 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public event EventHandler? RequestRedraw;
 
-    private sealed class LocalConnectionSettings
-    {
-        public string? Host { get; set; }
-        public string? Domain { get; set; }
-        public string? Username { get; set; }
-        public string? Password { get; set; }
-        public string? GatewayHost { get; set; }
-        public string? GatewayDomain { get; set; }
-        public string? GatewayUsername { get; set; }
-        public string? GatewayPassword { get; set; }
-    }
 }

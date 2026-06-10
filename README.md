@@ -8,7 +8,7 @@ Current focus/features:
 - Classic GDI rendering path for resize stability.
 - Low-latency input forwarding with coalesced mouse movement.
 - Text-only clipboard redirection through FreeRDP `cliprdr`.
-- Local-only development connection settings via an ignored JSON file.
+- Saved connection profiles with passwords stored in the OS credential vault.
 
 ## System dependencies
 
@@ -19,12 +19,15 @@ The .NET project builds the native wrapper with CMake before compiling the clien
 - C compiler toolchain
 - pkg-config
 - FreeRDP 3 development packages, including `freerdp3`, `freerdp-client3`, and `winpr3`
+- `secret-tool`/Secret Service for saving passwords on Linux
 
 On Arch/CachyOS, the relevant packages are typically:
 
 ```sh
 sudo pacman -S dotnet-sdk cmake gcc pkgconf freerdp
 ```
+
+For Linux password storage, install the package that provides `secret-tool` and make sure a Secret Service keyring is running. On many GNOME-based systems this comes from `libsecret` and `gnome-keyring`.
 
 ## Build and run
 
@@ -35,9 +38,23 @@ dotnet run --project RDP.Client/RDP.Client.csproj
 
 The build creates `RDP.Wrapper/build/libfreerdp_wrapper.so` and copies it beside the .NET output so `DllImport("freerdp_wrapper")` can load it at runtime.
 
-## Local connection settings
+## Saved connections
 
-For development, copy `RDP.Client/connection.local.example.json` to `RDP.Client/connection.local.json` and fill in your RDP settings. The local file is ignored by Git and copied to the app output during build when present.
+The app stores saved connection metadata in the current user's profile. Passwords are not written to this JSON file; they are stored through the operating system credential vault.
+
+Profile metadata path:
+
+- Windows: `%APPDATA%/RDP.Client/connections.json`
+- macOS: `~/Library/Application Support/RDP.Client/connections.json`
+- Linux: `$XDG_CONFIG_HOME/RDP.Client/connections.json`, or `~/.config/RDP.Client/connections.json` when `XDG_CONFIG_HOME` is not set
+
+Password storage:
+
+- Windows: Credential Manager
+- macOS: Keychain
+- Linux: Secret Service via `secret-tool`
+
+For development migration, `RDP.Client/connection.local.json` is still ignored by Git and may be imported on first run if no saved profiles exist. Do not commit real credentials.
 
 ## Runtime notes
 
