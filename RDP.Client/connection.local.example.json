@@ -1,0 +1,10 @@
+{
+  "host": "rdp.example.local",
+  "domain": "",
+  "username": "your-user",
+  "password": "your-password",
+  "gatewayHost": "",
+  "gatewayDomain": "",
+  "gatewayUsername": "",
+  "gatewayPassword": ""
+}

@@ -3,10 +3,14 @@
         xmlns:vm="using:RDP.Client.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
         x:Class="RDP.Client.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
+        Width="1440"
+        Height="900"
+        MinWidth="900"
+        MinHeight="600"
         Title="RDP.Client">
 
     <Design.DataContext>
@@ -28,7 +32,10 @@
             <Button Content="Connect" Command="{Binding ConnectCommand}"/>
             <Button Content="Disconnect" Command="{Binding DisconnectCommand}"/>
         </StackPanel>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Name="RdpScrollViewer"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      SizeChanged="OnRdpViewportSizeChanged">
             <Image Source="{Binding Screen}" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
                    PointerMoved="OnPointerMoved"
                    PointerPressed="OnPointerPressed"

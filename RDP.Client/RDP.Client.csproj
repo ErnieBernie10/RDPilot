@@ -6,21 +6,24 @@
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <NativeWrapperProjectDir>$(MSBuildProjectDirectory)/../RDP.Wrapper</NativeWrapperProjectDir>
+        <NativeWrapperBuildDir>$(NativeWrapperProjectDir)/build</NativeWrapperBuildDir>
+        <NativeWrapperLibrary>$(NativeWrapperBuildDir)/libfreerdp_wrapper.so</NativeWrapperLibrary>
     </PropertyGroup>
 
     <ItemGroup>
         <Folder Include="Models\"/>
         <AvaloniaResource Include="Assets\**"/>
+        <None Include="connection.local.json" Condition="Exists('connection.local.json')" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
-    <!-- Add this Target to handle the native library build and copy -->
     <Target Name="BuildNativeWrapper" BeforeTargets="BeforeBuild">
         <Message Importance="High" Text="Building Native Wrapper..." />
-        <!-- Run make in the build directory -->
-        <Exec Command="make" WorkingDirectory="../RDP.Wrapper/build" />
+        <MakeDir Directories="$(NativeWrapperBuildDir)" />
+        <Exec Command="cmake -S &quot;$(NativeWrapperProjectDir)&quot; -B &quot;$(NativeWrapperBuildDir)&quot; -DCMAKE_BUILD_TYPE=$(Configuration)" />
+        <Exec Command="cmake --build &quot;$(NativeWrapperBuildDir)&quot; --config $(Configuration)" />
 
-        <!-- Copy the .so file to the output directory -->
         <ItemGroup>
-            <NativeLib Include="../RDP.Wrapper/build/libfreerdp_wrapper.so" />
+            <NativeLib Include="$(NativeWrapperLibrary)" />
         </ItemGroup>
         <Copy SourceFiles="@(NativeLib)"
               DestinationFolder="$(OutputPath)"

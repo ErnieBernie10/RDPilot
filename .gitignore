@@ -7,3 +7,6 @@ riderModule.iml
 .idea
 RDP.Wrapper/build
 .aider*
+RDP.Wrapper/cmake-build-*/
+.output.txt
+RDP.Client/connection.local.json
