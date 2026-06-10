@@ -6,3 +6,5 @@ riderModule.iml
 
 .idea
 RDP.Wrapper/build
+RDP.Wrapper/cmake-build-*/
+.output.txt

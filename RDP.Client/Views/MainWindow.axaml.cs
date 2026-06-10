@@ -7,6 +7,9 @@ namespace RDP.Client.Views;
 
 public partial class MainWindow : Window
 {
+    private const int MinimumRemoteWidth = 640;
+    private const int MinimumRemoteHeight = 480;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -15,8 +18,39 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel vm)
             {
                 vm.RequestRedraw += (s, e) => RdpImage.InvalidateVisual();
+                QueueViewportResolutionUpdate();
             }
         };
+
+        SizeChanged += OnSizeChanged;
+        Opened += (_, _) => QueueViewportResolutionUpdate();
+    }
+
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        QueueViewportResolutionUpdate();
+    }
+
+    private void OnRdpViewportSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        QueueViewportResolutionUpdate();
+    }
+
+    private void QueueViewportResolutionUpdate()
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        if (DataContext is MainWindowViewModel vm)
+        {
+            var size = RdpScrollViewer.Bounds.Size;
+            if (size.Width >= MinimumRemoteWidth && size.Height >= MinimumRemoteHeight)
+            {
+                vm.UpdateResolution((int)size.Width, (int)size.Height);
+            }
+        }
     }
 
     private const ushort PTR_FLAGS_MOVE = 0x0800;
