@@ -40,8 +40,7 @@
                    PointerMoved="OnPointerMoved"
                    PointerPressed="OnPointerPressed"
                    PointerReleased="OnPointerReleased"
-                   KeyDown="OnKeyDown"
-                   KeyUp="OnKeyUp"
+                   PointerWheelChanged="OnPointerWheelChanged"
                    Focusable="True"
                    Name="RdpImage"/>
         </ScrollViewer>

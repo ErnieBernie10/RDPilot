@@ -10,8 +10,14 @@ public static class NativeWrapper
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void FrameCallback(IntPtr data, int width, int height);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void ClipboardTextCallback(IntPtr text);
+
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void set_frame_callback(FrameCallback cb);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void set_clipboard_text_callback(ClipboardTextCallback cb);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
@@ -31,4 +37,7 @@ public static class NativeWrapper
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void send_keyboard_event(ushort flags, ushort code);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void clipboard_set_local_text([MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
 }
