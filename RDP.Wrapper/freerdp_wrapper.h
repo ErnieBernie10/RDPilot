@@ -3,8 +3,10 @@
 #include <stdbool.h>
 
 typedef void (*FrameCallback)(uint8_t* data, int width, int height);
+typedef void (*ClipboardTextCallback)(const char* text);
 
 void set_frame_callback(FrameCallback cb);
+void set_clipboard_text_callback(ClipboardTextCallback cb);
 bool connect_rdp(const char* host, const char* domain, const char* user, const char* password,
                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                  int width, int height);
@@ -12,4 +14,4 @@ void disconnect_rdp(void);
 void update_resolution(int width, int height);
 void send_mouse_event(uint16_t flags, uint16_t x, uint16_t y);
 void send_keyboard_event(uint16_t flags, uint16_t code);
-void update_resolution(int width, int height);
+void clipboard_set_local_text(const char* text);
