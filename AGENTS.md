@@ -9,6 +9,8 @@ This is an experimental RDP client with:
 
 The client uses `DllImport("freerdp_wrapper")` to call into `RDP.Wrapper/build/libfreerdp_wrapper.so`.
 
+Native sessions are handle-based. `rdp_session_connect` returns an opaque `rdp_session*`; resize, input, clipboard, disconnect, and free calls must use that handle. Do not reintroduce singleton native state for connection/session data.
+
 ## Build And Run
 
 Use the solution build; the .NET project configures/builds the native CMake wrapper automatically.
@@ -90,7 +92,10 @@ Connection management UI:
 
 - `MainWindow` is a management shell with a saved-connections sidebar, selected profile summary, status bar, and RDP viewport.
 - Add/edit runs through `ConnectionEditorWindow`; keep password fields out of the main shell.
-- `MainWindowViewModel` owns saved profile loading, selected connection state, connect/disconnect commands, and the rendering/input path.
+- `MainWindowViewModel` owns saved profile loading, selected connection state, tab collection, and connect/disconnect/close-tab commands.
+- `RdpSessionViewModel` owns one native session handle, frame coalescing, bitmap rendering state, resize, input, and per-session callbacks.
+- `Connect` creates a new tab/session even when another tab for the same saved connection already exists.
+- Switching tabs must not disconnect background sessions. Input, resize, and local clipboard updates should route only to `SelectedSession`.
 - `ConnectionStore` stores non-secret metadata in per-user `connections.json` via `AppDataPaths`.
 - `connection.local.json` is only a local development/import convenience and must remain ignored by Git.
 

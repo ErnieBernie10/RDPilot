@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using RDP.Client.Models;
 using RDP.Client.ViewModels;
 
@@ -16,20 +16,16 @@ public partial class MainWindow : Window
 {
     private const int MinimumRemoteWidth = 640;
     private const int MinimumRemoteHeight = 480;
-    private static readonly GridLength SidebarOpenWidth = new(260);
     private bool _rdpKeyboardActive;
-    private bool _sidebarOpen = true;
+    private ShellPanel _activePanel = ShellPanel.None;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly DispatcherTimer _clipboardPollTimer;
-    private readonly NativeWrapper.ClipboardTextCallback _clipboardTextCallback;
     private string? _lastClipboardText;
     private bool _settingClipboardFromRemote;
 
     public MainWindow()
     {
         InitializeComponent();
-        _clipboardTextCallback = OnRemoteClipboardTextReceived;
-        NativeWrapper.set_clipboard_text_callback(_clipboardTextCallback);
         _clipboardPollTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(500)
@@ -40,7 +36,8 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainWindowViewModel vm)
             {
-                vm.RequestRedraw += (s, e) => RdpImage.InvalidateVisual();
+                vm.SessionRedrawRequested += (s, e) => RdpImage.InvalidateVisual();
+                vm.RemoteClipboardTextReceived += OnRemoteClipboardTextReceived;
                 QueueViewportResolutionUpdate();
             }
         };
@@ -52,15 +49,22 @@ public partial class MainWindow : Window
             QueueViewportResolutionUpdate();
             _clipboardPollTimer.Start();
         };
-        Closed += (_, _) => _clipboardPollTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _clipboardPollTimer.Stop();
+            if (DataContext is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        };
         RdpImage.LostFocus += (_, _) => ReleasePressedRdpKeys();
         AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
     }
 
-    private void OnRemoteClipboardTextReceived(IntPtr textPtr)
+    private void OnRemoteClipboardTextReceived(object? sender, (RdpSessionViewModel Session, string Text) e)
     {
-        var text = Marshal.PtrToStringUTF8(textPtr) ?? "";
+        var text = e.Text;
         Dispatcher.UIThread.Post(async () =>
         {
             var clipboard = Clipboard;
@@ -108,7 +112,10 @@ public partial class MainWindow : Window
             }
 
             _lastClipboardText = text;
-            NativeWrapper.clipboard_set_local_text(text);
+            if (DataContext is MainWindowViewModel vm)
+            {
+                vm.SetLocalClipboardText(text);
+            }
         }
         catch (Exception ex)
         {
@@ -163,13 +170,91 @@ public partial class MainWindow : Window
         return window.ShowDialog<ConnectionEditResult?>(this);
     }
 
-    private void OnToggleSidebarClicked(object? sender, RoutedEventArgs e)
+    private async void OnTabCloseClicked(object? sender, RoutedEventArgs e)
     {
-        _sidebarOpen = !_sidebarOpen;
-        ShellGrid.ColumnDefinitions[0].Width = _sidebarOpen ? SidebarOpenWidth : new GridLength(0);
-        Sidebar.IsVisible = _sidebarOpen;
-        ShowSidebarButton.IsVisible = !_sidebarOpen;
-        QueueViewportResolutionUpdate();
+        e.Handled = true;
+        if (sender is not Button { Tag: RdpSessionViewModel session } || DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+
+        var shouldClose = await ConfirmCloseSessionAsync(session);
+        if (shouldClose)
+        {
+            await vm.CloseSessionAsync(session);
+        }
+    }
+
+    private Task<bool> ConfirmCloseSessionAsync(RdpSessionViewModel session)
+    {
+        var window = new Window
+        {
+            Title = "Close connection",
+            Width = 360,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var message = new TextBlock
+        {
+            Text = $"Close connection \"{session.Title}\"?",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+        };
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8
+        };
+
+        var noButton = new Button
+        {
+            Content = "No",
+            MinWidth = 84,
+            Classes = { "Compact" }
+        };
+        noButton.Click += (_, _) => window.Close(false);
+
+        var yesButton = new Button
+        {
+            Content = "Yes",
+            MinWidth = 84,
+            Classes = { "Accent", "Compact" }
+        };
+        yesButton.Click += (_, _) => window.Close(true);
+
+        buttons.Children.Add(noButton);
+        buttons.Children.Add(yesButton);
+        window.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(18),
+            Spacing = 16,
+            Children =
+            {
+                message,
+                buttons
+            }
+        };
+
+        return window.ShowDialog<bool>(this);
+    }
+
+    private void OnToggleConnectionsPanelClicked(object? sender, RoutedEventArgs e)
+    {
+        SetActivePanel(_activePanel == ShellPanel.Connections ? ShellPanel.None : ShellPanel.Connections);
+    }
+
+    private void OnConnectSavedConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        SetActivePanel(ShellPanel.None);
+    }
+
+    private void SetActivePanel(ShellPanel panel)
+    {
+        _activePanel = panel;
+        ConnectionsPanel.IsVisible = panel == ShellPanel.Connections;
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -430,6 +515,7 @@ public partial class MainWindow : Window
             Key.OemTilde => 0x29,
             Key.LeftShift => 0x2A,
             Key.OemBackslash => 0x2B,
+            Key.OemPipe => 0x2B,
             Key.Z => 0x2C,
             Key.X => 0x2D,
             Key.C => 0x2E,
@@ -487,5 +573,11 @@ public partial class MainWindow : Window
             Key.RightAlt => 0x138,
             _ => 0
         };
+    }
+
+    private enum ShellPanel
+    {
+        None,
+        Connections
     }
 }

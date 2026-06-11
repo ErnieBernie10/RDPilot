@@ -8,36 +8,39 @@ public static class NativeWrapper
     private const string LibName = "freerdp_wrapper";
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void FrameCallback(IntPtr data, int width, int height);
+    public delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void ClipboardTextCallback(IntPtr text);
+    public delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void StatusCallback(IntPtr session, int status);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void set_frame_callback(FrameCallback cb);
-
-    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void set_clipboard_text_callback(ClipboardTextCallback cb);
-
-    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.I1)]
-    public static extern bool connect_rdp(
+    public static extern IntPtr rdp_session_connect(
             string host, string domain, string user, string password,
             string? gatewayHost, string? gatewayDomain, string? gatewayUser, string? gatewayPassword,
-            int width, int height);
+            int width, int height,
+            FrameCallback frameCallback,
+            ClipboardTextCallback clipboardCallback,
+            StatusCallback statusCallback);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void disconnect_rdp();
+    public static extern void rdp_session_disconnect(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void update_resolution(int width, int height);
+    public static extern void rdp_session_free(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void send_mouse_event(ushort flags, ushort x, ushort y);
+    public static extern void rdp_session_update_resolution(IntPtr session, int width, int height);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void send_keyboard_event(ushort flags, ushort code);
+    public static extern void rdp_session_send_mouse_event(IntPtr session, ushort flags, ushort x, ushort y);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void clipboard_set_local_text([MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
+    public static extern void rdp_session_send_keyboard_event(IntPtr session, ushort flags, ushort code);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
+
 }

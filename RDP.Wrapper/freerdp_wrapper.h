@@ -2,16 +2,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef void (*FrameCallback)(uint8_t* data, int width, int height);
-typedef void (*ClipboardTextCallback)(const char* text);
+typedef struct rdp_session rdp_session;
 
-void set_frame_callback(FrameCallback cb);
-void set_clipboard_text_callback(ClipboardTextCallback cb);
-bool connect_rdp(const char* host, const char* domain, const char* user, const char* password,
-                 const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
-                 int width, int height);
-void disconnect_rdp(void);
-void update_resolution(int width, int height);
-void send_mouse_event(uint16_t flags, uint16_t x, uint16_t y);
-void send_keyboard_event(uint16_t flags, uint16_t code);
-void clipboard_set_local_text(const char* text);
+typedef void (*FrameCallback)(rdp_session* session, uint8_t* data, int width, int height);
+typedef void (*ClipboardTextCallback)(rdp_session* session, const char* text);
+typedef void (*StatusCallback)(rdp_session* session, int status);
+
+rdp_session* rdp_session_connect(const char* host, const char* domain, const char* user, const char* password,
+                                 const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
+                                 int width, int height, FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback);
+void rdp_session_disconnect(rdp_session* session);
+void rdp_session_free(rdp_session* session);
+void rdp_session_update_resolution(rdp_session* session, int width, int height);
+void rdp_session_send_mouse_event(rdp_session* session, uint16_t flags, uint16_t x, uint16_t y);
+void rdp_session_send_keyboard_event(rdp_session* session, uint16_t flags, uint16_t code);
+void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text);

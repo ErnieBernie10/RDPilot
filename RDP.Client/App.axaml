@@ -38,9 +38,54 @@
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="ClipToBounds" Value="True"/>
         </Style>
+        <Style Selector="Border.NavigationRail">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+        </Style>
+        <Style Selector="Border.OverlayPanel">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+            <Setter Property="BoxShadow" Value="0 8 24 0 #66000000"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinHeight" Value="26"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem">
+            <Setter Property="Padding" Value="8,1,6,3"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+        </Style>
         <Style Selector="Button.Compact">
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="MinHeight" Value="30"/>
+        </Style>
+        <Style Selector="Button.RailButton">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="MinWidth" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="MinHeight" Value="24"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.TopBarButton">
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="MinHeight" Value="24"/>
+        </Style>
+        <Style Selector="Button.TabCloseButton">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="MinWidth" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="MinHeight" Value="16"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.IconButton">
             <Setter Property="Padding" Value="0"/>

@@ -9,6 +9,7 @@ Current focus/features:
 - Low-latency input forwarding with coalesced mouse movement.
 - Text-only clipboard redirection through FreeRDP `cliprdr`.
 - Saved connection profiles with passwords stored in the OS credential vault.
+- Multiple simultaneous RDP sessions through tabs.
 
 ## System dependencies
 
@@ -73,3 +74,7 @@ Console logs include lightweight diagnostics:
 - `[CLIPRDR]`: clipboard channel, format negotiation, and text transfer events.
 
 Clipboard redirection is currently text-only using `CF_UNICODETEXT`. The Avalonia side polls the local clipboard periodically because there is no cross-platform clipboard-changed event in use here. Empty clipboard reads are ignored to avoid clearing the remote clipboard offer after transient platform reads.
+
+## Session tabs
+
+Each click of `Connect` opens a new RDP session tab for the selected saved connection. Switching tabs changes the visible framebuffer and routes input, resize, and local clipboard updates to the active session without disconnecting background sessions. Closing a tab disconnects and frees that session.
