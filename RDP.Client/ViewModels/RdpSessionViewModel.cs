@@ -15,7 +15,8 @@ namespace RDP.Client.ViewModels;
 public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 {
     [ObservableProperty] private WriteableBitmap? _screen;
-    [ObservableProperty] private string _status = "Connecting";
+    [ObservableProperty] private RdpSessionStatus _status = RdpSessionStatus.Connecting;
+    [ObservableProperty] private RdpSessionError? _lastError;
 
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardCallback;
@@ -23,6 +24,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
     private readonly object _frameLock = new();
     private IntPtr _handle;
+    private int _disposeStarted;
+    private int _disposed;
     private int _requestedWidth;
     private int _requestedHeight;
     private byte[]? _pendingFrame;
@@ -76,93 +79,144 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             _clipboardCallback,
             _statusCallback);
 
-        Status = _handle == IntPtr.Zero ? "Failed" : "Connecting";
+        if (_handle == IntPtr.Zero)
+        {
+            LastError = new RdpSessionError(0, "WRAPPER_SESSION_CREATE_FAILED", "Failed to start the RDP session.", RdpSessionErrorKind.Unknown);
+            Status = RdpSessionStatus.Failed;
+        }
+        else
+        {
+            Status = RdpSessionStatus.Connecting;
+        }
     }
 
     public SavedConnection Connection { get; }
     public string Title { get; }
-    public bool IsConnected => _handle != IntPtr.Zero && Status == "Connected";
-    public bool CanDisconnect => Status is "Connecting" or "Connected";
-    public bool CanReconnect => Status is "Failed" or "Disconnected";
+    public string StatusText => Status switch
+    {
+        RdpSessionStatus.Connecting => "Connecting",
+        RdpSessionStatus.Connected => "Connected",
+        RdpSessionStatus.Disconnecting => "Disconnecting",
+        RdpSessionStatus.Disconnected => "Disconnected",
+        RdpSessionStatus.Failed => "Failed",
+        _ => Status.ToString()
+    };
+    public string? ErrorText => LastError?.Message;
+    public bool IsConnected => _handle != IntPtr.Zero && Status == RdpSessionStatus.Connected;
+    public bool CanDisconnect => Status is RdpSessionStatus.Connecting or RdpSessionStatus.Connected;
+    public bool CanReconnect => Status is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected;
     public event EventHandler? RequestRedraw;
 
-    partial void OnStatusChanged(string value)
+    partial void OnStatusChanged(RdpSessionStatus value)
     {
+        OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(CanDisconnect));
         OnPropertyChanged(nameof(CanReconnect));
     }
 
+    partial void OnLastErrorChanged(RdpSessionError? value)
+    {
+        OnPropertyChanged(nameof(ErrorText));
+    }
+
     public async Task DisconnectAsync()
     {
-        if (_handle == IntPtr.Zero)
+        if (IsDisposed)
         {
-            Status = "Disconnected";
             return;
         }
 
-        Status = "Disconnecting";
-        await Task.Run(() => NativeWrapper.rdp_session_disconnect(_handle));
-        Status = "Disconnected";
+        var handle = _handle;
+        if (handle == IntPtr.Zero)
+        {
+            if (!IsDisposeStarted)
+            {
+                LastError = null;
+                Status = RdpSessionStatus.Disconnected;
+            }
+            return;
+        }
+
+        Status = RdpSessionStatus.Disconnecting;
+        await Task.Run(() => NativeWrapper.rdp_session_disconnect(handle));
+        if (IsDisposeStarted)
+        {
+            return;
+        }
+
+        LastError = null;
+        Status = RdpSessionStatus.Disconnected;
     }
 
     public void UpdateResolution(int width, int height)
     {
-        if (_handle == IntPtr.Zero || width <= 0 || height <= 0)
+        if (!TryGetActiveHandle(out var handle) || width <= 0 || height <= 0)
         {
             return;
         }
 
         _requestedWidth = width;
         _requestedHeight = height;
-        NativeWrapper.rdp_session_update_resolution(_handle, width, height);
+        NativeWrapper.rdp_session_update_resolution(handle, width, height);
     }
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y)
     {
-        if (_handle == IntPtr.Zero) return;
+        if (!TryGetActiveHandle(out var handle)) return;
         MarkInputSent();
-        NativeWrapper.rdp_session_send_mouse_event(_handle, flags, x, y);
+        NativeWrapper.rdp_session_send_mouse_event(handle, flags, x, y);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
     {
-        if (_handle == IntPtr.Zero) return;
+        if (!TryGetActiveHandle(out var handle)) return;
         MarkInputSent();
-        NativeWrapper.rdp_session_send_keyboard_event(_handle, flags, code);
+        NativeWrapper.rdp_session_send_keyboard_event(handle, flags, code);
     }
 
     public void SetLocalClipboardText(string text)
     {
-        if (_handle == IntPtr.Zero) return;
-        NativeWrapper.rdp_session_clipboard_set_local_text(_handle, text);
+        if (!TryGetActiveHandle(out var handle)) return;
+        NativeWrapper.rdp_session_clipboard_set_local_text(handle, text);
     }
 
     private void OnRemoteClipboardTextReceived(IntPtr session, IntPtr textPtr)
     {
-        if (session != _handle) return;
+        if (!IsActiveCallbackSession(session)) return;
         var text = Marshal.PtrToStringUTF8(textPtr) ?? "";
+        if (IsDisposeStarted) return;
         _remoteClipboardTextReceived(this, text);
     }
 
-    private void OnStatusChanged(IntPtr session, int status)
+    private void OnStatusChanged(IntPtr session, int status, uint errorCode, IntPtr errorNamePtr, IntPtr errorMessagePtr)
     {
-        if (_handle != IntPtr.Zero && session != _handle) return;
+        if (!IsActiveCallbackSession(session)) return;
 
-        var statusText = status switch
+        var statusValue = status switch
         {
-            1 => "Connected",
-            2 => "Failed",
-            3 => "Disconnected",
+            1 => RdpSessionStatus.Connected,
+            2 => RdpSessionStatus.Failed,
+            3 => RdpSessionStatus.Disconnected,
             _ => Status
         };
+        var errorName = Marshal.PtrToStringUTF8(errorNamePtr);
+        var errorMessage = Marshal.PtrToStringUTF8(errorMessagePtr);
+        var error = statusValue == RdpSessionStatus.Failed
+            ? RdpSessionError.Create(errorCode, errorName, errorMessage)
+            : null;
 
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => Status = statusText);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsActiveCallbackSession(session)) return;
+            LastError = error;
+            Status = statusValue;
+        });
     }
 
     private void OnFrameReceived(IntPtr session, IntPtr data, int width, int height)
     {
-        if (session != _handle) return;
+        if (!IsActiveCallbackSession(session)) return;
 
         var size = width * height * 4;
         var frame = ArrayPool<byte>.Shared.Rent(size);
@@ -201,6 +255,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private void RenderPendingFrame()
     {
+        if (IsDisposeStarted)
+        {
+            ClearPendingFrame();
+            return;
+        }
+
         byte[]? frame;
         int size;
         int width;
@@ -228,6 +288,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
         try
         {
+            if (IsDisposeStarted)
+            {
+                return;
+            }
+
             var renderTicks = Stopwatch.GetTimestamp();
             var queueDelayMs = ElapsedMilliseconds(receivedTicks, renderTicks);
 
@@ -275,7 +340,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             else _renderQueued = false;
         }
 
-        if (shouldPostAgain)
+        if (shouldPostAgain && !IsDisposeStarted)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(RenderPendingFrame);
         }
@@ -314,12 +379,38 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        if (_handle != IntPtr.Zero)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
         {
-            NativeWrapper.rdp_session_free(_handle);
-            _handle = IntPtr.Zero;
+            return;
         }
 
+        var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
+        if (handle != IntPtr.Zero)
+        {
+            NativeWrapper.rdp_session_free(handle);
+        }
+
+        ClearPendingFrame();
+        Interlocked.Exchange(ref _disposed, 1);
+    }
+
+    private bool TryGetActiveHandle(out IntPtr handle)
+    {
+        handle = _handle;
+        return !IsDisposeStarted && handle != IntPtr.Zero;
+    }
+
+    private bool IsActiveCallbackSession(IntPtr session)
+    {
+        var handle = _handle;
+        return !IsDisposeStarted && handle != IntPtr.Zero && session == handle;
+    }
+
+    private bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
+    private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+    private void ClearPendingFrame()
+    {
         lock (_frameLock)
         {
             if (_pendingFrame != null)
@@ -327,6 +418,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 ArrayPool<byte>.Shared.Return(_pendingFrame);
                 _pendingFrame = null;
             }
+
+            _renderQueued = false;
         }
     }
 }

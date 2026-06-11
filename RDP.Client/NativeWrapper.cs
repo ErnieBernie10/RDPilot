@@ -14,7 +14,7 @@ public static class NativeWrapper
     public delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void StatusCallback(IntPtr session, int status);
+    public delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr rdp_session_connect(

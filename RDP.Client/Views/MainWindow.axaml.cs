@@ -173,15 +173,15 @@ public partial class MainWindow : Window
     private async void OnTabCloseClicked(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
-        if (sender is not Button { Tag: RdpSessionViewModel session } || DataContext is not MainWindowViewModel vm)
+        if (sender is not Button { CommandParameter: RdpSessionViewModel session } || DataContext is not MainWindowViewModel vm)
         {
             return;
         }
 
         var shouldClose = await ConfirmCloseSessionAsync(session);
-        if (shouldClose)
+        if (shouldClose && vm.CloseSessionCommand.CanExecute(session))
         {
-            await vm.CloseSessionAsync(session);
+            await vm.CloseSessionCommand.ExecuteAsync(session);
         }
     }
 

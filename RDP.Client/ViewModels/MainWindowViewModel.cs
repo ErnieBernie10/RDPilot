@@ -150,28 +150,32 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         StatusMessage = $"Connecting to {connection.Name}...";
     }
 
-    private bool HasSelectedSession() => SelectedSession != null;
-    private bool CanDisconnectSelectedSession() => SelectedSession?.CanDisconnect == true;
-    private bool CanReconnectSelectedSession() => SelectedSession?.CanReconnect == true;
+    private bool CanDisconnectSession(RdpSessionViewModel? session) => session?.CanDisconnect == true;
+    private bool CanReconnectSession(RdpSessionViewModel? session) => session?.CanReconnect == true;
+    private bool CanCloseSession(RdpSessionViewModel? session) => session != null;
 
-    [RelayCommand(CanExecute = nameof(CanDisconnectSelectedSession))]
-    private async Task DisconnectAsync()
+    [RelayCommand(CanExecute = nameof(CanDisconnectSession))]
+    private async Task DisconnectSessionAsync(RdpSessionViewModel? session)
     {
-        if (SelectedSession == null) return;
+        if (session == null) return;
 
-        await SelectedSession.DisconnectAsync();
-        IsConnected = false;
-        StatusMessage = $"Disconnected from {SelectedSession.Title}.";
+        await session.DisconnectAsync();
+        if (ReferenceEquals(session, SelectedSession))
+        {
+            IsConnected = false;
+            UpdateStatusMessageFromSelectedSession();
+        }
     }
 
-    [RelayCommand(CanExecute = nameof(CanReconnectSelectedSession))]
-    private async Task ReconnectSelectedSessionAsync()
+    [RelayCommand(CanExecute = nameof(CanReconnectSession))]
+    private async Task ReconnectSessionAsync(RdpSessionViewModel? session)
     {
-        if (SelectedSession == null) return;
+        if (session == null) return;
 
-        var oldSession = SelectedSession;
+        var oldSession = session;
         var index = Sessions.IndexOf(oldSession);
         if (index < 0) return;
+        var wasSelected = ReferenceEquals(oldSession, SelectedSession);
 
         string password;
         string gatewayPassword;
@@ -191,19 +195,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SubscribeSession(newSession);
         UnsubscribeSession(oldSession);
         Sessions[index] = newSession;
-        SelectedSession = newSession;
+        if (wasSelected)
+        {
+            SelectedSession = newSession;
+        }
         oldSession.Dispose();
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedSession))]
-    private async Task CloseSessionAsync()
+    [RelayCommand(CanExecute = nameof(CanCloseSession))]
+    private async Task CloseSessionAsync(RdpSessionViewModel? session)
     {
-        if (SelectedSession == null) return;
-        await CloseSessionAsync(SelectedSession);
-    }
+        if (session == null) return;
 
-    public async Task CloseSessionAsync(RdpSessionViewModel session)
-    {
         var index = Sessions.IndexOf(session);
         if (index < 0) return;
 
@@ -293,7 +296,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(RdpSessionViewModel.Status) or nameof(RdpSessionViewModel.IsConnected) or nameof(RdpSessionViewModel.CanDisconnect) or nameof(RdpSessionViewModel.CanReconnect)
+        if (e.PropertyName is nameof(RdpSessionViewModel.Status) or nameof(RdpSessionViewModel.StatusText) or nameof(RdpSessionViewModel.LastError) or nameof(RdpSessionViewModel.ErrorText) or nameof(RdpSessionViewModel.IsConnected) or nameof(RdpSessionViewModel.CanDisconnect) or nameof(RdpSessionViewModel.CanReconnect)
             && ReferenceEquals(sender, SelectedSession))
         {
             UpdateSelectedSessionState();
@@ -306,8 +309,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsConnected = SelectedSession?.IsConnected == true;
         SelectedSessionCanDisconnect = SelectedSession?.CanDisconnect == true;
         SelectedSessionCanReconnect = SelectedSession?.CanReconnect == true;
-        DisconnectCommand.NotifyCanExecuteChanged();
-        ReconnectSelectedSessionCommand.NotifyCanExecuteChanged();
+        DisconnectSessionCommand.NotifyCanExecuteChanged();
+        ReconnectSessionCommand.NotifyCanExecuteChanged();
         CloseSessionCommand.NotifyCanExecuteChanged();
     }
 
@@ -317,11 +320,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         StatusMessage = SelectedSession.Status switch
         {
-            "Connected" => $"Connected to {SelectedSession.Title}.",
-            "Connecting" => $"Connecting to {SelectedSession.Title}...",
-            "Failed" => $"Failed to connect to {SelectedSession.Title}.",
-            "Disconnected" => $"Disconnected from {SelectedSession.Title}.",
-            "Disconnecting" => $"Disconnecting from {SelectedSession.Title}...",
+            RdpSessionStatus.Connected => $"Connected to {SelectedSession.Title}.",
+            RdpSessionStatus.Connecting => $"Connecting to {SelectedSession.Title}...",
+            RdpSessionStatus.Failed => SelectedSession.ErrorText is { Length: > 0 } error
+                ? $"Failed to connect to {SelectedSession.Title}: {error}"
+                : $"Failed to connect to {SelectedSession.Title}.",
+            RdpSessionStatus.Disconnected => $"Disconnected from {SelectedSession.Title}.",
+            RdpSessionStatus.Disconnecting => $"Disconnecting from {SelectedSession.Title}...",
             _ => StatusMessage
         };
     }

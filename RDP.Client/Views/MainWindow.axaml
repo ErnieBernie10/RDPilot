@@ -45,11 +45,11 @@
                                 <DataTemplate x:DataType="vm:RdpSessionViewModel">
                                     <Grid MinWidth="160" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" VerticalAlignment="Bottom">
                                         <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Bottom"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11" Opacity="0.65" VerticalAlignment="Bottom" Margin="0,0,0,1"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Opacity="0.65" VerticalAlignment="Bottom" Margin="0,0,0,1"/>
                                         <Button Grid.Column="2"
                                                 Content="x"
                                                 Classes="TabCloseButton"
-                                                Tag="{Binding}"
+                                                CommandParameter="{Binding}"
                                                 ToolTip.Tip="Close tab"
                                                 VerticalAlignment="Bottom"
                                                 Click="OnTabCloseClicked"/>
@@ -63,8 +63,8 @@
                             </TabControl.ContentTemplate>
                         </TabControl>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                            <Button Content="Disconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectCommand}" IsVisible="{Binding SelectedSessionCanDisconnect}"/>
-                            <Button Content="Reconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSelectedSessionCommand}" IsVisible="{Binding SelectedSessionCanReconnect}"/>
+                            <Button Content="Disconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanDisconnect}"/>
+                            <Button Content="Reconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}"/>
                         </StackPanel>
                     </Grid>
 

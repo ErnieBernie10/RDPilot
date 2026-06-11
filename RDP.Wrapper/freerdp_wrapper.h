@@ -6,7 +6,7 @@ typedef struct rdp_session rdp_session;
 
 typedef void (*FrameCallback)(rdp_session* session, uint8_t* data, int width, int height);
 typedef void (*ClipboardTextCallback)(rdp_session* session, const char* text);
-typedef void (*StatusCallback)(rdp_session* session, int status);
+typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
 
 rdp_session* rdp_session_connect(const char* host, const char* domain, const char* user, const char* password,
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,

@@ -102,6 +102,12 @@ typedef struct {
     int height;
 } connection_params;
 
+typedef struct {
+    UINT32 code;
+    const char* name;
+    const char* message;
+} connection_error;
+
 static BOOL on_surface_bits(rdpContext* context, const SURFACE_BITS_COMMAND* cmd);
 static BOOL on_end_paint(rdpContext* context);
 static BOOL on_desktop_resize(rdpContext* context);
@@ -110,6 +116,32 @@ static rdp_session* session_from_context(rdpContext* context)
 {
     if (!context) return NULL;
     return ((wrapper_context*)context)->session;
+}
+
+static void emit_status(rdp_session* session, int status, const connection_error* error)
+{
+    if (!session || !session->status_callback) return;
+    session->status_callback(
+        session,
+        status,
+        error ? error->code : 0,
+        error ? error->name : NULL,
+        error ? error->message : NULL);
+}
+
+static void capture_last_error(rdpContext* context, connection_error* error)
+{
+    if (!error) return;
+    memset(error, 0, sizeof(connection_error));
+
+    if (!context) return;
+
+    error->code = freerdp_get_last_error(context);
+    if (error->code != 0)
+    {
+        error->name = freerdp_get_last_error_name(error->code);
+        error->message = freerdp_get_last_error_string(error->code);
+    }
 }
 
 static void log_channel_rc(const char* operation, UINT rc)
@@ -898,16 +930,24 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     return true;
 }
 
-static bool connect_attempt(rdp_session* session, const connection_params* params, bool use_gateway)
+static bool connect_attempt(rdp_session* session, const connection_params* params, bool use_gateway, connection_error* error)
 {
+    if (error) memset(error, 0, sizeof(connection_error));
+
     if (!setup_instance(session, params, use_gateway))
     {
+        if (error)
+        {
+            error->name = "WRAPPER_SETUP_FAILED";
+            error->message = "Failed to initialize the RDP client before connecting.";
+        }
         return false;
     }
 
     printf("[DEBUG] Connecting %s gateway...\n", use_gateway ? "with" : "without");
     if (!freerdp_connect(session->instance)) {
         fprintf(stderr, "Failed to connect %s gateway\n", use_gateway ? "with" : "without");
+        capture_last_error(session->instance->context, error);
         cleanup_instance(session);
         return false;
     }
@@ -924,27 +964,29 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
         fprintf(stderr, "Failed to register FreeRDP static addin provider\n");
         free(params);
         session->running = false;
-        if (session->status_callback) session->status_callback(session, 2);
+        connection_error error = { 0, "WRAPPER_ADDIN_PROVIDER_FAILED", "Failed to register FreeRDP static addin provider." };
+        emit_status(session, 2, &error);
         return 1;
     }
 
     bool has_gateway = params->gateway_host[0] != '\0';
-    bool connected = connect_attempt(session, params, false);
+    connection_error error;
+    bool connected = connect_attempt(session, params, false, &error);
 
     if (!connected && has_gateway && session->running)
     {
-        connected = connect_attempt(session, params, true);
+        connected = connect_attempt(session, params, true, &error);
     }
 
     if (!connected) {
         fprintf(stderr, "Failed to connect\n");
         free(params);
         session->running = false;
-        if (session->status_callback) session->status_callback(session, 2);
+        emit_status(session, 2, &error);
         return 1;
     }
 
-    if (session->status_callback) session->status_callback(session, 1);
+    emit_status(session, 1, NULL);
 
     gdi_init(session->instance, PIXEL_FORMAT_BGRA32);
 
@@ -1003,7 +1045,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
     session->gfx = NULL;
     session->disp_ready = false;
     session->running = false;
-    if (session->status_callback) session->status_callback(session, 3);
+    emit_status(session, 3, NULL);
 
     return 0;
 }
