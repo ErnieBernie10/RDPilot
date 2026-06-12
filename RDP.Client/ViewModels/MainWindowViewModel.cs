@@ -20,6 +20,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _selectedSessionCanReconnect;
 
     private readonly ConnectionStore _connectionStore;
+    private readonly IRdpSessionFactory _sessionFactory;
     private int _requestedWidth = 1280;
     private int _requestedHeight = 720;
 
@@ -30,13 +31,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
     public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
 
-    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()))
+    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore)
+    public MainWindowViewModel(ConnectionStore connectionStore) : this(connectionStore, new RdpSessionFactory())
+    {
+    }
+
+    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory)
     {
         _connectionStore = connectionStore;
+        _sessionFactory = sessionFactory;
         _ = LoadConnectionsAsync();
     }
 
@@ -273,7 +279,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         string gatewayPassword,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
     {
-        return new RdpSessionViewModel(
+        return _sessionFactory.Create(
             connection,
             password,
             gatewayPassword,

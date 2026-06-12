@@ -10,3 +10,4 @@ RDP.Wrapper/build
 RDP.Wrapper/cmake-build-*/
 .output.txt
 RDP.Client/connection.local.json
+ROADMAP.md
