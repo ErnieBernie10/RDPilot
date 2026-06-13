@@ -1,12 +1,8 @@
 using System;
-using System.Buffers;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RDP.Client.Models;
 
@@ -21,30 +17,15 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardCallback;
     private readonly NativeWrapper.StatusCallback _statusCallback;
+    private readonly NativeWrapper.CertificateDecisionCallback _certificateDecisionCallback;
     private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
-    private readonly object _frameLock = new();
+    private readonly Func<RdpCertificatePrompt, CertificateTrustDecision> _certificateTrustDecision;
+    private readonly ManagedFramePresenter _framePresenter;
     private IntPtr _handle;
     private int _disposeStarted;
     private int _disposed;
     private int _requestedWidth;
     private int _requestedHeight;
-    private byte[]? _pendingFrame;
-    private int _pendingFrameSize;
-    private int _pendingFrameWidth;
-    private int _pendingFrameHeight;
-    private long _pendingFrameReceivedTicks;
-    private bool _renderQueued;
-    private long _lastPerfLogTicks = Stopwatch.GetTimestamp();
-    private long _framesReceived;
-    private long _framesRendered;
-    private long _framesDropped;
-    private long _bytesReceived;
-    private double _queueDelayTotalMs;
-    private double _queueDelayMaxMs;
-    private long _lastInputTicks;
-    private int _inputWaitingForFrame;
-    private double _lastInputToFrameMs;
-    private double _inputToFrameMaxMs;
 
     public RdpSessionViewModel(
         SavedConnection connection,
@@ -52,7 +33,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         string gatewayPassword,
         int width,
         int height,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
+        Func<RdpCertificatePrompt, CertificateTrustDecision> certificateTrustDecision)
     {
         Connection = connection.Clone();
         Title = connection.Name;
@@ -62,8 +44,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _frameCallback = OnFrameReceived;
         _clipboardCallback = OnRemoteClipboardTextReceived;
         _statusCallback = OnStatusChanged;
+        _certificateDecisionCallback = OnCertificateDecisionRequested;
+        _certificateTrustDecision = certificateTrustDecision;
+        _framePresenter = new ManagedFramePresenter(Title, width, height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty));
 
-        Screen = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         _handle = NativeWrapper.rdp_session_connect(
             connection.Host,
             connection.Domain,
@@ -77,7 +61,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             height,
             _frameCallback,
             _clipboardCallback,
-            _statusCallback);
+            _statusCallback,
+            _certificateDecisionCallback);
 
         if (_handle == IntPtr.Zero)
         {
@@ -88,6 +73,24 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         {
             Status = RdpSessionStatus.Connecting;
         }
+    }
+
+    internal RdpSessionViewModel(
+        SavedConnection connection,
+        RdpSessionStatus status,
+        RdpSessionError? error = null)
+    {
+        Connection = connection.Clone();
+        Title = connection.Name;
+        _remoteClipboardTextReceived = static (_, _) => { };
+        _frameCallback = OnFrameReceived;
+        _clipboardCallback = OnRemoteClipboardTextReceived;
+        _statusCallback = OnStatusChanged;
+        _certificateDecisionCallback = OnCertificateDecisionRequested;
+        _certificateTrustDecision = static _ => CertificateTrustDecision.Reject;
+        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), initializeBitmap: false);
+        LastError = error;
+        Status = status;
     }
 
     public SavedConnection Connection { get; }
@@ -106,6 +109,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public bool CanDisconnect => Status is RdpSessionStatus.Connecting or RdpSessionStatus.Connected;
     public bool CanReconnect => Status is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected;
     public event EventHandler? RequestRedraw;
+
+    internal void SetTestStatus(RdpSessionStatus status, RdpSessionError? error = null)
+    {
+        LastError = error;
+        Status = status;
+    }
 
     partial void OnStatusChanged(RdpSessionStatus value)
     {
@@ -164,14 +173,14 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public void SendMouseEvent(ushort flags, ushort x, ushort y)
     {
         if (!TryGetActiveHandle(out var handle)) return;
-        MarkInputSent();
+        _framePresenter.MarkInputSent();
         NativeWrapper.rdp_session_send_mouse_event(handle, flags, x, y);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
     {
         if (!TryGetActiveHandle(out var handle)) return;
-        MarkInputSent();
+        _framePresenter.MarkInputSent();
         NativeWrapper.rdp_session_send_keyboard_event(handle, flags, code);
     }
 
@@ -217,164 +226,37 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private void OnFrameReceived(IntPtr session, IntPtr data, int width, int height)
     {
         if (!IsActiveCallbackSession(session)) return;
-
-        var size = width * height * 4;
-        var frame = ArrayPool<byte>.Shared.Rent(size);
-        Marshal.Copy(data, frame, 0, size);
-        var receivedTicks = Stopwatch.GetTimestamp();
-        var shouldPostRender = false;
-
-        lock (_frameLock)
-        {
-            if (_pendingFrame != null)
-            {
-                ArrayPool<byte>.Shared.Return(_pendingFrame);
-                _framesDropped++;
-            }
-
-            _pendingFrame = frame;
-            _pendingFrameSize = size;
-            _pendingFrameWidth = width;
-            _pendingFrameHeight = height;
-            _pendingFrameReceivedTicks = receivedTicks;
-            _framesReceived++;
-            _bytesReceived += size;
-
-            if (!_renderQueued)
-            {
-                _renderQueued = true;
-                shouldPostRender = true;
-            }
-        }
-
-        if (shouldPostRender)
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(RenderPendingFrame);
-        }
+        _framePresenter.EnqueueFrame(data, width, height);
     }
 
-    private void RenderPendingFrame()
+    private int OnCertificateDecisionRequested(
+        IntPtr session,
+        IntPtr hostPtr,
+        ushort port,
+        IntPtr commonNamePtr,
+        IntPtr subjectPtr,
+        IntPtr issuerPtr,
+        IntPtr fingerprintPtr,
+        int isChanged,
+        IntPtr previousSubjectPtr,
+        IntPtr previousIssuerPtr,
+        IntPtr previousFingerprintPtr)
     {
-        if (IsDisposeStarted)
-        {
-            ClearPendingFrame();
-            return;
-        }
+        if (!IsActiveCallbackSession(session)) return (int)CertificateTrustDecision.Reject;
 
-        byte[]? frame;
-        int size;
-        int width;
-        int height;
-        long receivedTicks;
+        var prompt = new RdpCertificatePrompt(
+            Marshal.PtrToStringUTF8(hostPtr) ?? Connection.Host,
+            port,
+            Marshal.PtrToStringUTF8(commonNamePtr) ?? "",
+            Marshal.PtrToStringUTF8(subjectPtr) ?? "",
+            Marshal.PtrToStringUTF8(issuerPtr) ?? "",
+            Marshal.PtrToStringUTF8(fingerprintPtr) ?? "",
+            isChanged != 0,
+            Marshal.PtrToStringUTF8(previousSubjectPtr),
+            Marshal.PtrToStringUTF8(previousIssuerPtr),
+            Marshal.PtrToStringUTF8(previousFingerprintPtr));
 
-        lock (_frameLock)
-        {
-            frame = _pendingFrame;
-            size = _pendingFrameSize;
-            width = _pendingFrameWidth;
-            height = _pendingFrameHeight;
-            receivedTicks = _pendingFrameReceivedTicks;
-            _pendingFrame = null;
-        }
-
-        if (frame == null)
-        {
-            lock (_frameLock)
-            {
-                _renderQueued = false;
-            }
-            return;
-        }
-
-        try
-        {
-            if (IsDisposeStarted)
-            {
-                return;
-            }
-
-            var renderTicks = Stopwatch.GetTimestamp();
-            var queueDelayMs = ElapsedMilliseconds(receivedTicks, renderTicks);
-
-            if (Screen == null || Screen.PixelSize.Width != width || Screen.PixelSize.Height != height)
-            {
-                Screen = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
-            }
-
-            using (var lockedBitmap = Screen.Lock())
-            {
-                unsafe
-                {
-                    fixed (byte* framePtr = frame)
-                    {
-                        Buffer.MemoryCopy(framePtr, lockedBitmap.Address.ToPointer(), size, size);
-                    }
-                }
-            }
-
-            if (Interlocked.Exchange(ref _inputWaitingForFrame, 0) == 1)
-            {
-                var inputTicks = Interlocked.Read(ref _lastInputTicks);
-                if (inputTicks != 0)
-                {
-                    _lastInputToFrameMs = ElapsedMilliseconds(inputTicks, renderTicks);
-                    if (_lastInputToFrameMs > _inputToFrameMaxMs) _inputToFrameMaxMs = _lastInputToFrameMs;
-                }
-            }
-
-            _framesRendered++;
-            _queueDelayTotalMs += queueDelayMs;
-            if (queueDelayMs > _queueDelayMaxMs) _queueDelayMaxMs = queueDelayMs;
-            RequestRedraw?.Invoke(this, EventArgs.Empty);
-            LogManagedPerfIfDue(renderTicks);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(frame);
-        }
-
-        var shouldPostAgain = false;
-        lock (_frameLock)
-        {
-            if (_pendingFrame != null) shouldPostAgain = true;
-            else _renderQueued = false;
-        }
-
-        if (shouldPostAgain && !IsDisposeStarted)
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(RenderPendingFrame);
-        }
-    }
-
-    private void MarkInputSent()
-    {
-        Interlocked.Exchange(ref _lastInputTicks, Stopwatch.GetTimestamp());
-        Interlocked.Exchange(ref _inputWaitingForFrame, 1);
-    }
-
-    private void LogManagedPerfIfDue(long nowTicks)
-    {
-        var elapsedMs = ElapsedMilliseconds(_lastPerfLogTicks, nowTicks);
-        if (elapsedMs < 1000) return;
-
-        var seconds = elapsedMs / 1000.0;
-        var avgQueueMs = _framesRendered > 0 ? _queueDelayTotalMs / _framesRendered : 0.0;
-        Console.WriteLine(
-            $"[PERF_UI] session={Title} recv={_framesReceived / seconds:F1}/s render={_framesRendered / seconds:F1}/s drop={_framesDropped / seconds:F1}/s managedCopy={_bytesReceived / 1048576.0 / seconds:F1} MiB/s queueAvg={avgQueueMs:F1}ms queueMax={_queueDelayMaxMs:F1}ms inputNextFrame={_lastInputToFrameMs:F1}ms inputMax={_inputToFrameMaxMs:F1}ms");
-
-        _lastPerfLogTicks = nowTicks;
-        _framesReceived = 0;
-        _framesRendered = 0;
-        _framesDropped = 0;
-        _bytesReceived = 0;
-        _queueDelayTotalMs = 0;
-        _queueDelayMaxMs = 0;
-        _inputToFrameMaxMs = 0;
-    }
-
-    private static double ElapsedMilliseconds(long startTicks, long endTicks)
-    {
-        return (endTicks - startTicks) * 1000.0 / Stopwatch.Frequency;
+        return (int)_certificateTrustDecision(prompt);
     }
 
     public void Dispose()
@@ -390,7 +272,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             NativeWrapper.rdp_session_free(handle);
         }
 
-        ClearPendingFrame();
+        _framePresenter.Dispose();
         Interlocked.Exchange(ref _disposed, 1);
     }
 
@@ -408,18 +290,4 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
     private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
-
-    private void ClearPendingFrame()
-    {
-        lock (_frameLock)
-        {
-            if (_pendingFrame != null)
-            {
-                ArrayPool<byte>.Shared.Return(_pendingFrame);
-                _pendingFrame = null;
-            }
-
-            _renderQueued = false;
-        }
-    }
 }

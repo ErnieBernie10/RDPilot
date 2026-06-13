@@ -16,6 +16,11 @@
         <AvaloniaResource Include="Assets\**"/>
         <None Include="connection.local.json" Condition="Exists('connection.local.json')" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>RDP.Client.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
     <Target Name="BuildNativeWrapper" BeforeTargets="BeforeBuild">
         <Message Importance="High" Text="Building Native Wrapper..." />
         <MakeDir Directories="$(NativeWrapperBuildDir)" />

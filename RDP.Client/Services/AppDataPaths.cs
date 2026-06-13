@@ -40,4 +40,5 @@ public static class AppDataPaths
     }
 
     public static string ConnectionsFilePath => Path.Combine(ConfigDirectory, "connections.json");
+    public static string CertificateTrustFilePath => Path.Combine(ConfigDirectory, "trusted-certificates.json");
 }

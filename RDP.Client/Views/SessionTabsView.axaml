@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RDP.Client.ViewModels"
+             x:Class="RDP.Client.Views.SessionTabsView"
+             x:DataType="vm:MainWindowViewModel">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+        <TabControl ItemsSource="{Binding Sessions}"
+                    Classes="SessionTabs"
+                    SelectedItem="{Binding SelectedSession}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0">
+            <TabControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RdpSessionViewModel">
+                    <Grid MinWidth="160" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" VerticalAlignment="Bottom">
+                        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Bottom"/>
+                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Opacity="0.65" VerticalAlignment="Bottom" Margin="0,0,0,1"/>
+                        <Button Grid.Column="2"
+                                Content="x"
+                                Classes="TabCloseButton"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Close tab"
+                                VerticalAlignment="Bottom"
+                                Click="OnTabCloseClicked"/>
+                    </Grid>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate>
+                    <Border Height="0" IsVisible="False"/>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+            <Button Content="Disconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanDisconnect}"/>
+            <Button Content="Reconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

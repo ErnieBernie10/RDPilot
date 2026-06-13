@@ -6,7 +6,11 @@ include(GNUInstallDirs)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FREERDP REQUIRED IMPORTED_TARGET freerdp3 freerdp-client3 winpr3)
 
-add_library(freerdp_wrapper SHARED freerdp_wrapper.c)
+add_library(freerdp_wrapper SHARED
+    freerdp_wrapper.c
+    freerdp_wrapper_input.c
+    freerdp_wrapper_clipboard.c
+)
 
 target_link_libraries(freerdp_wrapper PRIVATE PkgConfig::FREERDP)
 

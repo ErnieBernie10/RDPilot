@@ -18,6 +18,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _selectedSessionCanDisconnect;
     [ObservableProperty] private bool _selectedSessionCanReconnect;
+    [ObservableProperty] private ShellPanel _activeShellPanel;
 
     private readonly ConnectionStore _connectionStore;
     private readonly IRdpSessionFactory _sessionFactory;
@@ -26,6 +27,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<SavedConnection> Connections { get; } = new();
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
+    public bool IsConnectionsPanelOpen => ActiveShellPanel == ShellPanel.Connections;
     public string ConnectionsFilePath => _connectionStore.ConnectionsFilePath;
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
@@ -113,6 +115,11 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         ConnectCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnActiveShellPanelChanged(ShellPanel value)
+    {
+        OnPropertyChanged(nameof(IsConnectionsPanelOpen));
+    }
+
     partial void OnSelectedSessionChanged(RdpSessionViewModel? value)
     {
         UpdateSelectedSessionState();
@@ -153,7 +160,20 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SubscribeSession(session);
         Sessions.Add(session);
         SelectedSession = session;
+        ActiveShellPanel = ShellPanel.None;
         StatusMessage = $"Connecting to {connection.Name}...";
+    }
+
+    [RelayCommand]
+    private void ToggleConnectionsPanel()
+    {
+        ActiveShellPanel = ActiveShellPanel == ShellPanel.Connections ? ShellPanel.None : ShellPanel.Connections;
+    }
+
+    [RelayCommand]
+    private void CloseConnectionsPanel()
+    {
+        ActiveShellPanel = ShellPanel.None;
     }
 
     private bool CanDisconnectSession(RdpSessionViewModel? session) => session?.CanDisconnect == true;

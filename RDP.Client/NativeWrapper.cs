@@ -16,6 +16,20 @@ public static class NativeWrapper
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int CertificateDecisionCallback(
+        IntPtr session,
+        IntPtr host,
+        ushort port,
+        IntPtr commonName,
+        IntPtr subject,
+        IntPtr issuer,
+        IntPtr fingerprint,
+        int isChanged,
+        IntPtr previousSubject,
+        IntPtr previousIssuer,
+        IntPtr previousFingerprint);
+
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr rdp_session_connect(
             string host, string domain, string user, string password,
@@ -23,7 +37,8 @@ public static class NativeWrapper
             int width, int height,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
-            StatusCallback statusCallback);
+            StatusCallback statusCallback,
+            CertificateDecisionCallback certificateDecisionCallback);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void rdp_session_disconnect(IntPtr session);
