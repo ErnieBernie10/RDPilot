@@ -48,21 +48,32 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _certificateTrustDecision = certificateTrustDecision;
         _framePresenter = new ManagedFramePresenter(Title, width, height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty));
 
-        _handle = NativeWrapper.rdp_session_connect(
-            connection.Host,
-            connection.Domain,
-            connection.Username,
-            password,
-            connection.GatewayHost,
-            connection.GatewayDomain,
-            connection.GatewayUsername,
-            gatewayPassword,
-            width,
-            height,
-            _frameCallback,
-            _clipboardCallback,
-            _statusCallback,
-            _certificateDecisionCallback);
+        try
+        {
+            var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
+            _handle = NativeWrapper.rdp_session_connect(
+                connection.Host,
+                connectHost,
+                connection.Domain,
+                connection.Username,
+                password,
+                connection.GatewayHost,
+                connection.GatewayDomain,
+                connection.GatewayUsername,
+                gatewayPassword,
+                width,
+                height,
+                _frameCallback,
+                _clipboardCallback,
+                _statusCallback,
+                _certificateDecisionCallback);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+        {
+            LastError = new RdpSessionError(0, "WRAPPER_NATIVE_LOAD_FAILED", ex.Message, RdpSessionErrorKind.Unknown);
+            Status = RdpSessionStatus.Failed;
+            return;
+        }
 
         if (_handle == IntPtr.Zero)
         {

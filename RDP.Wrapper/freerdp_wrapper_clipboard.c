@@ -95,7 +95,7 @@ static UINT send_clipboard_data_response(rdp_session* session, UINT32 requested_
     }
 
     EnterCriticalSection(&session->clipboard_lock);
-    char* text_copy = session->local_clipboard_text ? strdup(session->local_clipboard_text) : NULL;
+    char* text_copy = session->local_clipboard_text ? duplicate_string(session->local_clipboard_text) : NULL;
     LeaveCriticalSection(&session->clipboard_lock);
 
     if (!text_copy)
@@ -253,7 +253,7 @@ void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text
     free_local_clipboard_text(session);
     if (text && text[0] != '\0')
     {
-        session->local_clipboard_text = strdup(text);
+        session->local_clipboard_text = duplicate_string(text);
     }
     session->clipboard_format_pending = true;
     size_t text_len = session->local_clipboard_text ? strlen(session->local_clipboard_text) : 0;

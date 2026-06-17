@@ -28,11 +28,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 
 #define RESIZE_QUIET_DELAY_MS 1000
 #define RESIZE_MIN_DELAY_MS 1500
 #define CONNECT_TIMEOUT_MS 3000
+#define DEFAULT_RDP_PORT 3389
 #define INPUT_QUEUE_CAPACITY 256
 #define PTR_FLAGS_MOVE 0x0800
 
@@ -97,6 +100,7 @@ typedef struct {
 typedef struct {
     rdp_session* session;
     char host[256];
+    char connect_host[256];
     char domain[256];
     char user[256];
     char password[256];
@@ -122,6 +126,8 @@ void process_pending_input(rdp_session* session);
 
 void free_local_clipboard_text(rdp_session* session);
 void process_pending_clipboard(rdp_session* session);
+
+char* duplicate_string(const char* text);
 
 UINT on_cliprdr_server_capabilities(CliprdrClientContext* context, const CLIPRDR_CAPABILITIES* capabilities);
 UINT on_cliprdr_monitor_ready(CliprdrClientContext* context, const CLIPRDR_MONITOR_READY* monitorReady);

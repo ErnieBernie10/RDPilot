@@ -30,6 +30,41 @@ sudo pacman -S dotnet-sdk cmake gcc pkgconf freerdp
 
 For Linux password storage, install the package that provides `secret-tool` and make sure a Secret Service keyring is running. On many GNOME-based systems this comes from `libsecret` and `gnome-keyring`.
 
+A Windows development machine needs:
+
+- .NET SDK 9.0 or newer
+- CMake
+- Visual Studio Build Tools with the MSVC C/C++ toolchain, or MSYS2 UCRT64
+- FreeRDP 3 development files, including `freerdp3`, `freerdp-client3`, and `winpr3`
+
+With MSYS2 UCRT64, install the required packages:
+
+```powershell
+C:/msys64/usr/bin/bash.exe -lc "pacman -S --needed mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-freerdp"
+```
+
+When MSYS2 is installed at `C:/msys64`, the project automatically uses the UCRT64 `cmake`, `cc`, `ninja`, and `pkg-config` tools for the native wrapper build:
+
+```powershell
+dotnet build RDP.slnx
+```
+
+For a different MSYS2 install location, pass the root directory:
+
+```powershell
+dotnet build RDP.slnx /p:NativeWrapperMsys2Root="D:/tools/msys64"
+```
+
+If FreeRDP is provided through a CMake toolchain such as vcpkg, pass it through MSBuild:
+
+```powershell
+dotnet build RDP.slnx /p:NativeWrapperCMakeArgs="-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+```
+
+At runtime, Windows also needs the FreeRDP and WinPR DLLs discoverable by the loader, either beside the .NET output or on `PATH`.
+For the default MSYS2 install location, the app automatically adds `C:/msys64/ucrt64/bin` to the DLL search path before loading `freerdp_wrapper`.
+Set `RDP_CLIENT_NATIVE_DLL_DIR` to use a different runtime DLL directory.
+
 ## Build and run
 
 ```sh
@@ -37,7 +72,7 @@ dotnet build RDP.slnx
 dotnet run --project RDP.Client/RDP.Client.csproj
 ```
 
-The build creates `RDP.Wrapper/build/libfreerdp_wrapper.so` and copies it beside the .NET output so `DllImport("freerdp_wrapper")` can load it at runtime.
+The build creates the native wrapper for the current platform, for example `RDP.Wrapper/build/libfreerdp_wrapper.so` on Linux or `RDP.Wrapper/build/<Configuration>/freerdp_wrapper.dll` with Visual Studio generators on Windows, and copies it beside the .NET output so `DllImport("freerdp_wrapper")` can load it at runtime.
 
 ## Saved connections
 

@@ -138,6 +138,20 @@ static UINT32 physical_size_from_pixels(UINT32 pixels)
                         DISPLAY_CONTROL_MAX_PHYSICAL_MONITOR_WIDTH);
 }
 
+char* duplicate_string(const char* text)
+{
+    if (!text) return NULL;
+
+    size_t length = strlen(text) + 1;
+    char* copy = malloc(length);
+    if (copy)
+    {
+        memcpy(copy, text, length);
+    }
+
+    return copy;
+}
+
 static void normalize_resolution(UINT32* width, UINT32* height)
 {
     *width = clamp_uint32(*width, DISPLAY_CONTROL_MIN_MONITOR_WIDTH, DISPLAY_CONTROL_MAX_MONITOR_WIDTH);
@@ -472,7 +486,17 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     ((wrapper_context*)session->instance->context)->session = session;
 
     rdpSettings* settings = session->instance->context->settings;
-    freerdp_settings_set_string(settings, FreeRDP_ServerHostname, params->host);
+    const char* server_hostname = use_gateway ? params->host : params->connect_host;
+    printf("[DEBUG] Target host='%s' connectHost='%s' serverHostname='%s' port=%u gateway=%s\n",
+           params->host,
+           params->connect_host,
+           server_hostname,
+           DEFAULT_RDP_PORT,
+           use_gateway ? "true" : "false");
+    freerdp_settings_set_string(settings, FreeRDP_ServerHostname, server_hostname);
+    freerdp_settings_set_string(settings, FreeRDP_UserSpecifiedServerName, params->host);
+    freerdp_settings_set_string(settings, FreeRDP_CertificateName, params->host);
+    freerdp_settings_set_uint32(settings, FreeRDP_ServerPort, DEFAULT_RDP_PORT);
     freerdp_settings_set_string(settings, FreeRDP_Domain, params->domain);
     freerdp_settings_set_string(settings, FreeRDP_Username, params->user);
     freerdp_settings_set_string(settings, FreeRDP_Password, params->password);
@@ -673,7 +697,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
         if (!freerdp_check_fds(session->instance)) {
             // If check_fds fails, it might be a temporary state or a disconnect
             if (freerdp_get_last_error(session->instance->context) == 0) {
-                usleep(10000);
+                Sleep(10);
                 continue;
             }
             break;
@@ -699,7 +723,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
         if (!process_pending_resize(session))
             break;
 
-        usleep(2000);
+        Sleep(2);
     }
 
 
@@ -710,7 +734,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
     return 0;
 }
 
-rdp_session* rdp_session_connect(const char* host, const char* domain, const char* user, const char* password,
+rdp_session* rdp_session_connect(const char* host, const char* connect_host, const char* domain, const char* user, const char* password,
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
@@ -739,6 +763,7 @@ rdp_session* rdp_session_connect(const char* host, const char* domain, const cha
     memset(params, 0, sizeof(connection_params));
     params->session = session;
     strncpy(params->host, host, 255);
+    strncpy(params->connect_host, connect_host && connect_host[0] != '\0' ? connect_host : host, 255);
     strncpy(params->domain, domain, 255);
     strncpy(params->user, user, 255);
     strncpy(params->password, password, 255);

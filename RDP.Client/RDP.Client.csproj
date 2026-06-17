@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
+        <OutputType Condition="'$(Configuration)' == 'Debug'">Exe</OutputType>
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -8,7 +9,13 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <NativeWrapperProjectDir>$(MSBuildProjectDirectory)/../RDP.Wrapper</NativeWrapperProjectDir>
         <NativeWrapperBuildDir>$(NativeWrapperProjectDir)/build</NativeWrapperBuildDir>
-        <NativeWrapperLibrary>$(NativeWrapperBuildDir)/libfreerdp_wrapper.so</NativeWrapperLibrary>
+        <NativeWrapperCMakeArgs></NativeWrapperCMakeArgs>
+        <NativeWrapperMsys2Root Condition="'$(NativeWrapperMsys2Root)' == ''">C:/msys64</NativeWrapperMsys2Root>
+        <NativeWrapperMsys2UcrtBin>$(NativeWrapperMsys2Root)/ucrt64/bin</NativeWrapperMsys2UcrtBin>
+        <NativeWrapperUseMsys2 Condition="'$(NativeWrapperUseMsys2)' == '' and Exists('$(NativeWrapperMsys2UcrtBin)/cmake.exe')">true</NativeWrapperUseMsys2>
+        <NativeWrapperCMakeExe Condition="'$(NativeWrapperCMakeExe)' == '' and '$(NativeWrapperUseMsys2)' == 'true'">$(NativeWrapperMsys2UcrtBin)/cmake.exe</NativeWrapperCMakeExe>
+        <NativeWrapperCMakeExe Condition="'$(NativeWrapperCMakeExe)' == ''">cmake</NativeWrapperCMakeExe>
+        <NativeWrapperMsys2CMakeArgs Condition="Exists('$(NativeWrapperMsys2UcrtBin)/cc.exe') and Exists('$(NativeWrapperMsys2UcrtBin)/ninja.exe') and Exists('$(NativeWrapperMsys2UcrtBin)/pkg-config.exe')">-G Ninja -DCMAKE_C_COMPILER=$(NativeWrapperMsys2UcrtBin)/cc.exe -DCMAKE_MAKE_PROGRAM=$(NativeWrapperMsys2UcrtBin)/ninja.exe -DPKG_CONFIG_EXECUTABLE=$(NativeWrapperMsys2UcrtBin)/pkg-config.exe</NativeWrapperMsys2CMakeArgs>
     </PropertyGroup>
 
     <ItemGroup>
@@ -24,12 +31,19 @@
     <Target Name="BuildNativeWrapper" BeforeTargets="BeforeBuild">
         <Message Importance="High" Text="Building Native Wrapper..." />
         <MakeDir Directories="$(NativeWrapperBuildDir)" />
-        <Exec Command="cmake -S &quot;$(NativeWrapperProjectDir)&quot; -B &quot;$(NativeWrapperBuildDir)&quot; -DCMAKE_BUILD_TYPE=$(Configuration)" />
-        <Exec Command="cmake --build &quot;$(NativeWrapperBuildDir)&quot; --config $(Configuration)" />
+        <Exec Condition="'$(NativeWrapperUseMsys2)' == 'true'" Command="cmd /c &quot;set &quot;PATH=$(NativeWrapperMsys2UcrtBin);$(NativeWrapperMsys2Root)/usr/bin;%PATH%&quot; &amp;&amp; &quot;$(NativeWrapperCMakeExe)&quot; -S &quot;$(NativeWrapperProjectDir)&quot; -B &quot;$(NativeWrapperBuildDir)&quot; -DCMAKE_BUILD_TYPE=$(Configuration) $(NativeWrapperMsys2CMakeArgs) $(NativeWrapperCMakeArgs)&quot;" />
+        <Exec Condition="'$(NativeWrapperUseMsys2)' == 'true'" Command="cmd /c &quot;set &quot;PATH=$(NativeWrapperMsys2UcrtBin);$(NativeWrapperMsys2Root)/usr/bin;%PATH%&quot; &amp;&amp; &quot;$(NativeWrapperCMakeExe)&quot; --build &quot;$(NativeWrapperBuildDir)&quot; --config $(Configuration)&quot;" />
+        <Exec Condition="'$(NativeWrapperUseMsys2)' != 'true'" Command="&quot;$(NativeWrapperCMakeExe)&quot; -S &quot;$(NativeWrapperProjectDir)&quot; -B &quot;$(NativeWrapperBuildDir)&quot; -DCMAKE_BUILD_TYPE=$(Configuration) $(NativeWrapperCMakeArgs)" />
+        <Exec Condition="'$(NativeWrapperUseMsys2)' != 'true'" Command="&quot;$(NativeWrapperCMakeExe)&quot; --build &quot;$(NativeWrapperBuildDir)&quot; --config $(Configuration)" />
 
         <ItemGroup>
-            <NativeLib Include="$(NativeWrapperLibrary)" />
+            <NativeLib Include="$(NativeWrapperBuildDir)/libfreerdp_wrapper.so" Condition="Exists('$(NativeWrapperBuildDir)/libfreerdp_wrapper.so')" />
+            <NativeLib Include="$(NativeWrapperBuildDir)/libfreerdp_wrapper.dylib" Condition="Exists('$(NativeWrapperBuildDir)/libfreerdp_wrapper.dylib')" />
+            <NativeLib Include="$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll')" />
+            <NativeLib Include="$(NativeWrapperBuildDir)/freerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/freerdp_wrapper.dll')" />
+            <NativeLib Include="$(NativeWrapperBuildDir)/$(Configuration)/freerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/$(Configuration)/freerdp_wrapper.dll')" />
         </ItemGroup>
+        <Error Condition="'@(NativeLib)' == ''" Text="Native wrapper build succeeded, but no freerdp_wrapper native library was found in $(NativeWrapperBuildDir)." />
         <Copy SourceFiles="@(NativeLib)"
               DestinationFolder="$(OutputPath)"
               ContinueOnError="false" />
