@@ -3,12 +3,34 @@ project(freerdp_wrapper VERSION 1.0.0 LANGUAGES C)
 
 include(GNUInstallDirs)
 
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(FREERDP QUIET IMPORTED_TARGET freerdp3 freerdp-client3 winpr3)
+find_package(WinPR CONFIG QUIET)
+if(NOT TARGET winpr)
+    find_package(WinPR3 CONFIG QUIET)
 endif()
 
-if(NOT FREERDP_FOUND)
+find_package(FreeRDP CONFIG QUIET)
+if(NOT TARGET freerdp)
+    find_package(FreeRDP3 CONFIG QUIET)
+endif()
+
+find_package(FreeRDP-Client CONFIG QUIET)
+if(NOT TARGET freerdp-client)
+    find_package(FreeRDP-Client3 CONFIG QUIET)
+endif()
+
+set(FREERDP_CONFIG_FOUND FALSE)
+if(TARGET freerdp AND TARGET freerdp-client AND TARGET winpr)
+    set(FREERDP_CONFIG_FOUND TRUE)
+endif()
+
+if(NOT FREERDP_CONFIG_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FREERDP QUIET IMPORTED_TARGET freerdp3 freerdp-client3 winpr3)
+    endif()
+endif()
+
+if(NOT FREERDP_CONFIG_FOUND AND NOT FREERDP_FOUND)
     find_path(FREERDP_INCLUDE_DIR
         NAMES freerdp/freerdp.h
         PATH_SUFFIXES freerdp3 include/freerdp3
@@ -38,7 +60,9 @@ if(WIN32 AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_definitions(freerdp_wrapper PRIVATE __STDC_NO_THREADS__=1)
 endif()
 
-if(TARGET PkgConfig::FREERDP)
+if(FREERDP_CONFIG_FOUND)
+    target_link_libraries(freerdp_wrapper PRIVATE freerdp freerdp-client winpr)
+elseif(TARGET PkgConfig::FREERDP)
     target_link_libraries(freerdp_wrapper PRIVATE PkgConfig::FREERDP)
 else()
     target_include_directories(freerdp_wrapper PRIVATE ${FREERDP_INCLUDE_DIR} ${WINPR_INCLUDE_DIR})

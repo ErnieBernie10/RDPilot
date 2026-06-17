@@ -34,36 +34,46 @@ A Windows development machine needs:
 
 - .NET SDK 9.0 or newer
 - CMake
-- Visual Studio Build Tools with the MSVC C/C++ toolchain, or MSYS2 UCRT64
-- FreeRDP 3 development files, including `freerdp3`, `freerdp-client3`, and `winpr3`
+- Visual Studio Build Tools with the MSVC C/C++ toolchain
+- vcpkg
 
-With MSYS2 UCRT64, install the required packages:
-
-```powershell
-C:/msys64/usr/bin/bash.exe -lc "pacman -S --needed mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-freerdp"
-```
-
-When MSYS2 is installed at `C:/msys64`, the project automatically uses the UCRT64 `cmake`, `cc`, `ninja`, and `pkg-config` tools for the native wrapper build:
+Preferred Windows setup for packaging:
 
 ```powershell
-dotnet build RDP.slnx
+scripts/setup-windows-vcpkg.ps1
 ```
 
-For a different MSYS2 install location, pass the root directory:
+This installs `freerdp[client]:x64-windows` through the repository's vcpkg overlay port. The overlay matches the upstream vcpkg FreeRDP port but enables FreeRDP/WinPR's internal RC4 implementation, which is required for RDP licensing with OpenSSL 3.
+
+Build and run the app for local development:
 
 ```powershell
-dotnet build RDP.slnx /p:NativeWrapperMsys2Root="D:/tools/msys64"
+scripts/run-windows.ps1
 ```
 
-If FreeRDP is provided through a CMake toolchain such as vcpkg, pass it through MSBuild:
+Build without running:
 
 ```powershell
-dotnet build RDP.slnx /p:NativeWrapperCMakeArgs="-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+scripts/build-windows.ps1
 ```
 
-At runtime, Windows also needs the FreeRDP and WinPR DLLs discoverable by the loader, either beside the .NET output or on `PATH`.
-For the default MSYS2 install location, the app automatically adds `C:/msys64/ucrt64/bin` to the DLL search path before loading `freerdp_wrapper`.
-Set `RDP_CLIENT_NATIVE_DLL_DIR` to use a different runtime DLL directory.
+Build the Release app:
+
+```powershell
+scripts/build-windows.ps1 -Configuration Release
+```
+
+Publish the redistributable self-contained Windows app folder:
+
+```powershell
+scripts/publish-windows.ps1
+```
+
+The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when the repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to the setup/build/publish scripts to use a different location.
+
+The vcpkg toolchain performs app-local deployment for normal native DLL imports, and the project copies the native wrapper and deployed FreeRDP/WinPR dependency DLLs into the publish folder.
+
+At runtime, Windows loads FreeRDP and WinPR DLLs from the app output directory. Set `RDP_CLIENT_NATIVE_DLL_DIR` only when intentionally testing a different native DLL directory.
 
 ## Build and run
 

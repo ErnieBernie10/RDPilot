@@ -24,16 +24,23 @@ public static class NativeWrapper
             return;
         }
 
-        var nativeDllDirectory = Environment.GetEnvironmentVariable(NativeDllDirectoryEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(nativeDllDirectory))
-        {
-            nativeDllDirectory = @"C:\msys64\ucrt64\bin";
-        }
-
+        var nativeDllDirectory = GetWindowsNativeDllDirectory();
         if (Directory.Exists(nativeDllDirectory))
         {
+            Console.WriteLine($"[DEBUG] Native DLL directory: '{nativeDllDirectory}'");
             SetDllDirectory(nativeDllDirectory);
         }
+    }
+
+    private static string GetWindowsNativeDllDirectory()
+    {
+        var configuredDirectory = Environment.GetEnvironmentVariable(NativeDllDirectoryEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(configuredDirectory))
+        {
+            return configuredDirectory;
+        }
+
+        return AppContext.BaseDirectory;
     }
 
     public static string ResolveDirectConnectHost(string host)
