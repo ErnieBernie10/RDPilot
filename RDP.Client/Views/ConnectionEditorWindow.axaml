@@ -19,27 +19,27 @@
                 <Border Classes="Section">
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
                         <TextBlock Text="Remote PC" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding Name}" Watermark="Connection name"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Host}" Watermark="Host or IP address"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Domain}" Watermark="Domain optional"/>
+                        <TextBox Grid.Column="1" Text="{Binding Name}" PlaceholderText="Connection name"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Host}" PlaceholderText="Host or IP address"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Domain}" PlaceholderText="Domain optional"/>
                     </Grid>
                 </Border>
 
                 <Border Classes="Section">
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="16">
                         <TextBlock Text="Credentials" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding Username}" Watermark="Username"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Password}" Watermark="{Binding PasswordWatermark}" PasswordChar="*"/>
+                        <TextBox Grid.Column="1" Text="{Binding Username}" PlaceholderText="Username"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Password}" PlaceholderText="{Binding PasswordWatermark}" PasswordChar="*"/>
                     </Grid>
                 </Border>
 
                 <Border Classes="Section">
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
                         <TextBlock Text="Gateway" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding GatewayHost}" Watermark="Gateway host optional"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GatewayDomain}" Watermark="Gateway domain optional"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GatewayUsername}" Watermark="Gateway username optional"/>
-                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GatewayPassword}" Watermark="{Binding GatewayPasswordWatermark}" PasswordChar="*"/>
+                        <TextBox Grid.Column="1" Text="{Binding GatewayHost}" PlaceholderText="Gateway host optional"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GatewayDomain}" PlaceholderText="Gateway domain optional"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GatewayUsername}" PlaceholderText="Gateway username optional"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GatewayPassword}" PlaceholderText="{Binding GatewayPasswordWatermark}" PasswordChar="*"/>
                     </Grid>
                 </Border>
             </StackPanel>

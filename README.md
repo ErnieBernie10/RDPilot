@@ -36,6 +36,7 @@ A Windows development machine needs:
 - CMake
 - Visual Studio Build Tools with the MSVC C/C++ toolchain
 - vcpkg
+- Inno Setup 6 for building the redistributable installer
 
 Preferred Windows setup for packaging:
 
@@ -68,6 +69,14 @@ Publish the redistributable self-contained Windows app folder:
 ```powershell
 scripts/publish-windows.ps1
 ```
+
+Build the redistributable Windows installer:
+
+```powershell
+scripts/build-installer-windows.ps1
+```
+
+The installer is written to `artifacts/installer/RDP.Client-Setup-win-x64.exe`. It first publishes the self-contained `win-x64` app, verifies that `freerdp_wrapper.dll` and FreeRDP/WinPR dependency DLLs are present, then packages the complete publish folder recursively.
 
 The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when the repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to the setup/build/publish scripts to use a different location.
 

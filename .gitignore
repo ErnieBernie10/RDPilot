@@ -11,6 +11,7 @@ RDP.Wrapper/cmake-build-*/
 .output.txt
 RDP.Client/connection.local.json
 ROADMAP.md
+/artifacts/
 
 # vcpkg dependency checkouts/caches. Keep vcpkg-overlay-ports/ tracked.
 /vcpkg/
