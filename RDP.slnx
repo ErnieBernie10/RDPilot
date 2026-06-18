@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="RDP.Client/RDP.Client.csproj" />
-  <Project Path="RDP.Client.Tests/RDP.Client.Tests.csproj" />
-</Solution>

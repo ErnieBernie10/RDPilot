@@ -13,7 +13,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "build-windows.ps1 failed with exit code $LASTEXITCODE."
 }
 
-dotnet run --no-build --project (Join-Path $repoRoot "RDP.Client\RDP.Client.csproj") -c $Configuration
+dotnet run --no-build --project (Join-Path $repoRoot "RDPilot.Client\RDPilot.Client.csproj") -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet run failed with exit code $LASTEXITCODE."
 }

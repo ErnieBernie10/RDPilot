@@ -5,11 +5,11 @@ riderModule.iml
 /_ReSharper.Caches/
 
 .idea
-RDP.Wrapper/build
+RDPilot.Wrapper/build
 .aider*
-RDP.Wrapper/cmake-build-*/
+RDPilot.Wrapper/cmake-build-*/
 .output.txt
-RDP.Client/connection.local.json
+RDPilot.Client/connection.local.json
 ROADMAP.md
 /artifacts/
 

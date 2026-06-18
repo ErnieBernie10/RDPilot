@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RDPilot.Client.ViewModels"
+        xmlns:views="using:RDPilot.Client.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
+        x:Class="RDPilot.Client.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Width="1440"
+        Height="900"
+        MinWidth="900"
+        MinHeight="600"
+        Title="RDPilot">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="*,Auto">
+        <Grid x:Name="ShellGrid" ColumnDefinitions="32,*">
+            <views:NavigationRailView Grid.Column="0"/>
+
+            <Grid Grid.Column="1">
+                <Grid RowDefinitions="Auto,*" Margin="2" RowSpacing="1">
+                    <views:SessionTabsView/>
+
+                    <views:RdpViewportView Grid.Row="1"/>
+                </Grid>
+
+                <views:ShellOverlayHostView IsOpen="{Binding IsConnectionsPanelOpen}" OverlayWidth="280" ZIndex="10">
+                    <views:ShellOverlayHostView.OverlayContent>
+                        <views:ConnectionsPanelView/>
+                    </views:ShellOverlayHostView.OverlayContent>
+                </views:ShellOverlayHostView>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12"/>
+        </Border>
+    </Grid>
+</Window>

@@ -1,6 +1,6 @@
-# RDP
+# RDPilot
 
-Experimental Avalonia RDP client backed by a small native FreeRDP wrapper.
+RDPilot is an experimental Avalonia RDP client backed by a small native FreeRDP wrapper.
 
 Current focus/features:
 
@@ -15,7 +15,7 @@ Current focus/features:
 
 The .NET project builds the native wrapper with CMake before compiling the client. A Linux development machine needs:
 
-- .NET SDK 9.0 or newer
+- .NET SDK 10.0 or newer
 - CMake
 - C compiler toolchain
 - pkg-config
@@ -32,7 +32,7 @@ For Linux password storage, install the package that provides `secret-tool` and 
 
 A Windows development machine needs:
 
-- .NET SDK 9.0 or newer
+- .NET SDK 10.0 or newer
 - CMake
 - Visual Studio Build Tools with the MSVC C/C++ toolchain
 - vcpkg
@@ -76,22 +76,22 @@ Build the redistributable Windows installer:
 scripts/build-installer-windows.ps1
 ```
 
-The installer is written to `artifacts/installer/RDP.Client-Setup-win-x64.exe`. It first publishes the self-contained `win-x64` app, verifies that `freerdp_wrapper.dll` and FreeRDP/WinPR dependency DLLs are present, then packages the complete publish folder recursively.
+The installer is written to `artifacts/installer/RDPilot.Client-Setup-win-x64.exe`. It first publishes the self-contained `win-x64` app, verifies that `freerdp_wrapper.dll` and FreeRDP/WinPR dependency DLLs are present, then packages the complete publish folder recursively.
 
 The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when the repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to the setup/build/publish scripts to use a different location.
 
 The vcpkg toolchain performs app-local deployment for normal native DLL imports, and the project copies the native wrapper and deployed FreeRDP/WinPR dependency DLLs into the publish folder.
 
-At runtime, Windows loads FreeRDP and WinPR DLLs from the app output directory. Set `RDP_CLIENT_NATIVE_DLL_DIR` only when intentionally testing a different native DLL directory.
+At runtime, Windows loads FreeRDP and WinPR DLLs from the app output directory. Set `RDPILOT_NATIVE_DLL_DIR` only when intentionally testing a different native DLL directory.
 
 ## Build and run
 
 ```sh
-dotnet build RDP.slnx
-dotnet run --project RDP.Client/RDP.Client.csproj
+dotnet build RDPilot.slnx
+dotnet run --project RDPilot.Client/RDPilot.Client.csproj
 ```
 
-The build creates the native wrapper for the current platform, for example `RDP.Wrapper/build/libfreerdp_wrapper.so` on Linux or `RDP.Wrapper/build/<Configuration>/freerdp_wrapper.dll` with Visual Studio generators on Windows, and copies it beside the .NET output so `DllImport("freerdp_wrapper")` can load it at runtime.
+The build creates the native wrapper for the current platform, for example `RDPilot.Wrapper/build/libfreerdp_wrapper.so` on Linux or `RDPilot.Wrapper/build/<Configuration>/freerdp_wrapper.dll` with Visual Studio generators on Windows, and copies it beside the .NET output so `DllImport("freerdp_wrapper")` can load it at runtime.
 
 ## Saved connections
 
@@ -99,9 +99,9 @@ The app stores saved connection metadata in the current user's profile. Password
 
 Profile metadata path:
 
-- Windows: `%APPDATA%/RDP.Client/connections.json`
-- macOS: `~/Library/Application Support/RDP.Client/connections.json`
-- Linux: `$XDG_CONFIG_HOME/RDP.Client/connections.json`, or `~/.config/RDP.Client/connections.json` when `XDG_CONFIG_HOME` is not set
+- Windows: `%APPDATA%/RDPilot.Client/connections.json`
+- macOS: `~/Library/Application Support/RDPilot.Client/connections.json`
+- Linux: `$XDG_CONFIG_HOME/RDPilot.Client/connections.json`, or `~/.config/RDPilot.Client/connections.json` when `XDG_CONFIG_HOME` is not set
 
 Password storage:
 
@@ -109,7 +109,7 @@ Password storage:
 - macOS: Keychain
 - Linux: Secret Service via `secret-tool`
 
-For development migration, `RDP.Client/connection.local.json` is still ignored by Git and may be imported on first run if no saved profiles exist. Do not commit real credentials.
+For development migration, `RDPilot.Client/connection.local.json` is still ignored by Git and may be imported on first run if no saved profiles exist. Do not commit real credentials.
 
 ## Runtime notes
 

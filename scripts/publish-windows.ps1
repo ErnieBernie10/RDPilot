@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+$projectPath = Join-Path $repoRoot "RDPilot.Client\RDPilot.Client.csproj"
 $toolchain = Join-Path $VcpkgRoot "scripts\buildsystems\vcpkg.cmake"
 
 if (-not (Test-Path -LiteralPath $toolchain)) {
@@ -11,8 +12,14 @@ if (-not (Test-Path -LiteralPath $toolchain)) {
 }
 
 $vcpkgRootForMsBuild = $VcpkgRoot -replace '\\', '/'
+$project = [xml](Get-Content -LiteralPath $projectPath)
+$targetFramework = $project.Project.PropertyGroup.TargetFramework | Select-Object -First 1
 
-dotnet publish (Join-Path $repoRoot "RDP.Client\RDP.Client.csproj") `
+if (-not $targetFramework) {
+    throw "TargetFramework was not found in $projectPath."
+}
+
+dotnet publish $projectPath `
     -c Release `
     -r win-x64 `
     --self-contained true `
@@ -23,4 +30,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."
 }
 
-"Published to $(Join-Path $repoRoot 'RDP.Client\bin\Release\net9.0\win-x64\publish')"
+"Published to $(Join-Path $repoRoot "RDPilot.Client\bin\Release\$targetFramework\win-x64\publish")"

@@ -14,7 +14,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $VcpkgRoot "scripts\buildsystems\vcp
 
 $dotnetArgs = @(
     "build",
-    (Join-Path $repoRoot "RDP.slnx"),
+    (Join-Path $repoRoot "RDPilot.slnx"),
     "-c",
     $Configuration,
     "/p:NativeWrapperUseVcpkg=true",

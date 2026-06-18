@@ -9,9 +9,17 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+$projectPath = Join-Path $repoRoot "RDPilot.Client\RDPilot.Client.csproj"
 $publishScript = Join-Path $PSScriptRoot "publish-windows.ps1"
-$publishDir = Join-Path $repoRoot "RDP.Client\bin\Release\net9.0\win-x64\publish"
-$installerScript = Join-Path $repoRoot "installer\RDP.Client.iss"
+$project = [xml](Get-Content -LiteralPath $projectPath)
+$targetFramework = $project.Project.PropertyGroup.TargetFramework | Select-Object -First 1
+
+if (-not $targetFramework) {
+    throw "TargetFramework was not found in $projectPath."
+}
+
+$publishDir = Join-Path $repoRoot "RDPilot.Client\bin\Release\$targetFramework\win-x64\publish"
+$installerScript = Join-Path $repoRoot "installer\RDPilot.Client.iss"
 $outputDir = Join-Path $repoRoot "artifacts\installer"
 
 function Find-InnoSetupCompiler {
@@ -60,7 +68,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "publish-windows.ps1 failed with exit code $LASTEXITCODE."
 }
 
-Require-PublishedFile -Path (Join-Path $publishDir "RDP.Client.exe") -Description "Published app executable"
+Require-PublishedFile -Path (Join-Path $publishDir "RDPilot.Client.exe") -Description "Published app executable"
 Require-PublishedFile -Path (Join-Path $publishDir "freerdp_wrapper.dll") -Description "Native RDP wrapper DLL"
 Require-PublishedFile -Path (Join-Path $publishDir "freerdp3.dll") -Description "FreeRDP runtime DLL"
 Require-PublishedFile -Path (Join-Path $publishDir "freerdp-client3.dll") -Description "FreeRDP client runtime DLL"
@@ -85,4 +93,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
 }
 
-"Installer created at $(Join-Path $outputDir 'RDP.Client-Setup-win-x64.exe')"
+"Installer created at $(Join-Path $outputDir 'RDPilot.Client-Setup-win-x64.exe')"

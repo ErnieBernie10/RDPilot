@@ -4,10 +4,10 @@
 
 This is an experimental RDP client with:
 
-- `RDP.Client`: .NET/Avalonia UI.
-- `RDP.Wrapper`: native C shared library wrapping FreeRDP 3 APIs.
+- `RDPilot.Client`: .NET/Avalonia UI.
+- `RDPilot.Wrapper`: native C shared library wrapping FreeRDP 3 APIs.
 
-The client uses `DllImport("freerdp_wrapper")` to call into `RDP.Wrapper/build/libfreerdp_wrapper.so`.
+The client uses `DllImport("freerdp_wrapper")` to call into `RDPilot.Wrapper/build/libfreerdp_wrapper.so`.
 
 Native sessions are handle-based. `rdp_session_connect` returns an opaque `rdp_session*`; resize, input, clipboard, disconnect, and free calls must use that handle. Do not reintroduce singleton native state for connection/session data.
 
@@ -16,13 +16,13 @@ Native sessions are handle-based. `rdp_session_connect` returns an opaque `rdp_s
 Use the solution build; the .NET project configures/builds the native CMake wrapper automatically.
 
 ```sh
-dotnet build RDP.slnx
-dotnet run --project RDP.Client/RDP.Client.csproj
+dotnet build RDPilot.slnx
+dotnet run --project RDPilot.Client/RDPilot.Client.csproj
 ```
 
 System dependencies currently expected on Linux:
 
-- .NET SDK 9+
+- .NET SDK 10+
 - CMake
 - C compiler
 - pkg-config/pkgconf
@@ -123,7 +123,7 @@ The native wrapper currently sets `FreeRDP_IgnoreCertificate = TRUE`. This is ac
 At the time these notes were written:
 
 ```sh
-dotnet build RDP.slnx
+dotnet build RDPilot.slnx
 ```
 
 passes with zero warnings/errors, and a short GUI smoke run starts without native-load errors.

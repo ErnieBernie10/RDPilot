@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RDPilot.Client.ViewModels"
+             x:Class="RDPilot.Client.Views.NavigationRailView"
+             x:DataType="vm:MainWindowViewModel">
+    <Border Classes="NavigationRail">
+        <StackPanel Margin="4" Spacing="4">
+            <Button Content="C"
+                    Classes="RailButton"
+                    ToolTip.Tip="Saved connections"
+                    Command="{Binding ToggleConnectionsPanelCommand}"/>
+        </StackPanel>
+    </Border>
+</UserControl>
