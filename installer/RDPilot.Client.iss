@@ -30,7 +30,7 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-SetupIconFile=..\RDPilot.Client\Assets\avalonia-logo.ico
+SetupIconFile=..\RDPilot.Client\Assets\rdpilot.ico
 UninstallDisplayIcon={app}\RDPilot.Client.exe
 
 [Languages]

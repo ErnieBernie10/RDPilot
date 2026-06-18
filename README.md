@@ -1,5 +1,9 @@
 # RDPilot
 
+<p align="center">
+  <img src="RDPilot.Client/Assets/screen-alt-2-red-corner-line.svg" alt="RDPilot icon" width="96" height="96">
+</p>
+
 RDPilot is an experimental Avalonia RDP client backed by a small native FreeRDP wrapper.
 
 Current focus/features:

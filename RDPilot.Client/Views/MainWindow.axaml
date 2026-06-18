@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
         x:Class="RDPilot.Client.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/rdpilot.ico"
         Width="1440"
         Height="900"
         MinWidth="900"
