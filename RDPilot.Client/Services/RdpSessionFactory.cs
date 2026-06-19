@@ -26,6 +26,15 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
         string gatewayPassword,
         int width,
         int height,
+        int colorDepth,
+        bool compression,
+        bool fontSmoothing,
+        bool bitmapCache,
+        bool desktopWallpaper,
+        bool themes,
+        bool menuAnimations,
+        bool fullWindowDrag,
+        RdpConnectionType connectionType,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
     {
         return new RdpSessionViewModel(
@@ -34,6 +43,15 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
             gatewayPassword,
             width,
             height,
+            colorDepth,
+            compression,
+            fontSmoothing,
+            bitmapCache,
+            desktopWallpaper,
+            themes,
+            menuAnimations,
+            fullWindowDrag,
+            connectionType,
             remoteClipboardTextReceived,
             DecideCertificateTrust);
     }

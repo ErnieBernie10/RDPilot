@@ -12,5 +12,14 @@ public interface IRdpSessionFactory
         string gatewayPassword,
         int width,
         int height,
+        int colorDepth,
+        bool compression,
+        bool fontSmoothing,
+        bool bitmapCache,
+        bool desktopWallpaper,
+        bool themes,
+        bool menuAnimations,
+        bool fullWindowDrag,
+        RdpConnectionType connectionType,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived);
 }

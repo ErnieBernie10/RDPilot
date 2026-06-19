@@ -20,7 +20,7 @@ public partial class ConnectionsPanelView : UserControl
             return;
         }
 
-        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel());
+        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel(globalQualitySettings: vm.CreateSettingsSnapshot().QualitySettings));
         if (result != null)
         {
             await vm.SaveConnectionAsync(result);
@@ -34,7 +34,7 @@ public partial class ConnectionsPanelView : UserControl
             return;
         }
 
-        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel(vm.SelectedConnection));
+        var result = await ShowConnectionEditorAsync(new ConnectionEditorViewModel(vm.SelectedConnection, vm.CreateSettingsSnapshot().QualitySettings));
         if (result != null)
         {
             await vm.SaveConnectionAsync(result);

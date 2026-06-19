@@ -7,11 +7,18 @@ namespace RDPilot.Client.Services;
 public static class AppDataPaths
 {
     public const string AppName = "RDPilot.Client";
+    public const string ConfigHomeEnvironmentVariable = "RDPILOT_CONFIG_HOME";
 
     public static string ConfigDirectory
     {
         get
         {
+            var configuredHome = Environment.GetEnvironmentVariable(ConfigHomeEnvironmentVariable);
+            if (!string.IsNullOrWhiteSpace(configuredHome))
+            {
+                return Path.Combine(configuredHome, AppName);
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName);
@@ -40,5 +47,6 @@ public static class AppDataPaths
     }
 
     public static string ConnectionsFilePath => Path.Combine(ConfigDirectory, "connections.json");
+    public static string SettingsFilePath => Path.Combine(ConfigDirectory, "settings.json");
     public static string CertificateTrustFilePath => Path.Combine(ConfigDirectory, "trusted-certificates.json");
 }

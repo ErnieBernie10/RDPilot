@@ -12,6 +12,7 @@ public sealed class SavedConnection
     public string GatewayHost { get; set; } = "";
     public string GatewayDomain { get; set; } = "";
     public string GatewayUsername { get; set; } = "";
+    public RdpQualitySettings? QualityOverrides { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -27,6 +28,7 @@ public sealed class SavedConnection
             GatewayHost = GatewayHost,
             GatewayDomain = GatewayDomain,
             GatewayUsername = GatewayUsername,
+            QualityOverrides = QualityOverrides?.Clone(),
             CreatedAt = CreatedAt,
             UpdatedAt = UpdatedAt
         };

@@ -4,7 +4,7 @@
         x:Class="RDPilot.Client.Views.ConnectionEditorWindow"
         x:DataType="vm:ConnectionEditorViewModel"
         Width="600"
-        Height="620"
+        Height="780"
         MinWidth="560"
         MinHeight="560"
         CanResize="False"
@@ -40,6 +40,50 @@
                         <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GatewayDomain}" PlaceholderText="Gateway domain optional"/>
                         <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GatewayUsername}" PlaceholderText="Gateway username optional"/>
                         <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GatewayPassword}" PlaceholderText="{Binding GatewayPasswordWatermark}" PasswordChar="*"/>
+                    </Grid>
+                </Border>
+
+                <Border Classes="Section">
+                    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                        <TextBlock Text="Color depth" VerticalAlignment="Center"
+                                   ToolTip.Tip="Controls the remote desktop color depth. Lower values use less bandwidth; 32-bit gives the best color quality. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding QualityEditor.ColorDepthOptions}" SelectedItem="{Binding QualityEditor.ColorDepthSelection}"/>
+
+                        <TextBlock Grid.Row="1" Text="Connection type" VerticalAlignment="Center"
+                                   ToolTip.Tip="Hints the expected network speed so the server can choose suitable visual effects and bandwidth behavior. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding QualityEditor.ConnectionTypeOptions}" SelectedItem="{Binding QualityEditor.ConnectionTypeSelection}"/>
+
+                        <TextBlock Grid.Row="2" Text="Font smoothing" VerticalAlignment="Center"
+                                   ToolTip.Tip="Enables ClearType-style text smoothing on the remote desktop. Improves text appearance but can use more bandwidth. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding QualityEditor.FontSmoothingOptions}" SelectedItem="{Binding QualityEditor.FontSmoothingSelection}"/>
+                    </Grid>
+                </Border>
+
+                <Border Classes="Section">
+                    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
+                        <TextBlock Text="Compression" VerticalAlignment="Center"
+                                   ToolTip.Tip="Compresses RDP traffic to reduce bandwidth use. Usually beneficial on slower or remote networks. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding QualityEditor.CompressionOptions}" SelectedItem="{Binding QualityEditor.CompressionSelection}"/>
+
+                        <TextBlock Grid.Row="1" Text="Bitmap cache" VerticalAlignment="Center"
+                                   ToolTip.Tip="Caches remote bitmap data during the session to reduce repeated image transfers. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding QualityEditor.BitmapCacheOptions}" SelectedItem="{Binding QualityEditor.BitmapCacheSelection}"/>
+
+                        <TextBlock Grid.Row="2" Text="Desktop wallpaper" VerticalAlignment="Center"
+                                   ToolTip.Tip="Shows the remote desktop wallpaper. Disabling it usually reduces bandwidth and improves responsiveness. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding QualityEditor.DesktopWallpaperOptions}" SelectedItem="{Binding QualityEditor.DesktopWallpaperSelection}"/>
+
+                        <TextBlock Grid.Row="3" Text="Themes" VerticalAlignment="Center"
+                                   ToolTip.Tip="Shows remote Windows visual styles such as themed controls. Disabling it favors performance. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding QualityEditor.ThemesOptions}" SelectedItem="{Binding QualityEditor.ThemesSelection}"/>
+
+                        <TextBlock Grid.Row="4" Text="Menu animations" VerticalAlignment="Center"
+                                   ToolTip.Tip="Allows animated menus and UI transitions on the remote desktop. Disabling it reduces visual updates. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding QualityEditor.MenuAnimationsOptions}" SelectedItem="{Binding QualityEditor.MenuAnimationsSelection}"/>
+
+                        <TextBlock Grid.Row="5" Text="Full-window drag" VerticalAlignment="Center"
+                                   ToolTip.Tip="Shows window contents while dragging remote windows. Disabling it updates only after the drag ends. Inherit global uses the global setting."/>
+                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding QualityEditor.FullWindowDragOptions}" SelectedItem="{Binding QualityEditor.FullWindowDragSelection}"/>
                     </Grid>
                 </Border>
             </StackPanel>

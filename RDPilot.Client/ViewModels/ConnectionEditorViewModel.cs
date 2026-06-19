@@ -20,7 +20,7 @@ public partial class ConnectionEditorViewModel : ViewModelBase
     [ObservableProperty] private string _gatewayPassword = "";
     [ObservableProperty] private string _validationMessage = "";
 
-    public ConnectionEditorViewModel(SavedConnection? connection = null)
+    public ConnectionEditorViewModel(SavedConnection? connection = null, RdpQualitySettings? globalQualitySettings = null)
     {
         _isEdit = connection != null;
         _original = connection?.Clone() ?? new SavedConnection();
@@ -32,10 +32,12 @@ public partial class ConnectionEditorViewModel : ViewModelBase
         GatewayHost = _original.GatewayHost;
         GatewayDomain = _original.GatewayDomain;
         GatewayUsername = _original.GatewayUsername;
+        QualityEditor = new RdpQualitySettingsEditorViewModel(_original.QualityOverrides, allowInherit: true, globalQualitySettings);
     }
 
     public string PasswordWatermark => _isEdit ? "Leave blank to keep existing password" : "Password";
     public string GatewayPasswordWatermark => _isEdit ? "Leave blank to keep existing gateway password" : "Gateway password";
+    public RdpQualitySettingsEditorViewModel QualityEditor { get; }
 
     public ConnectionEditResult? BuildResult()
     {
@@ -61,6 +63,7 @@ public partial class ConnectionEditorViewModel : ViewModelBase
         connection.GatewayHost = GatewayHost.Trim();
         connection.GatewayDomain = GatewayDomain.Trim();
         connection.GatewayUsername = GatewayUsername.Trim();
+        connection.QualityOverrides = QualityEditor.HasAnyValue() ? QualityEditor.BuildSettings() : null;
 
         return new ConnectionEditResult
         {

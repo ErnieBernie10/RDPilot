@@ -28,8 +28,19 @@ public static class NativeWrapper
         if (Directory.Exists(nativeDllDirectory))
         {
             Console.WriteLine($"[DEBUG] Native DLL directory: '{nativeDllDirectory}'");
+            ConfigureOpenSslProviderPath(nativeDllDirectory);
             SetDllDirectory(nativeDllDirectory);
         }
+    }
+
+    private static void ConfigureOpenSslProviderPath(string nativeDllDirectory)
+    {
+        if (!File.Exists(Path.Combine(nativeDllDirectory, "legacy.dll")))
+        {
+            return;
+        }
+
+        Environment.SetEnvironmentVariable("OPENSSL_MODULES", nativeDllDirectory);
     }
 
     private static string GetWindowsNativeDllDirectory()
@@ -104,6 +115,15 @@ public static class NativeWrapper
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayUser,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayPassword,
             int width, int height,
+            int colorDepth,
+            [MarshalAs(UnmanagedType.I1)] bool compression,
+            [MarshalAs(UnmanagedType.I1)] bool fontSmoothing,
+            [MarshalAs(UnmanagedType.I1)] bool bitmapCache,
+            [MarshalAs(UnmanagedType.I1)] bool desktopWallpaper,
+            [MarshalAs(UnmanagedType.I1)] bool themes,
+            [MarshalAs(UnmanagedType.I1)] bool menuAnimations,
+            [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
+            int connectionType,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
             StatusCallback statusCallback,

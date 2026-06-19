@@ -9,6 +9,10 @@
                     Classes="RailButton"
                     ToolTip.Tip="Saved connections"
                     Command="{Binding ToggleConnectionsPanelCommand}"/>
+            <Button Content="S"
+                    Classes="RailButton"
+                    ToolTip.Tip="Settings"
+                    Click="OnSettingsClicked"/>
         </StackPanel>
     </Border>
 </UserControl>

@@ -129,6 +129,100 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("gateway-secret", await secretStore.GetSecretAsync(SecretStore.GatewayPasswordKey(connection.Id)));
     }
 
+    [Fact]
+    public async Task SaveConnection_PersistsQualityOverrides()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var connection = CreateConnection("Quality Persist");
+        connection.QualityOverrides = new RdpQualitySettings
+        {
+            ColorDepth = 32,
+            FontSmoothing = true,
+            DesktopWallpaper = false,
+            ConnectionType = RdpConnectionType.Lan
+        };
+
+        await store.SaveAsync(connection, null, false, null, false);
+        var loaded = Assert.Single(await store.LoadAsync(), c => c.Id == connection.Id);
+
+        Assert.NotNull(loaded.QualityOverrides);
+        Assert.Equal(32, loaded.QualityOverrides.ColorDepth);
+        Assert.True(loaded.QualityOverrides.FontSmoothing);
+        Assert.False(loaded.QualityOverrides.DesktopWallpaper);
+        Assert.Equal(RdpConnectionType.Lan, loaded.QualityOverrides.ConnectionType);
+    }
+
+    [Fact]
+    public void QualityDefaults_ResolveUsesPropertyOverridesOnlyWhenSet()
+    {
+        var global = new RdpQualitySettings
+        {
+            ColorDepth = 24,
+            FontSmoothing = true,
+            DesktopWallpaper = true,
+            Themes = true,
+            MenuAnimations = true,
+            FullWindowDrag = true,
+            Compression = false,
+            BitmapCache = false,
+            ConnectionType = RdpConnectionType.Lan
+        };
+        var overrides = new RdpQualitySettings
+        {
+            ColorDepth = 32,
+            FontSmoothing = false,
+            ConnectionType = RdpConnectionType.Wan
+        };
+
+        var resolved = RdpQualityDefaults.Resolve(global, overrides);
+
+        Assert.Equal(32, resolved.ColorDepth);
+        Assert.False(resolved.FontSmoothing);
+        Assert.True(resolved.DesktopWallpaper);
+        Assert.True(resolved.Themes);
+        Assert.True(resolved.MenuAnimations);
+        Assert.True(resolved.FullWindowDrag);
+        Assert.False(resolved.Compression);
+        Assert.False(resolved.BitmapCache);
+        Assert.Equal(RdpConnectionType.Wan, resolved.ConnectionType);
+    }
+
+    [Fact]
+    public async Task ConnectSession_UsesResolvedQualitySettings()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var settingsStore = new AppSettingsStore();
+        await settingsStore.SaveAsync(new AppSettings
+        {
+            QualitySettings = new RdpQualitySettings
+            {
+                ColorDepth = 24,
+                FontSmoothing = true,
+                Compression = false,
+                ConnectionType = RdpConnectionType.Lan
+            }
+        });
+
+        var connection = CreateConnection("Quality Connect");
+        connection.QualityOverrides = new RdpQualitySettings
+        {
+            FontSmoothing = false,
+            BitmapCache = false
+        };
+        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connected);
+        var factory = new QueueSessionFactory(new[] { session });
+        var vm = new MainWindowViewModel(store, settingsStore, factory);
+        await vm.LoadConnectionsAsync();
+
+        await ConnectAsync(vm, connection, secretStore);
+
+        Assert.Equal(session, vm.SelectedSession);
+    }
+
     private static async Task ConnectAsync(MainWindowViewModel vm, SavedConnection connection, FakeSecretStore secretStore)
     {
         secretStore.SetPassword(connection.Id, "pw", "gw");
@@ -156,7 +250,7 @@ public sealed class MainWindowViewModelTests
             _sessions = new Queue<RdpSessionViewModel>(sessions);
         }
 
-        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
         {
             return _sessions.Dequeue();
         }
@@ -200,15 +294,15 @@ public sealed class MainWindowViewModelTests
 
         public TestConfigHome()
         {
-            _previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
-            _path = Path.Combine(Path.GetTempPath(), "rdp-client-tests", Guid.NewGuid().ToString("N"));
+            _previous = Environment.GetEnvironmentVariable(AppDataPaths.ConfigHomeEnvironmentVariable);
+            _path = Path.Combine("C:\\Temp", "rdp-client-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_path);
-            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", _path);
+            Environment.SetEnvironmentVariable(AppDataPaths.ConfigHomeEnvironmentVariable, _path);
         }
 
         public void Dispose()
         {
-            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", _previous);
+            Environment.SetEnvironmentVariable(AppDataPaths.ConfigHomeEnvironmentVariable, _previous);
             if (Directory.Exists(_path))
             {
                 Directory.Delete(_path, true);

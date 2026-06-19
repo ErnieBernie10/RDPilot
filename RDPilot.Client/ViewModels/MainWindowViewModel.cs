@@ -21,7 +21,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private ShellPanel _activeShellPanel;
 
     private readonly ConnectionStore _connectionStore;
+    private readonly AppSettingsStore _settingsStore;
     private readonly IRdpSessionFactory _sessionFactory;
+    private AppSettings _settings = new();
     private int _requestedWidth = 1280;
     private int _requestedHeight = 720;
 
@@ -29,21 +31,27 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
     public bool IsConnectionsPanelOpen => ActiveShellPanel == ShellPanel.Connections;
     public string ConnectionsFilePath => _connectionStore.ConnectionsFilePath;
+    public string SettingsFilePath => _settingsStore.SettingsFilePath;
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
     public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
 
-    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()), new RdpSessionFactory())
+    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore) : this(connectionStore, new RdpSessionFactory())
+    public MainWindowViewModel(ConnectionStore connectionStore) : this(connectionStore, new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory)
+    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(connectionStore, new AppSettingsStore(), sessionFactory)
+    {
+    }
+
+    public MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory)
     {
         _connectionStore = connectionStore;
+        _settingsStore = settingsStore;
         _sessionFactory = sessionFactory;
         _ = LoadConnectionsAsync();
     }
@@ -52,6 +60,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            _settings = await _settingsStore.LoadAsync();
             var connections = await _connectionStore.LoadAsync();
             Connections.Clear();
             foreach (var connection in connections)
@@ -67,6 +76,25 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             StatusMessage = $"Unable to load saved connections: {ex.Message}";
+        }
+    }
+
+    public AppSettings CreateSettingsSnapshot()
+    {
+        return _settings.Clone();
+    }
+
+    public async Task SaveSettingsAsync(AppSettings settings)
+    {
+        try
+        {
+            _settings = settings.Clone();
+            await _settingsStore.SaveAsync(_settings);
+            StatusMessage = "Saved global settings.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to save global settings: {ex.Message}";
         }
     }
 
@@ -299,12 +327,23 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         string gatewayPassword,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
     {
+        var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
+
         return _sessionFactory.Create(
             connection,
             password,
             gatewayPassword,
             _requestedWidth,
             _requestedHeight,
+            qualitySettings.ColorDepth,
+            qualitySettings.Compression,
+            qualitySettings.FontSmoothing,
+            qualitySettings.BitmapCache,
+            qualitySettings.DesktopWallpaper,
+            qualitySettings.Themes,
+            qualitySettings.MenuAnimations,
+            qualitySettings.FullWindowDrag,
+            qualitySettings.ConnectionType,
             remoteClipboardTextReceived);
     }
 

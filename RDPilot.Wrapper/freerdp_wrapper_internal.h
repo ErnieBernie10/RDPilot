@@ -110,6 +110,15 @@ typedef struct {
     char gateway_password[256];
     int width;
     int height;
+    int color_depth;
+    bool compression;
+    bool font_smoothing;
+    bool bitmap_cache;
+    bool desktop_wallpaper;
+    bool themes;
+    bool menu_animations;
+    bool full_window_drag;
+    int connection_type;
 } connection_params;
 
 typedef struct {
