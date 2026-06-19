@@ -1,5 +1,7 @@
 param(
-    [string]$VcpkgRoot = (Join-Path (Resolve-Path "$PSScriptRoot\..\..").Path "vcpkg")
+    [string]$VcpkgRoot = (Join-Path (Resolve-Path "$PSScriptRoot\..\..").Path "vcpkg"),
+
+    [string]$AppVersion = "0.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,10 +21,18 @@ if (-not $targetFramework) {
     throw "TargetFramework was not found in $projectPath."
 }
 
+if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "AppVersion '$AppVersion' is not valid. Use major.minor.patch, for example 0.1.0."
+}
+
 dotnet publish $projectPath `
     -c Release `
     -r win-x64 `
     --self-contained true `
+    "/p:Version=$AppVersion" `
+    "/p:AssemblyVersion=$AppVersion.0" `
+    "/p:FileVersion=$AppVersion.0" `
+    "/p:InformationalVersion=$AppVersion" `
     "/p:NativeWrapperUseVcpkg=true" `
     "/p:NativeWrapperVcpkgRoot=$vcpkgRootForMsBuild"
 

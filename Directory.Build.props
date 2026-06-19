@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version).0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">$(Version).0</FileVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">$(Version)</InformationalVersion>
+    <Product Condition="'$(Product)' == ''">RDPilot</Product>
+    <Company Condition="'$(Company)' == ''">RDPilot</Company>
+    <Authors Condition="'$(Authors)' == ''">RDPilot</Authors>
+    <Copyright Condition="'$(Copyright)' == ''">Copyright (c) RDPilot</Copyright>
+  </PropertyGroup>
+</Project>

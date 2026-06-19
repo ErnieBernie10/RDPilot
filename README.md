@@ -80,7 +80,54 @@ Build the redistributable Windows installer:
 scripts/build-installer-windows.ps1
 ```
 
-The installer is written to `artifacts/installer/RDPilot.Client-Setup-win-x64.exe`. It first publishes the self-contained `win-x64` app, verifies that `freerdp_wrapper.dll` and FreeRDP/WinPR dependency DLLs are present, then packages the complete publish folder recursively.
+The installer is written to `artifacts/installer/RDPilot-Setup-<version>-win-x64.exe`. It first publishes the self-contained `win-x64` app, verifies that `freerdp_wrapper.dll` and FreeRDP/WinPR dependency DLLs are present, then packages the complete publish folder recursively.
+
+## Release and winget
+
+Release versions use `major.minor.patch` tags. The tag is the source of truth for the .NET assembly version, Inno Setup installer version, GitHub Release asset name, and winget package version.
+
+Create a release by pushing a version tag:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The Windows Installer workflow publishes a GitHub Release with these assets:
+
+```text
+RDPilot-Setup-0.1.0-win-x64.exe
+RDPilot-Setup-0.1.0-win-x64.exe.sha256
+```
+
+After testing the GitHub Release installer, submit the winget manifest manually with `wingetcreate`:
+
+```powershell
+winget install Microsoft.WingetCreate
+wingetcreate new https://github.com/ErnieBernie10/RDPilot/releases/download/v0.1.0/RDPilot-Setup-0.1.0-win-x64.exe
+```
+
+Use these package values when prompted:
+
+```text
+PackageIdentifier: RDPilot.RDPilot
+PackageName: RDPilot
+Publisher: RDPilot
+PackageVersion: 0.1.0
+PackageUrl: https://github.com/ErnieBernie10/RDPilot
+PublisherUrl: https://github.com/ErnieBernie10/RDPilot
+ShortDescription: Experimental Avalonia RDP client backed by FreeRDP.
+Moniker: rdpilot
+InstallerType: inno
+Scope: user
+Architecture: x64
+```
+
+For later releases, push the next tag and then update the winget package:
+
+```powershell
+wingetcreate update RDPilot.RDPilot --version 0.1.1 --urls https://github.com/ErnieBernie10/RDPilot/releases/download/v0.1.1/RDPilot-Setup-0.1.1-win-x64.exe
+```
 
 The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when the repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to the setup/build/publish scripts to use a different location.
 

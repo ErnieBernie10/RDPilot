@@ -21,6 +21,7 @@ if (-not $targetFramework) {
 $publishDir = Join-Path $repoRoot "RDPilot.Client\bin\Release\$targetFramework\win-x64\publish"
 $installerScript = Join-Path $repoRoot "installer\RDPilot.Client.iss"
 $outputDir = Join-Path $repoRoot "artifacts\installer"
+$installerBaseName = "RDPilot-Setup-$AppVersion-win-x64"
 
 function Find-InnoSetupCompiler {
     if ($InnoSetupCompiler) {
@@ -63,7 +64,11 @@ function Require-PublishedFile {
 
 $iscc = Find-InnoSetupCompiler
 
-& $publishScript -VcpkgRoot $VcpkgRoot
+if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "AppVersion '$AppVersion' is not valid. Use major.minor.patch, for example 0.1.0."
+}
+
+& $publishScript -VcpkgRoot $VcpkgRoot -AppVersion $AppVersion
 if ($LASTEXITCODE -ne 0) {
     throw "publish-windows.ps1 failed with exit code $LASTEXITCODE."
 }
@@ -87,10 +92,11 @@ if (-not (Test-Path -LiteralPath $outputDir)) {
     "/DSourceDir=$publishDir" `
     "/DOutputDir=$outputDir" `
     "/DAppVersion=$AppVersion" `
+    "/DOutputBaseFilename=$installerBaseName" `
     $installerScript
 
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
 }
 
-"Installer created at $(Join-Path $outputDir 'RDPilot.Client-Setup-win-x64.exe')"
+"Installer created at $(Join-Path $outputDir "$installerBaseName.exe")"

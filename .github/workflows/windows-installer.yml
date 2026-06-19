@@ -21,7 +21,6 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
-      INSTALLER_PATH: artifacts\installer\RDPilot.Client-Setup-win-x64.exe
 
     steps:
       - name: Checkout
@@ -37,11 +36,12 @@ jobs:
             $version = '${{ github.ref_name }}' -replace '^v', ''
           }
 
-          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
             throw "Version '$version' is not a valid package version. Use a tag like v0.1.0 or pass 0.1.0 manually."
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
+          "installer=artifacts\installer\RDPilot-Setup-$version-win-x64.exe" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -58,7 +58,7 @@ jobs:
 
       - name: Test
         shell: pwsh
-        run: dotnet test RDPilot.slnx -c Release
+        run: dotnet test RDPilot.slnx -c Release /p:Version='${{ steps.version.outputs.version }}' /p:AssemblyVersion='${{ steps.version.outputs.version }}.0' /p:FileVersion='${{ steps.version.outputs.version }}.0' /p:InformationalVersion='${{ steps.version.outputs.version }}'
 
       - name: Build installer
         shell: pwsh
@@ -68,8 +68,9 @@ jobs:
         id: hash
         shell: pwsh
         run: |
-          $hash = (Get-FileHash $env:INSTALLER_PATH -Algorithm SHA256).Hash
-          $hashFile = "$env:INSTALLER_PATH.sha256"
+          $installerPath = '${{ steps.version.outputs.installer }}'
+          $hash = (Get-FileHash $installerPath -Algorithm SHA256).Hash
+          $hashFile = "$installerPath.sha256"
           $hash | Out-File -FilePath $hashFile -Encoding ascii
           "sha256=$hash" >> $env:GITHUB_OUTPUT
           "Installer SHA256: $hash"
@@ -77,18 +78,18 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RDPilot.Client-Setup-win-x64-${{ steps.version.outputs.version }}
+          name: RDPilot-Setup-${{ steps.version.outputs.version }}-win-x64
           path: |
-            artifacts/installer/RDPilot.Client-Setup-win-x64.exe
-            artifacts/installer/RDPilot.Client-Setup-win-x64.exe.sha256
+            artifacts/installer/RDPilot-Setup-${{ steps.version.outputs.version }}-win-x64.exe
+            artifacts/installer/RDPilot-Setup-${{ steps.version.outputs.version }}-win-x64.exe.sha256
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/installer/RDPilot.Client-Setup-win-x64.exe
-            artifacts/installer/RDPilot.Client-Setup-win-x64.exe.sha256
+            artifacts/installer/RDPilot-Setup-${{ steps.version.outputs.version }}-win-x64.exe
+            artifacts/installer/RDPilot-Setup-${{ steps.version.outputs.version }}-win-x64.exe.sha256
           body: |
             Windows x64 installer for RDPilot ${{ steps.version.outputs.version }}.
 

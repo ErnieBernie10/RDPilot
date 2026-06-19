@@ -14,16 +14,23 @@
   #define AppVersion "0.1.0"
 #endif
 
+#ifndef OutputBaseFilename
+  #define OutputBaseFilename "RDPilot-Setup-0.1.0-win-x64"
+#endif
+
 [Setup]
 AppId={{8F5E93C6-546B-4E9E-B43A-730353D8EDB5}
 AppName=RDPilot
 AppVersion={#AppVersion}
 AppPublisher=RDPilot
+AppPublisherURL=https://github.com/ErnieBernie10/RDPilot
+AppSupportURL=https://github.com/ErnieBernie10/RDPilot/issues
+AppUpdatesURL=https://github.com/ErnieBernie10/RDPilot/releases
 DefaultDirName={localappdata}\Programs\RDPilot
 DefaultGroupName=RDPilot
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=RDPilot.Client-Setup-win-x64
+OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -32,6 +39,10 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=..\RDPilot.Client\Assets\rdpilot.ico
 UninstallDisplayIcon={app}\RDPilot.Client.exe
+VersionInfoCompany=RDPilot
+VersionInfoProductName=RDPilot
+VersionInfoProductVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
