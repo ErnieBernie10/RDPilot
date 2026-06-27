@@ -138,11 +138,29 @@ sudo pacman -S dotnet-sdk cmake gcc pkgconf freerdp
 Build and run:
 
 ```sh
+scripts/run-linux.sh
+```
+
+Build only:
+
+```sh
+scripts/build-linux.sh
+```
+
+Build a Release configuration:
+
+```sh
+scripts/build-linux.sh --configuration Release
+```
+
+Equivalent direct commands:
+
+```sh
 dotnet build RDPilot.slnx
 dotnet run --project RDPilot.Client/RDPilot.Client.csproj
 ```
 
-The .NET project builds the native wrapper with CMake and copies the native library beside the managed output so `DllImport("freerdp_wrapper")` can load it.
+The .NET project builds the native wrapper with CMake and copies the native library beside the managed output so `DllImport("freerdp_wrapper")` can load it. On Linux, the wrapper is built at `RDPilot.Wrapper/build/native/libfreerdp_wrapper.so`.
 
 ### Release Process
 

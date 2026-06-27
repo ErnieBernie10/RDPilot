@@ -7,7 +7,7 @@ This is an experimental RDP client with:
 - `RDPilot.Client`: .NET/Avalonia UI.
 - `RDPilot.Wrapper`: native C shared library wrapping FreeRDP 3 APIs.
 
-The client uses `DllImport("freerdp_wrapper")` to call into `RDPilot.Wrapper/build/libfreerdp_wrapper.so`.
+The client uses `DllImport("freerdp_wrapper")` to load the native wrapper copied beside the .NET output. Linux builds produce `RDPilot.Wrapper/build/native/libfreerdp_wrapper.so`.
 
 Native sessions are handle-based. `rdp_session_connect` returns an opaque `rdp_session*`; resize, input, clipboard, disconnect, and free calls must use that handle. Do not reintroduce singleton native state for connection/session data.
 
