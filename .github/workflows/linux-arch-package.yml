@@ -50,8 +50,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             version="${{ inputs.version }}"
           else
-            version="${GITHUB_REF_NAME#v}"
+            version="$GITHUB_REF_NAME"
           fi
+
+          version="${version#v}"
 
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Version '$version' is not a valid package version. Use a tag like v0.1.0 or pass 0.1.0 manually." >&2
