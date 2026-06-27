@@ -6,10 +6,13 @@ riderModule.iml
 
 .idea
 RDPilot.Wrapper/build
+RDP.Wrapper/build
 .aider*
 RDPilot.Wrapper/cmake-build-*/
+RDP.Wrapper/cmake-build-*/
 .output.txt
 RDPilot.Client/connection.local.json
+RDP.Client/connection.local.json
 ROADMAP.md
 /artifacts/
 
