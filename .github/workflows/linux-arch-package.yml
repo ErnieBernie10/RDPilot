@@ -38,6 +38,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare build user
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
       - name: Resolve version
         id: version
         shell: bash
@@ -57,17 +62,14 @@ jobs:
           echo "package=rdpilot-$version-1-x86_64.pkg.tar.zst" >> "$GITHUB_OUTPUT"
 
       - name: Prepare PKGBUILD
-        working-directory: packaging/arch
         run: |
-          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
-          updpkgsums
-          makepkg --printsrcinfo > .SRCINFO
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && sed -i 's/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/' PKGBUILD"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && sed -i 's/^pkgrel=.*/pkgrel=1/' PKGBUILD"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && updpkgsums"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --printsrcinfo > .SRCINFO"
 
       - name: Build package
         run: |
-          useradd --create-home builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --needed"
 
       - name: Validate package
