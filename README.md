@@ -37,6 +37,15 @@ After the winget package is accepted, installation will also be available with:
 winget install RDPilot.RDPilot
 ```
 
+On Arch Linux, RDPilot is currently available from the GitHub Release package:
+
+```sh
+curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v0.2.0/rdpilot-0.2.0-1-x86_64.pkg.tar.zst
+sudo pacman -U rdpilot-0.2.0-1-x86_64.pkg.tar.zst
+```
+
+AUR packaging is planned and will be available soon.
+
 ## Usage
 
 1. Add a saved connection from the sidebar.
