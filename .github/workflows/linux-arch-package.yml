@@ -1,0 +1,107 @@
+name: Linux Arch Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App version to package
+        required: true
+        default: "0.1.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-arch-package:
+    name: Build Arch Linux package
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+
+    steps:
+      - name: Install packaging dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed \
+            base-devel \
+            cmake \
+            dotnet-sdk \
+            freerdp \
+            git \
+            libsecret \
+            namcap \
+            pacman-contrib \
+            pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version '$version' is not a valid package version. Use a tag like v0.1.0 or pass 0.1.0 manually." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package=rdpilot-$version-1-x86_64.pkg.tar.zst" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare PKGBUILD
+        working-directory: packaging/arch
+        run: |
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          updpkgsums
+          makepkg --printsrcinfo > .SRCINFO
+
+      - name: Build package
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --needed"
+
+      - name: Validate package
+        working-directory: packaging/arch
+        run: |
+          namcap PKGBUILD || true
+          namcap "${{ steps.version.outputs.package }}" || true
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts/linux
+          cp "packaging/arch/${{ steps.version.outputs.package }}" artifacts/linux/
+          cp packaging/arch/PKGBUILD artifacts/linux/PKGBUILD
+          cp packaging/arch/.SRCINFO artifacts/linux/.SRCINFO
+          cd artifacts/linux
+          sha256sum "${{ steps.version.outputs.package }}" > "${{ steps.version.outputs.package }}.sha256"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RDPilot-${{ steps.version.outputs.version }}-arch-x86_64
+          include-hidden-files: true
+          path: |
+            artifacts/linux/${{ steps.version.outputs.package }}
+            artifacts/linux/${{ steps.version.outputs.package }}.sha256
+            artifacts/linux/PKGBUILD
+            artifacts/linux/.SRCINFO
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/linux/${{ steps.version.outputs.package }}
+            artifacts/linux/${{ steps.version.outputs.package }}.sha256
+            artifacts/linux/PKGBUILD
+            artifacts/linux/.SRCINFO

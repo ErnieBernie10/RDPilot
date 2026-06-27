@@ -180,6 +180,17 @@ RDPilot-Setup-0.1.0-win-x64.exe
 RDPilot-Setup-0.1.0-win-x64.exe.sha256
 ```
 
+The Linux Arch Package workflow publishes:
+
+```text
+rdpilot-0.1.0-1-x86_64.pkg.tar.zst
+rdpilot-0.1.0-1-x86_64.pkg.tar.zst.sha256
+PKGBUILD
+.SRCINFO
+```
+
+Copy the generated `PKGBUILD` and `.SRCINFO` into the `rdpilot` AUR repository for each release.
+
 Submit or update winget manually with `wingetcreate` after testing the release installer.
 
 New package:

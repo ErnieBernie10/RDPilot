@@ -1,0 +1,91 @@
+# Maintainer: RDPilot contributors
+pkgname=rdpilot
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Fast Avalonia RDP client backed by FreeRDP'
+arch=('x86_64')
+url='https://github.com/ErnieBernie10/RDPilot'
+license=('MIT')
+depends=(
+  'dotnet-runtime'
+  'freerdp'
+  'libsecret'
+  'libx11'
+  'libxcursor'
+  'libxi'
+  'libxinerama'
+  'libxkbcommon'
+  'libxrandr'
+  'mesa'
+  'wayland'
+)
+makedepends=(
+  'cmake'
+  'dotnet-sdk'
+  'gcc'
+  'pkgconf'
+)
+source=(
+  "$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
+)
+sha256sums=('SKIP')
+
+build() {
+  cd "RDPilot-$pkgver"
+
+  export DOTNET_CLI_HOME="$srcdir/dotnet-home"
+  export NUGET_PACKAGES="$srcdir/nuget-packages"
+
+  dotnet publish RDPilot.Client/RDPilot.Client.csproj \
+    -c Release \
+    -r linux-x64 \
+    --self-contained false \
+    -p:Version="$pkgver" \
+    -p:AssemblyVersion="$pkgver.0" \
+    -p:FileVersion="$pkgver.0" \
+    -p:InformationalVersion="$pkgver"
+}
+
+check() {
+  cd "RDPilot-$pkgver"
+
+  export DOTNET_CLI_HOME="$srcdir/dotnet-home"
+  export NUGET_PACKAGES="$srcdir/nuget-packages"
+
+  dotnet test RDPilot.slnx \
+    -c Release \
+    -p:Version="$pkgver" \
+    -p:AssemblyVersion="$pkgver.0" \
+    -p:FileVersion="$pkgver.0" \
+    -p:InformationalVersion="$pkgver"
+}
+
+package() {
+  cd "RDPilot-$pkgver"
+
+  local publish_dir="RDPilot.Client/bin/Release/net10.0/linux-x64/publish"
+  install -dm755 "$pkgdir/usr/lib/rdpilot"
+  cp -a "$publish_dir/." "$pkgdir/usr/lib/rdpilot/"
+
+  install -dm755 "$pkgdir/usr/bin"
+  cat > "$pkgdir/usr/bin/rdpilot" <<'EOF'
+#!/usr/bin/env sh
+exec dotnet /usr/lib/rdpilot/RDPilot.Client.dll "$@"
+EOF
+  chmod 755 "$pkgdir/usr/bin/rdpilot"
+
+  install -dm755 "$pkgdir/usr/share/applications"
+  cat > "$pkgdir/usr/share/applications/rdpilot.desktop" <<'EOF'
+[Desktop Entry]
+Name=RDPilot
+Comment=Fast Avalonia RDP client backed by FreeRDP
+Exec=rdpilot
+Icon=rdpilot
+Terminal=false
+Type=Application
+Categories=Network;RemoteAccess;
+EOF
+
+  install -Dm644 RDPilot.Client/Assets/screen-alt-2-red-corner-line.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/rdpilot.svg"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
