@@ -26,6 +26,8 @@ public partial class RdpViewportView : UserControl
     private const ushort KBD_FLAGS_EXTENDED = 0x0100;
 
     private bool _rdpKeyboardActive;
+    private int _keyboardLogCount;
+    private int _textInputLogCount;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly DispatcherTimer _clipboardPollTimer;
     private string? _lastClipboardText;
@@ -82,6 +84,7 @@ public partial class RdpViewportView : UserControl
         _hostWindow.Deactivated += OnHostWindowDeactivated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
+        _hostWindow.AddHandler(InputElement.TextInputEvent, OnTextInput, RoutingStrategies.Bubble, true);
         _clipboardPollTimer.Start();
         QueueViewportResolutionUpdate();
     }
@@ -100,6 +103,7 @@ public partial class RdpViewportView : UserControl
         _hostWindow.Deactivated -= OnHostWindowDeactivated;
         _hostWindow.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _hostWindow.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
+        _hostWindow.RemoveHandler(InputElement.TextInputEvent, OnTextInput);
         _hostWindow = null;
     }
 
@@ -289,12 +293,14 @@ public partial class RdpViewportView : UserControl
         if (scancode != 0 && DataContext is MainWindowViewModel vm)
         {
             ushort flags = 0;
+            ushort originalScancode = scancode;
             if ((scancode & 0x100) != 0)
             {
                 flags |= KBD_FLAGS_EXTENDED;
                 scancode &= 0xFF;
             }
 
+            LogKeyboardEvent("down", e.Key, flags, scancode, originalScancode);
             _rdpKeyboardActive = true;
             _pressedRdpKeys.Add(e.Key);
             vm.SendKeyboardEvent(flags, scancode);
@@ -313,12 +319,14 @@ public partial class RdpViewportView : UserControl
         if (scancode != 0 && DataContext is MainWindowViewModel vm)
         {
             ushort flags = KBD_FLAGS_RELEASE;
+            ushort originalScancode = scancode;
             if ((scancode & 0x100) != 0)
             {
                 flags |= KBD_FLAGS_EXTENDED;
                 scancode &= 0xFF;
             }
 
+            LogKeyboardEvent("up", e.Key, flags, scancode, originalScancode);
             vm.SendKeyboardEvent(flags, scancode);
             _pressedRdpKeys.Remove(e.Key);
             _rdpKeyboardActive = _pressedRdpKeys.Count > 0;
@@ -326,9 +334,40 @@ public partial class RdpViewportView : UserControl
         }
     }
 
+    private void OnTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (!ReferenceEquals(e.Source, RdpImage) || string.IsNullOrEmpty(e.Text) || _textInputLogCount >= 32)
+        {
+            return;
+        }
+
+        _textInputLogCount++;
+        Console.WriteLine($"[KEYBOARD] phase=avalonia-text text={FormatTextForLog(e.Text)} length={e.Text.Length}");
+    }
+
     private bool ShouldHandleKeyboardEvent(KeyEventArgs e)
     {
         return ReferenceEquals(e.Source, RdpImage) || _rdpKeyboardActive;
+    }
+
+    private void LogKeyboardEvent(string phase, Key key, ushort flags, ushort scancode, ushort originalScancode)
+    {
+        if (_keyboardLogCount >= 32)
+        {
+            return;
+        }
+
+        _keyboardLogCount++;
+        Console.WriteLine($"[KEYBOARD] phase=avalonia-{phase} key={key} flags=0x{flags:X4} scancode=0x{scancode:X2} original=0x{originalScancode:X3}");
+    }
+
+    private static string FormatTextForLog(string text)
+    {
+        return text
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\t", "\\t", StringComparison.Ordinal);
     }
 
     private void ReleasePressedRdpKeys()

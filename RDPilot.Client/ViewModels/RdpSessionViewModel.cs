@@ -60,6 +60,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         try
         {
             var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
+            var keyboardLayout = NativeWrapper.GetCurrentKeyboardLayout();
             _handle = NativeWrapper.rdp_session_connect(
                 connection.Host,
                 connectHost,
@@ -81,6 +82,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 menuAnimations,
                 fullWindowDrag,
                 (int)connectionType,
+                keyboardLayout,
                 _frameCallback,
                 _clipboardCallback,
                 _statusCallback,

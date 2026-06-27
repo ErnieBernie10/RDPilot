@@ -23,6 +23,7 @@ FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const cha
                                                      const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                                      int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                                      bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
+                                                     uint32_t keyboard_layout,
                                                      FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);

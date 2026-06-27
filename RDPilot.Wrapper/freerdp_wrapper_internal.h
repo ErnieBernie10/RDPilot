@@ -17,6 +17,7 @@
 #include <freerdp/settings.h>
 #include <freerdp/update.h>
 #include <winpr/sysinfo.h>
+#include <winpr/input.h>
 #include <winpr/stream.h>
 #include <winpr/string.h>
 #include <winpr/synch.h>
@@ -85,6 +86,7 @@ struct rdp_session {
     bool pending_mouse_move;
     uint16_t pending_mouse_x;
     uint16_t pending_mouse_y;
+    UINT32 input_keyboard_log_count;
     UINT32 input_dropped;
     UINT32 input_mouse_moves_coalesced;
     CRITICAL_SECTION clipboard_lock;
@@ -119,6 +121,7 @@ typedef struct {
     bool menu_animations;
     bool full_window_drag;
     int connection_type;
+    UINT32 keyboard_layout;
 } connection_params;
 
 typedef struct {

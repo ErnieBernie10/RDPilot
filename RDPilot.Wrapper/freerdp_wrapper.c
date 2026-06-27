@@ -171,6 +171,18 @@ static UINT32 normalize_connection_type(int connection_type)
         : CONNECTION_TYPE_WAN;
 }
 
+static void log_keyboard_settings(const char* phase, rdpSettings* settings)
+{
+    if (!settings) return;
+
+    printf("[KEYBOARD] phase=%s layout=0x%08X type=%u subtype=%u functionKeys=%u\n",
+           phase,
+           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardLayout),
+           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardType),
+           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardSubType),
+           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardFunctionKey));
+}
+
 static UINT32 build_performance_flags(const connection_params* params)
 {
     UINT32 flags = PERF_DISABLE_CURSOR_SHADOW | PERF_DISABLE_CURSORSETTINGS;
@@ -564,6 +576,12 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_MstscCookieMode, TRUE);
+    printf("[KEYBOARD] phase=requested layout=0x%08X\n", params->keyboard_layout);
+    if (params->keyboard_layout != 0) freerdp_settings_set_uint32(settings, FreeRDP_KeyboardLayout, params->keyboard_layout);
+    freerdp_settings_set_uint32(settings, FreeRDP_KeyboardType, WINPR_KBD_TYPE_IBM_ENHANCED);
+    freerdp_settings_set_uint32(settings, FreeRDP_KeyboardSubType, 0);
+    freerdp_settings_set_uint32(settings, FreeRDP_KeyboardFunctionKey, 12);
+    log_keyboard_settings("configured", settings);
     freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, params->compression ? TRUE : FALSE);
@@ -642,6 +660,10 @@ static bool connect_attempt(rdp_session* session, const connection_params* param
     }
 
     session->connect_succeeded = true;
+    if (session->instance && session->instance->context)
+    {
+        log_keyboard_settings("connected", session->instance->context->settings);
+    }
     return true;
 }
 
@@ -758,6 +780,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
+                                 uint32_t keyboard_layout,
                                  FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
     if (!session) return NULL;
@@ -804,6 +827,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     params->menu_animations = menu_animations;
     params->full_window_drag = full_window_drag;
     params->connection_type = (int)normalize_connection_type(connection_type);
+    params->keyboard_layout = keyboard_layout;
 
     session->running = true;
     session->thread = CreateThread(NULL, 0, rdp_thread_func, params, 0, NULL);

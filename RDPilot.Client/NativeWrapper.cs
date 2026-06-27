@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace RDPilot.Client;
 
@@ -80,6 +81,29 @@ public static class NativeWrapper
         }
     }
 
+    public static uint GetCurrentKeyboardLayout()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.WriteLine("[KEYBOARD] platform=non-windows layout=0x00000000 source=default");
+            return 0;
+        }
+
+        var layoutName = new StringBuilder(9);
+        if (GetKeyboardLayoutName(layoutName) &&
+            uint.TryParse(layoutName.ToString(), System.Globalization.NumberStyles.HexNumber, null, out var parsedLayout))
+        {
+            Console.WriteLine($"[KEYBOARD] platform=windows layout=0x{parsedLayout:X8} source=GetKeyboardLayoutName name={layoutName}");
+            return parsedLayout;
+        }
+
+        var keyboardLayout = GetKeyboardLayout(0);
+        var rawLayout = (ulong)keyboardLayout.ToInt64();
+        var lowWordLayout = (uint)(rawLayout & 0xFFFF);
+        Console.WriteLine($"[KEYBOARD] platform=windows layout=0x{lowWordLayout:X8} rawHkl=0x{rawLayout:X16} source=GetKeyboardLayout fallbackLastWin32Error={Marshal.GetLastWin32Error()}");
+        return lowWordLayout;
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height);
 
@@ -124,6 +148,7 @@ public static class NativeWrapper
             [MarshalAs(UnmanagedType.I1)] bool menuAnimations,
             [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
             int connectionType,
+            uint keyboardLayout,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
             StatusCallback statusCallback,
@@ -149,5 +174,11 @@ public static class NativeWrapper
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetDllDirectory(string lpPathName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetKeyboardLayoutName(StringBuilder pwszKLID);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
 
 }
