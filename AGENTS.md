@@ -96,15 +96,17 @@ Perf logs:
 
 ## Clipboard Notes
 
-Clipboard redirection is text-only at the moment:
+Clipboard redirection currently supports text and local-to-remote file copy/paste:
 
 - Native wrapper enables `FreeRDP_RedirectClipboard` and handles the static `cliprdr` channel.
 - The wrapper sends cliprdr client capabilities on `MonitorReady` before advertising local formats.
-- Only `CF_UNICODETEXT` is advertised/requested/responded to.
+- Text uses `CF_UNICODETEXT`.
+- Local-to-remote files use `FileGroupDescriptorW` / `FileContents` streaming on `cliprdr` and currently advertise long format names with file paths omitted (matches the working `wfreerdp` behavior used during implementation).
 - C# owns interaction with Avalonia's `TopLevel.Clipboard`; native calls back with remote UTF-8 text and C# writes it to the local OS clipboard.
-- Local-to-remote clipboard uses an Avalonia-side polling timer and caches the latest non-empty text in native code so the RDP thread can answer remote paste requests synchronously.
+- Local-to-remote clipboard uses an Avalonia-side polling timer. Text is cached as the latest non-empty string in native code so the RDP thread can answer remote paste requests synchronously; file offers are rebuilt from the current Avalonia clipboard file list.
 - Empty local clipboard reads are ignored because Avalonia/platform clipboard reads may transiently return empty values and should not clear the remote clipboard offer.
-- File, bitmap, HTML, and custom clipboard formats are not implemented yet.
+- Remote-to-local file paste is not implemented yet.
+- Bitmap, HTML, and custom clipboard formats are not implemented yet.
 
 ## Avalonia Notes
 

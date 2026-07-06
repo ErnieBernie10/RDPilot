@@ -75,8 +75,8 @@ static void log_native_frame_stats(rdp_session* session, UINT32 width, UINT32 he
             ? (double)session->perf_frame_gap_total_ms / (double)(session->perf_frame_count - 1)
             : 0.0;
 
-        printf("[PERF_NATIVE] frames=%.1f/s dirtyFrame=%.1f MiB/s size=%ux%u avgGap=%.1fms maxGap=%ums\n",
-               fps, mib_per_sec, width, height, avg_gap, session->perf_frame_gap_max_ms);
+        //printf("[PERF_NATIVE] frames=%.1f/s dirtyFrame=%.1f MiB/s size=%ux%u avgGap=%.1fms maxGap=%ums\n",
+        //       fps, mib_per_sec, width, height, avg_gap, session->perf_frame_gap_max_ms);
 
         session->perf_last_log_tick = now;
         session->perf_frame_count = 0;
@@ -672,6 +672,7 @@ static void on_channel_connected(void* context, const ChannelConnectedEventArgs*
             session->cliprdr->MonitorReady = on_cliprdr_monitor_ready;
             session->cliprdr->ServerFormatList = on_cliprdr_server_format_list;
             session->cliprdr->ServerFormatDataRequest = on_cliprdr_server_format_data_request;
+            session->cliprdr->ServerFileContentsRequest = on_cliprdr_server_file_contents_request;
             session->cliprdr->ServerFormatDataResponse = on_cliprdr_server_format_data_response;
         }
         printf("[CLIPRDR] channel connected\n");
@@ -864,14 +865,14 @@ static void log_loop_stats_if_due(rdp_session* session,
     ULONGLONG elapsed = now - session->perf_loop_last_log_tick;
     if (elapsed < 1000) return;
 
-    printf("[PERF_LOOP] loops=%u slow=%u maxTotal=%ums inputMax=%ums clipboardMax=%ums checkFdsMax=%ums resizeMax=%ums\n",
-           session->perf_loop_count,
-           session->perf_loop_slow_count,
-           session->perf_loop_max_total_ms,
-           session->perf_loop_max_input_ms,
-           session->perf_loop_max_clipboard_ms,
-           session->perf_loop_max_check_fds_ms,
-           session->perf_loop_max_resize_ms);
+    //printf("[PERF_LOOP] loops=%u slow=%u maxTotal=%ums inputMax=%ums clipboardMax=%ums checkFdsMax=%ums resizeMax=%ums\n",
+    //       session->perf_loop_count,
+    //       session->perf_loop_slow_count,
+    //       session->perf_loop_max_total_ms,
+    //       session->perf_loop_max_input_ms,
+    //       session->perf_loop_max_clipboard_ms,
+    //       session->perf_loop_max_check_fds_ms,
+    //       session->perf_loop_max_resize_ms);
 
     session->perf_loop_last_log_tick = now;
     session->perf_loop_count = 0;
@@ -1052,7 +1053,10 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_uint32(settings, FreeRDP_DeviceScaleFactor, clamped_scale);
     freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, TRUE);
     freerdp_settings_set_uint32(settings, FreeRDP_ClipboardFeatureMask,
-                                CLIPRDR_FLAG_LOCAL_TO_REMOTE | CLIPRDR_FLAG_REMOTE_TO_LOCAL);
+                                CLIPRDR_FLAG_LOCAL_TO_REMOTE |
+                                    CLIPRDR_FLAG_REMOTE_TO_LOCAL |
+                                    CLIPRDR_FLAG_LOCAL_TO_REMOTE_FILES |
+                                    CLIPRDR_FLAG_REMOTE_TO_LOCAL_FILES);
     freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
@@ -1169,6 +1173,7 @@ static bool connect_attempt(rdp_session* session, const connection_params* param
     }
 
     printf("[DEBUG] Connecting %s gateway...\n", use_gateway ? "with" : "without");
+
     if (!freerdp_connect(session->instance)) {
         fprintf(stderr, "Failed to connect %s gateway\n", use_gateway ? "with" : "without");
         capture_last_error(session->instance->context, error);
@@ -1350,6 +1355,21 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     InitializeCriticalSection(&session->clipboard_lock);
     InitializeCriticalSection(&session->frame_lock);
 
+#if defined(_WIN32)
+    /* On Windows, use the actual Win32 registered clipboard format IDs.
+     * This matches wfreerdp, which calls RegisterClipboardFormat(CFSTR_FILEDESCRIPTORW).
+     * The Windows RDP server uses these IDs to identify file clipboard formats. */
+    session->file_group_descriptor_format_id = RegisterClipboardFormatA("FileGroupDescriptorW");
+    session->file_contents_format_id = RegisterClipboardFormatA("FileContents");
+#else
+    session->file_clipboard = ClipboardCreate();
+    if (session->file_clipboard)
+    {
+        session->file_group_descriptor_format_id = ClipboardRegisterFormat(session->file_clipboard, "FileGroupDescriptorW");
+        session->file_contents_format_id = ClipboardRegisterFormat(session->file_clipboard, "FileContents");
+    }
+#endif
+
     UINT32 initial_width = (UINT32)width;
     UINT32 initial_height = (UINT32)height;
     normalize_resolution(&initial_width, &initial_height);
@@ -1425,7 +1445,9 @@ void rdp_session_free(rdp_session* session) {
     DeleteCriticalSection(&session->input_lock);
     DeleteCriticalSection(&session->clipboard_lock);
     DeleteCriticalSection(&session->frame_lock);
-    free_local_clipboard_text(session);
+    if (session->file_clipboard)
+        ClipboardDestroy(session->file_clipboard);
+    free_clipboard_data(session);
     free(session);
 }
 

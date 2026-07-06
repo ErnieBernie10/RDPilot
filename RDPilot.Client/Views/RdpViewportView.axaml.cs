@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using RDPilot.Client.ViewModels;
 
@@ -30,7 +33,7 @@ private bool _rdpKeyboardActive;
     private int _textInputLogCount;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly DispatcherTimer _clipboardPollTimer;
-    private string? _lastClipboardText;
+    private string? _lastClipboardSignature;
     private bool _settingClipboardFromRemote;
     private MainWindowViewModel? _subscribedViewModel;
     private Window? _hostWindow;
@@ -130,7 +133,7 @@ _hostWindow.SizeChanged -= OnHostWindowSizeChanged;
             {
                 _settingClipboardFromRemote = true;
                 await clipboard.SetTextAsync(text);
-                _lastClipboardText = text;
+                _lastClipboardSignature = $"text:{text}";
                 Console.WriteLine($"[CLIPRDR] set local clipboard from remote chars={text.Length}");
             }
             catch (Exception ex)
@@ -154,21 +157,119 @@ _hostWindow.SizeChanged -= OnHostWindowSizeChanged;
 
         try
         {
-            var text = await clipboard.TryGetTextAsync() ?? "";
-            if (text.Length == 0 || text == _lastClipboardText)
+            var data = await clipboard.TryGetDataAsync();
+            if (data == null)
             {
+                if (_lastClipboardSignature != null)
+                {
+                    _lastClipboardSignature = null;
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.SetLocalClipboardText("");
+                    }
+                }
+
                 return;
             }
 
-            _lastClipboardText = text;
-            if (DataContext is MainWindowViewModel vm)
+            var files = await data.TryGetFilesAsync();
+            if (files is { Length: > 0 })
             {
-                vm.SetLocalClipboardText(text);
+                var paths = new List<string>(files.Length);
+                foreach (var item in files)
+                {
+                    using (item)
+                    {
+                        var path = item.TryGetLocalPath();
+                        if (!string.IsNullOrWhiteSpace(path))
+                        {
+                            paths.Add(path);
+                        }
+                    }
+                }
+
+                if (paths.Count > 0)
+                {
+                    var signature = $"files:{string.Join("\n", paths)}";
+                    if (signature != _lastClipboardSignature)
+                    {
+_lastClipboardSignature = signature;
+                        if (DataContext is MainWindowViewModel vm)
+                        {
+                            vm.SetLocalClipboardFiles(paths.ToArray());
+                        }
+                    }
+
+                    return;
+                }
+            }
+
+            var text = await data.TryGetTextAsync();
+            if (!string.IsNullOrEmpty(text))
+            {
+                var signature = $"text:{text}";
+                if (signature != _lastClipboardSignature)
+                {
+                    _lastClipboardSignature = signature;
+                    Console.WriteLine($"[CLIPRDR] local clipboard text chars={text.Length}");
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.SetLocalClipboardText(text);
+                    }
+                }
+
+                return;
+            }
+
+            var bitmap = await data.TryGetBitmapAsync();
+            if (bitmap != null)
+            {
+                var signature = $"bitmap:{bitmap.PixelSize.Width}x{bitmap.PixelSize.Height}:{bitmap.Format}:{bitmap.AlphaFormat}";
+                if (signature != _lastClipboardSignature)
+                {
+                    _lastClipboardSignature = signature;
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        var dib = ConvertBitmapToDib(bitmap);
+                        if (dib != null)
+                        {
+                            vm.SetLocalClipboardBitmap(dib, (uint)bitmap.PixelSize.Width, (uint)bitmap.PixelSize.Height);
+                        }
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[CLIPRDR] failed to poll local clipboard: {ex.Message}");
+        }
+    }
+
+    private static byte[]? ConvertBitmapToDib(Bitmap bitmap)
+    {
+        try
+        {
+            using var stream = new MemoryStream();
+            bitmap.Save(stream);
+            var bytes = stream.ToArray();
+            if (bytes.Length <= 14)
+            {
+                return bytes;
+            }
+
+            if (bytes[0] == (byte)'B' && bytes[1] == (byte)'M')
+            {
+                var dib = new byte[bytes.Length - 14];
+                Buffer.BlockCopy(bytes, 14, dib, 0, dib.Length);
+                return dib;
+            }
+
+            return bytes;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLIPRDR] failed to encode bitmap clipboard data: {ex.Message}");
+            return null;
         }
     }
 

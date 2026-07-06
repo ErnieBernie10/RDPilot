@@ -174,6 +174,12 @@ public static class NativeWrapper
     public static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void rdp_session_clipboard_set_local_files(IntPtr session, IntPtr filePaths, nint fileCount);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool rdp_session_present(
         IntPtr session,

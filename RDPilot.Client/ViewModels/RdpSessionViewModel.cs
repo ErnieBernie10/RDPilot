@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
@@ -264,6 +265,56 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     {
         if (!TryGetActiveHandle(out var handle)) return;
         NativeWrapper.rdp_session_clipboard_set_local_text(handle, text);
+    }
+
+    public void SetLocalClipboardFiles(string[] filePaths)
+    {
+        if (!TryGetActiveHandle(out var handle) || filePaths == null || filePaths.Length == 0) return;
+        
+        var ptrs = new IntPtr[filePaths.Length];
+        var pathHandles = new GCHandle[filePaths.Length];
+        try
+        {
+            for (int i = 0; i < filePaths.Length; i++)
+            {
+                var pathBytes = Encoding.UTF8.GetBytes(filePaths[i] + "\0");
+                pathHandles[i] = GCHandle.Alloc(pathBytes, GCHandleType.Pinned);
+                ptrs[i] = pathHandles[i].AddrOfPinnedObject();
+            }
+            
+            var ptrArrayHandle = GCHandle.Alloc(ptrs, GCHandleType.Pinned);
+            try
+            {
+                NativeWrapper.rdp_session_clipboard_set_local_files(handle, ptrArrayHandle.AddrOfPinnedObject(), filePaths.Length);
+            }
+            finally
+            {
+                ptrArrayHandle.Free();
+            }
+        }
+        finally
+        {
+            foreach (var fileHandle in pathHandles)
+            {
+                if (fileHandle.IsAllocated)
+                    fileHandle.Free();
+            }
+        }
+    }
+
+    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
+    {
+        if (!TryGetActiveHandle(out var handle) || bitmapData == null || bitmapData.Length == 0) return;
+        
+        var bitmapHandle = GCHandle.Alloc(bitmapData, GCHandleType.Pinned);
+        try
+        {
+            NativeWrapper.rdp_session_clipboard_set_local_bitmap(handle, bitmapHandle.AddrOfPinnedObject(), bitmapData.Length, width, height);
+        }
+        finally
+        {
+            bitmapHandle.Free();
+        }
     }
 
     private void OnRemoteClipboardTextReceived(IntPtr session, IntPtr textPtr)

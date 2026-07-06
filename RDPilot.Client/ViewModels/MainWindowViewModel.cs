@@ -307,6 +307,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SelectedSession?.SetLocalClipboardText(text);
     }
 
+    public void SetLocalClipboardFiles(string[] filePaths)
+    {
+        SelectedSession?.SetLocalClipboardFiles(filePaths);
+    }
+
+    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
+    {
+        SelectedSession?.SetLocalClipboardBitmap(bitmapData, width, height);
+    }
+
     private void OnSessionRequestRedraw(object? sender, EventArgs e)
     {
         if (sender is RdpSessionViewModel session && ReferenceEquals(session, SelectedSession))

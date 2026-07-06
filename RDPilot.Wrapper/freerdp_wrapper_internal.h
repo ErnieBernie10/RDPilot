@@ -12,11 +12,13 @@
 #include <freerdp/channels/cliprdr.h>
 #include <freerdp/channels/channels.h>
 #include <freerdp/channels/rdpgfx.h>
+#include <freerdp/utils/cliprdr_utils.h>
 #include <freerdp/gdi/gdi.h>
 #include <freerdp/gdi/gfx.h>
 #include <freerdp/settings.h>
 #include <freerdp/update.h>
 #include <freerdp/utils/gfx.h>
+#include <winpr/clipboard.h>
 #include <winpr/sysinfo.h>
 #include <winpr/input.h>
 #include <winpr/stream.h>
@@ -33,6 +35,7 @@
 #include <string.h>
 #if !defined(_WIN32)
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 #define RESIZE_QUIET_DELAY_MS 1000
@@ -113,6 +116,26 @@ struct rdp_session {
     CRITICAL_SECTION clipboard_lock;
     char* local_clipboard_text;
     bool clipboard_format_pending;
+    
+    // Advanced clipboard support
+    UINT32* supported_local_formats;
+    size_t supported_local_formats_count;
+    size_t supported_local_formats_capacity;
+    
+    // File clipboard support
+    wClipboard* file_clipboard;
+    UINT32 file_group_descriptor_format_id;
+    UINT32 file_contents_format_id;
+    char** local_file_paths;
+    size_t local_file_paths_count;
+    size_t local_file_paths_capacity;
+    char* temp_directory;
+    
+    // Bitmap clipboard support
+    BYTE* local_bitmap_data;
+    size_t local_bitmap_data_size;
+    UINT32 local_bitmap_width;
+    UINT32 local_bitmap_height;
     CRITICAL_SECTION frame_lock;
     volatile LONG pending_frame;
     INT32 pending_dirty_x;
@@ -164,6 +187,7 @@ void queue_input_event(rdp_session* session, input_event event);
 void process_pending_input(rdp_session* session);
 
 void free_local_clipboard_text(rdp_session* session);
+void free_clipboard_data(rdp_session* session);
 void process_pending_clipboard(rdp_session* session);
 
 char* duplicate_string(const char* text);
@@ -172,4 +196,5 @@ UINT on_cliprdr_server_capabilities(CliprdrClientContext* context, const CLIPRDR
 UINT on_cliprdr_monitor_ready(CliprdrClientContext* context, const CLIPRDR_MONITOR_READY* monitorReady);
 UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_FORMAT_LIST* formatList);
 UINT on_cliprdr_server_format_data_request(CliprdrClientContext* context, const CLIPRDR_FORMAT_DATA_REQUEST* formatDataRequest);
+UINT on_cliprdr_server_file_contents_request(CliprdrClientContext* context, const CLIPRDR_FILE_CONTENTS_REQUEST* fileContentsRequest);
 UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context, const CLIPRDR_FORMAT_DATA_RESPONSE* formatDataResponse);
