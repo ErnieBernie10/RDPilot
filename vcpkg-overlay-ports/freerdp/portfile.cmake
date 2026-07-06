@@ -77,7 +77,8 @@ vcpkg_cmake_configure(
         -DWITH_UNICODE_BUILTIN=ON
         "-DMSVC_RUNTIME=${VCPKG_CRT_LINKAGE}"
         "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}"
-        -DWITH_CLIENT_WINDOWS=OFF
+        -DWITH_CLIENT_WINDOWS=ON
+        -DWITH_CLIENT_INTERFACE=ON
         -DWITH_WAYLAND=OFF
         -DUSE_UNWIND=OFF
         -DWITH_ALSA=OFF
@@ -100,7 +101,7 @@ vcpkg_cmake_configure(
         MSVC_RUNTIME
         USE_UNWIND
         VCPKG_LOCK_FIND_PACKAGE_X11
-        WITH_CLIENT_WINDOWS
+        WITH_CLIENT_INTERFACE
 )
 
 vcpkg_cmake_install()
@@ -108,6 +109,9 @@ vcpkg_copy_pdbs()
 vcpkg_fixup_pkgconfig()
 
 vcpkg_list(SET tools)
+if("client" IN_LIST FEATURES AND VCPKG_TARGET_IS_WINDOWS)
+    list(APPEND tools wfreerdp)
+endif()
 if("client" IN_LIST FEATURES AND "x11" IN_LIST FEATURES)
     list(APPEND tools xfreerdp)
 endif()

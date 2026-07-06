@@ -1,3 +1,5 @@
+BE BRIEF.
+
 # Agent Notes
 
 ## Project Overview
@@ -53,25 +55,43 @@ Input and latency behavior:
 - Do not call FreeRDP input APIs directly from Avalonia/UI event handlers.
 - Queue input and process it on the RDP thread.
 - Mouse move events are coalesced latest-only to reduce hover/move flood; clicks, wheel, and keys remain ordered queued events.
-- The RDP loop currently sleeps briefly (`2ms`) after each iteration to keep input responsive without busy spinning.
+- The coalesced pending mouse move is throttled to ~125 Hz (`MIN_MOVE_SEND_INTERVAL_MS = 8`). RDPGFX frame scheduling on the server gates on input quiescence; the previous busy-poll loop spammed moves at ~500 Hz and made the server pace frames down to 1-12 fps during drag. The pending move stays updated latest-only so the server always sees the most recent position while staying within the rate budget (matches mstsc/wfreerdp).
+- The RDP loop is now the canonical FreeRDP event-driven form (matches `wfreerdp`/`xfreerdp`): `freerdp_get_event_handles` → `WaitForMultipleObjects(..., INPUT_LOOP_TIMEOUT_MS=10)` → `freerdp_check_event_handles` (single call, which itself invokes `freerdp_check_fds` + `freerdp_channels_check_fds` + error-event check). No `Sleep(2)`, no redundant per-handle `WaitForSingleObject(0)`, no standalone `freerdp_check_fds` call. Network data wakes the loop immediately; idle polls are capped at ~100 Hz.
 - Current low-latency profile uses 16-bit color, compression, bitmap cache, WAN connection type, disabled audio/device redirection, and disabled desktop visual effects.
 
 ## Rendering Notes
 
-The wrapper currently disables `FreeRDP_SupportGraphicsPipeline` because RDPGFX/ClearCodec became unstable across dynamic resizes and could disconnect `Microsoft::Windows::RDS::Graphics`.
+The default rendering mode is now `gfx-gdi` (RDPGFX with FreeRDP's standard `gdi_graphics_pipeline_init`, aligned with `wfreerdp`). The custom `rdpgfx-surface` path has been removed; only `gfx-gdi` and the legacy `classic-gdi` mode remain. `classic-gdi` is kept for fallback only and is not the production path. Set `RDPILOT_RENDERING_MODE=classic-gdi` to force the legacy path.
 
-Classic GDI rendering path is currently preferred for stability while dynamic resolution is being developed.
+Shared-buffer presentation (mirrors `wfreerdp.exe`):
 
-Do not treat `SurfaceBits` as a full-frame callback. It may represent partial/alternate-surface bitmap data. Full-frame delivery to C# should use the GDI primary framebuffer from `EndPaint`/resize notifications.
+- `FreeRDP_SoftwareGdi` is now `TRUE` in gfx mode and the wrapper uses FreeRDP's standard `gdi_graphics_pipeline_init` (no `gdi_graphics_pipeline_init_ex`, no `SurfaceCommand`/`EndFrame`/`UpdateSurfaceArea` overrides, no surface-renderer dirty tracking).
+- FreeRDP decodes RDPEGFX surfaces directly into the GDI primary buffer (`gdi->primary_buffer`) using `PIXEL_FORMAT_BGRX32`.
+- `on_end_paint` (native, RDP thread) unions `hwnd->cinvalid[]` into a single extents rect, stores it into the native pending slot under `frame_lock`, and invokes the C# `FrameCallback` with the *live* `gdi->primary_buffer` pointer plus the dirty extents. **No pixel copy happens on the RDP thread.** This mirrors `wf_end_paint`, which only calls `InvalidateRect`.
+- `rdp_session_present` (UI thread) atomically copies the dirty rect from the live `gdi->primary_buffer` into a caller-provided destination buffer **under `frame_lock`**, which is also held across `gdi_resize`. This prevents the primary buffer from being freed/reallocated mid-copy (unlike `wfreerdp`, which runs decode and present on a single message thread, our RDP thread and UI thread are separate). The function returns the dirty rect or signals a resize race so the caller can recreate its bitmap.
+- `resize_local_framebuffer` holds `frame_lock` across `gdi_resize`, then resets the pending dirty rect to full screen and notifies C# via the `FrameCallback`.
+- The C# `FrameCallback` (`OnFrameReceived`) does not copy bytes; it records the dirty rect/dims and posts a UI-thread present. `ManagedFramePresenter.Present` runs on the UI thread, calls `rdp_session_present` (which does the locked copy natively), recreates the `WriteableBitmap` on resize, and triggers one `InvalidateVisual` per logical desktop frame.
+- The managed renderer keeps only the newest pending frame geometry (last-write-wins with dirty-rect union across frames that arrive while a present is already queued). Intermediate frames are intentionally dropped to bound latency under drag, exactly like Windows coalescing `InvalidateRect` calls.
 
-The C# frame callback must not post native framebuffer pointers to Avalonia's UI thread. FreeRDP may reallocate/free the framebuffer during resize before the UI thread runs. Copy the frame into managed memory immediately inside `OnFrameReceived`, then render from that managed copy.
+RDPGFX investigation notes (historical context):
 
-The managed renderer keeps only the newest pending frame. If Avalonia is behind, older pending frames are dropped rather than queued, keeping latency lower under activity.
+- If switching back from the old experimental branch/stash to a clean tree, delete `RDPilot.Wrapper/build/vcpkg-msvc` if CMake complains about missing root `vcpkg.json`; the stale CMake cache may still point at the manifest from the experimental branch.
+- `wfreerdp.exe` was built by enabling `WITH_CLIENT_WINDOWS=ON`, `WITH_CLIENT_INTERFACE=ON`, and copying `wfreerdp` tools in the FreeRDP overlay port. It requires `wfreerdp-client3.dll` beside the executable.
+- `wfreerdp` uses `PIXEL_FORMAT_BGRX32` local framebuffer and FreeRDP's standard Windows GDI presentation (`InvalidateRect`/`BitBlt`) with `gdi_graphics_pipeline_init`. RDPilot now matches that path on the native side and only deviates on the present primitive (Avalonia `WriteableBitmap` instead of `BitBlt`).
+- FreeRDP with `ffmpeg` enabled defines `WITH_GFX_H264`; without the manifest/ffmpeg build it does not advertise/decode RDPGFX H.264/AVC.
+- Even with `WITH_GFX_H264`, tested servers confirmed `RDPGFX_CAPVERSION_81` with AVC420 flag `0x00000002` but still sent `avc=0`; actual updates were ClearCodec/progressive.
+- The smoother server was smoother because it delivered far steadier ClearCodec updates, often around 26-31 FPS. The slower server delivered far fewer completed frames despite similar caps.
+- Frame acknowledgements are required for these servers. Disabling RDPGFX frame ack froze the session. QoE ack did not resolve pacing issues.
+- For RDPGFX, force 32-bit color and use LAN/high-quality connection settings; the legacy low-latency classic-GDI profile uses 16-bit/WAN/disabled visuals and may influence server graphics choices.
+- The default `RDPILOT_GFX_CODEC_POLICY` is now `server` (don't filter caps, let the server pick the best codec — matches `wfreerdp`). Forcing `avc420`/`sharp` filters out ClearCodec/Progressive and made tested servers send 2-20 fps with 100-1500 ms frame gaps during drag; `wfreerdp` advertises all caps and the server picks ClearCodec for sharp content. Override with `avc`/`avc420`/`sharp` only for diagnostics.
+
+Do not treat `SurfaceBits` as a full-frame callback. It may represent partial/alternate-surface bitmap data. Full-frame delivery to C# must use the GDI primary framebuffer from `EndPaint`/resize notifications.
 
 Perf logs:
 
 - `[PERF_NATIVE]` reports FreeRDP frame cadence and estimated full-frame throughput.
-- `[PERF_UI]` reports managed receive/render rates, dropped frames, UI queue delay, and approximate input-to-next-render delay.
+- `[PERF_UI]` reports managed receive/present/dropped rates, copied MiB/s, queue delay, and approximate input-to-next-render delay.
+- `[PERF_LOOP]` reports RDP loop phase timings; under drag the `checkFdsMax` phase should no longer carry a per-frame memcpy.
 - `[PERF_INPUT]` appears only when input drops or large mouse-move coalescing batches happen.
 
 ## Clipboard Notes
@@ -106,17 +126,26 @@ Credential storage:
 - Linux password save/load requires a working Secret Service session and `secret-tool`; do not silently fall back to plaintext.
 - Secret keys are derived from the saved connection ID with `SecretStore.PasswordKey` and `SecretStore.GatewayPasswordKey`.
 
-The initial RDP size comes from the measured `ScrollViewer` viewport, not from the `Image` bounds. The `Image` uses `Stretch="None"`, so its bounds can remain at the old remote bitmap size and should not be used as the target resolution.
+The initial RDP size comes from the measured `ScrollViewer` viewport (in DIPs) multiplied by `Window.RenderScaling` to get physical pixels. The `Image` uses `Stretch="Fill"` with explicit `Width`/`Height` bound to `SelectedSession.DisplayWidth`/`DisplayHeight` (= framebuffer pixels / render scaling), so the bitmap maps 1:1 to physical display pixels → sharp on both 100% and scaled displays.
 
 The startup window is intentionally large (`1440x900`) with `MinWidth="900"` and `MinHeight="600"` so the first connection gets a usable initial desktop size.
 
 Keyboard handling is scoped to the RDP image but registered on the window's tunnel route with handled events included. This keeps chords such as `Ctrl+Tab` from losing key-up events while still allowing connection text boxes to receive normal typing when focused.
 
+## HiDPI Notes
+
+- The host's render scaling is read from `Window.RenderScaling` (a `TopLevel` property). The view (`RdpViewportView`) computes physical pixel dimensions = DIP viewport size × render scaling, and passes them to the native wrapper as `DesktopWidth`/`DesktopHeight`.
+- DPI scale percentage is passed to `rdp_session_connect` at connect time via `dpi_scale_percent`. The native wrapper clamps it to the RDP-valid steps (100/140/180) and sets `FreeRDP_DesktopScaleFactor`/`FreeRDP_DeviceScaleFactor` accordingly. This makes the remote session DPI-aware so text/menus render at the right size on scaled displays.
+- DPI scale is **locked at connect time** — `rdp_session_update_resolution` does NOT change the DPI factors. The Windows RDP server does not reliably handle mid-session `desktopScaleFactor` changes (UWP processes like the Start Menu don't reflow). Only the pixel resolution changes dynamically when the window moves between monitors with different DPI. This matches mstsc behaviour.
+- `ManagedFramePresenter` stores `_renderScaling` for coordinate scaling (pointer events multiply DIP coords by `_renderScaling` to get desktop coords) and for `DisplayWidth`/`DisplayHeight` computation (so the Avalonia `Image` is sized correctly in DIPs).
+- `Window.LayoutUpdated` is monitored for render-scaling changes (e.g. window dragged to a different-DPI monitor). The handler triggers a resolution update with the new physical pixel size while keeping the connect-time DPI scale.
+- Skia (Avalonia's default renderer) **ignores bitmap DPI** — `IBitmap.Dpi` always returns 96 DPI regardless of the `Vector` passed to the `WriteableBitmap` constructor. This is why we use explicit `Image.Width`/`Height` binding + `Stretch="Fill"` instead of relying on bitmap DPI for display sizing.
+
 ## Security Notes
 
 Credentials were previously hardcoded in the view model. Do not reintroduce real credentials into source files.
 
-The native wrapper currently sets `FreeRDP_IgnoreCertificate = TRUE`. This is acceptable only for local experimentation; a proper certificate review/trust flow is needed before packaging or real use.
+The native wrapper sets `FreeRDP_IgnoreCertificate = FALSE` and provides a `CertificateDecisionCallback` so the host can prompt the user to accept/reject certificates. Trusted fingerprints can be persisted via `ICertificateTrustStore`.
 
 ## Current Verification
 

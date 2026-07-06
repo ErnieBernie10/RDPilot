@@ -250,7 +250,7 @@ public sealed class MainWindowViewModelTests
             _sessions = new Queue<RdpSessionViewModel>(sessions);
         }
 
-        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, double renderScaling, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
         {
             return _sessions.Dequeue();
         }

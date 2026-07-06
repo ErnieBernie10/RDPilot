@@ -1,0 +1,14 @@
+{
+  "name": "rdpilot-native-dependencies",
+  "version-string": "0.1.0",
+  "dependencies": [
+    {
+      "name": "freerdp",
+      "default-features": false,
+      "features": [
+        "client",
+        "ffmpeg"
+      ]
+    }
+  ]
+}

@@ -24,17 +24,33 @@ void process_pending_input(rdp_session* session)
     UINT32 event_count = 0;
     UINT32 dropped = 0;
     UINT32 coalesced = 0;
+    bool move_throttled = false;
 
     EnterCriticalSection(&session->input_lock);
     if (session->pending_mouse_move)
     {
-        events[event_count++] = (input_event){
-            .type = INPUT_EVENT_MOUSE,
-            .flags = PTR_FLAGS_MOVE,
-            .x = session->pending_mouse_x,
-            .y = session->pending_mouse_y,
-        };
-        session->pending_mouse_move = false;
+        // Throttle pure mouse moves to ~125 Hz (8ms). RDPGFX frame scheduling on the server gates
+        // on input quiescence; flooding >300 Hz (busy-poll style) made the server pace down to
+        // 1-12 fps during drag. mstsc/wfreerdp deliver moves at the OS/UI rate (~60-125 Hz).
+        ULONGLONG now = GetTickCount64();
+        if (session->last_move_send_tick == 0 ||
+            now - session->last_move_send_tick >= MIN_MOVE_SEND_INTERVAL_MS)
+        {
+            events[event_count++] = (input_event){
+                .type = INPUT_EVENT_MOUSE,
+                .flags = PTR_FLAGS_MOVE,
+                .x = session->pending_mouse_x,
+                .y = session->pending_mouse_y,
+            };
+            session->pending_mouse_move = false;
+            session->last_move_send_tick = now;
+        }
+        else
+        {
+            // Keep the pending move (latest position) for the next iteration; record throttle.
+            move_throttled = true;
+            session->input_move_throttled++;
+        }
     }
 
     for (UINT32 i = 0; i < session->input_queue_count; i++)
@@ -45,8 +61,10 @@ void process_pending_input(rdp_session* session)
 
     dropped = session->input_dropped;
     coalesced = session->input_mouse_moves_coalesced;
+    UINT32 throttled = session->input_move_throttled;
     session->input_dropped = 0;
     session->input_mouse_moves_coalesced = 0;
+    session->input_move_throttled = 0;
     LeaveCriticalSection(&session->input_lock);
 
     for (UINT32 i = 0; i < event_count; i++)
@@ -71,9 +89,10 @@ void process_pending_input(rdp_session* session)
         }
     }
 
-    if (dropped > 0 || coalesced > 1000)
+    if (dropped > 0 || coalesced > 1000 || throttled > 1000)
     {
-        printf("[PERF_INPUT] sent=%u coalescedMouseMoves=%u dropped=%u\n", event_count, coalesced, dropped);
+        printf("[PERF_INPUT] sent=%u coalescedMouseMoves=%u throttledMoves=%u dropped=%u\n",
+               event_count, coalesced, throttled, dropped);
     }
 }
 

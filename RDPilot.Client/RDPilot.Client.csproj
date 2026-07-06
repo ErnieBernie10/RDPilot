@@ -11,9 +11,11 @@
         <NativeWrapperCMakeArgs></NativeWrapperCMakeArgs>
         <NativeWrapperVcpkgRoot Condition="'$(NativeWrapperVcpkgRoot)' == '' and Exists('$(MSBuildProjectDirectory)/../../vcpkg/scripts/buildsystems/vcpkg.cmake')">$(MSBuildProjectDirectory)/../../vcpkg</NativeWrapperVcpkgRoot>
         <NativeWrapperVcpkgRoot Condition="'$(NativeWrapperVcpkgRoot)' == '' and Exists('C:/vcpkg/scripts/buildsystems/vcpkg.cmake')">C:/vcpkg</NativeWrapperVcpkgRoot>
+        <NativeWrapperVcpkgManifestDir Condition="'$(NativeWrapperVcpkgManifestDir)' == ''">$(MSBuildProjectDirectory)/..</NativeWrapperVcpkgManifestDir>
+        <NativeWrapperVcpkgOverlayPorts Condition="'$(NativeWrapperVcpkgOverlayPorts)' == ''">$(MSBuildProjectDirectory)/../vcpkg-overlay-ports</NativeWrapperVcpkgOverlayPorts>
         <NativeWrapperUseVcpkg Condition="'$(NativeWrapperUseVcpkg)' == '' and '$(NativeWrapperVcpkgRoot)' != ''">true</NativeWrapperUseVcpkg>
         <NativeWrapperUseVcpkg Condition="'$(NativeWrapperUseVcpkg)' == ''">false</NativeWrapperUseVcpkg>
-        <NativeWrapperCMakeArgs Condition="'$(NativeWrapperUseVcpkg)' == 'true' and '$(NativeWrapperCMakeArgs)' == ''">-DCMAKE_TOOLCHAIN_FILE=$(NativeWrapperVcpkgRoot)/scripts/buildsystems/vcpkg.cmake</NativeWrapperCMakeArgs>
+        <NativeWrapperCMakeArgs Condition="'$(NativeWrapperUseVcpkg)' == 'true' and '$(NativeWrapperCMakeArgs)' == ''">-DCMAKE_TOOLCHAIN_FILE=$(NativeWrapperVcpkgRoot)/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=$(NativeWrapperVcpkgManifestDir) -DVCPKG_OVERLAY_PORTS=$(NativeWrapperVcpkgOverlayPorts)</NativeWrapperCMakeArgs>
         <NativeWrapperBuildFlavor Condition="'$(NativeWrapperBuildFlavor)' == '' and '$(NativeWrapperUseVcpkg)' == 'true'">vcpkg-msvc</NativeWrapperBuildFlavor>
         <NativeWrapperBuildFlavor Condition="'$(NativeWrapperBuildFlavor)' == ''">native</NativeWrapperBuildFlavor>
         <NativeWrapperBuildDir>$(NativeWrapperProjectDir)/build/$(NativeWrapperBuildFlavor)</NativeWrapperBuildDir>

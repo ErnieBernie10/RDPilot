@@ -6,12 +6,13 @@ namespace RDPilot.Client.Services;
 
 public interface IRdpSessionFactory
 {
-    RdpSessionViewModel Create(
+RdpSessionViewModel Create(
         SavedConnection connection,
         string password,
         string gatewayPassword,
         int width,
         int height,
+        double renderScaling,
         int colorDepth,
         bool compression,
         bool fontSmoothing,

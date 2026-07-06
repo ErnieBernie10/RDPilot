@@ -26,6 +26,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private AppSettings _settings = new();
     private int _requestedWidth = 1280;
     private int _requestedHeight = 720;
+    private double _renderScaling = 1.0;
 
     public ObservableCollection<SavedConnection> Connections { get; } = new();
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
@@ -153,7 +154,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         UpdateSelectedSessionState();
         if (value != null)
         {
-            value.UpdateResolution(_requestedWidth, _requestedHeight);
+            value.UpdateResolution(_requestedWidth, _requestedHeight, _renderScaling);
             StatusMessage = $"Active session: {value.Title}.";
         }
     }
@@ -282,17 +283,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         StatusMessage = $"Closed {session.Title}.";
     }
 
-    public void UpdateResolution(int width, int height)
+    public void UpdateResolution(int width, int height, double renderScaling = 0)
     {
         if (width <= 0 || height <= 0) return;
+        if (renderScaling > 0) _renderScaling = renderScaling;
         _requestedWidth = width;
         _requestedHeight = height;
-        SelectedSession?.UpdateResolution(width, height);
+        SelectedSession?.UpdateResolution(width, height, _renderScaling);
     }
 
-    public void SendMouseEvent(ushort flags, ushort x, ushort y)
+    public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
     {
-        SelectedSession?.SendMouseEvent(flags, x, y);
+        SelectedSession?.SendMouseEventScaled(flags, dipX, dipY);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
@@ -329,12 +331,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
 
-        return _sessionFactory.Create(
+return _sessionFactory.Create(
             connection,
             password,
             gatewayPassword,
             _requestedWidth,
             _requestedHeight,
+            _renderScaling,
             qualitySettings.ColorDepth,
             qualitySettings.Compression,
             qualitySettings.FontSmoothing,

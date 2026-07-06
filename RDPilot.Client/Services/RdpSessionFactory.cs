@@ -20,12 +20,13 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
         _certificatePromptService = certificatePromptService;
     }
 
-    public RdpSessionViewModel Create(
+public RdpSessionViewModel Create(
         SavedConnection connection,
         string password,
         string gatewayPassword,
         int width,
         int height,
+        double renderScaling,
         int colorDepth,
         bool compression,
         bool fontSmoothing,
@@ -37,12 +38,13 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
         RdpConnectionType connectionType,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
     {
-        return new RdpSessionViewModel(
+return new RdpSessionViewModel(
             connection,
             password,
             gatewayPassword,
             width,
             height,
+            renderScaling,
             colorDepth,
             compression,
             fontSmoothing,

@@ -105,7 +105,7 @@ public static class NativeWrapper
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height);
+    public delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height, int dirtyX, int dirtyY, int dirtyWidth, int dirtyHeight, int sourceStride);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
@@ -149,6 +149,7 @@ public static class NativeWrapper
             [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
             int connectionType,
             uint keyboardLayout,
+            uint dpiScalePercent,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
             StatusCallback statusCallback,
@@ -161,7 +162,7 @@ public static class NativeWrapper
     public static extern void rdp_session_free(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_update_resolution(IntPtr session, int width, int height);
+    public static extern void rdp_session_update_resolution(IntPtr session, int width, int height, uint dpiScalePercent);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void rdp_session_send_mouse_event(IntPtr session, ushort flags, ushort x, ushort y);
@@ -171,6 +172,21 @@ public static class NativeWrapper
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool rdp_session_present(
+        IntPtr session,
+        IntPtr dest,
+        int destStride,
+        int destWidth,
+        int destHeight,
+        out int dirtyX,
+        out int dirtyY,
+        out int dirtyWidth,
+        out int dirtyHeight,
+        out int fbWidth,
+        out int fbHeight);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetDllDirectory(string lpPathName);

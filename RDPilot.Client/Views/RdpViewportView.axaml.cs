@@ -25,7 +25,7 @@ public partial class RdpViewportView : UserControl
     private const ushort KBD_FLAGS_RELEASE = 0x8000;
     private const ushort KBD_FLAGS_EXTENDED = 0x0100;
 
-    private bool _rdpKeyboardActive;
+private bool _rdpKeyboardActive;
     private int _keyboardLogCount;
     private int _textInputLogCount;
     private readonly HashSet<Key> _pressedRdpKeys = new();
@@ -34,6 +34,7 @@ public partial class RdpViewportView : UserControl
     private bool _settingClipboardFromRemote;
     private MainWindowViewModel? _subscribedViewModel;
     private Window? _hostWindow;
+    private double _lastObservedScale = 1.0;
 
     public RdpViewportView()
     {
@@ -80,8 +81,9 @@ public partial class RdpViewportView : UserControl
             return;
         }
 
-        _hostWindow.SizeChanged += OnHostWindowSizeChanged;
+_hostWindow.SizeChanged += OnHostWindowSizeChanged;
         _hostWindow.Deactivated += OnHostWindowDeactivated;
+        _hostWindow.LayoutUpdated += OnHostWindowLayoutUpdated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.TextInputEvent, OnTextInput, RoutingStrategies.Bubble, true);
@@ -99,8 +101,9 @@ public partial class RdpViewportView : UserControl
             return;
         }
 
-        _hostWindow.SizeChanged -= OnHostWindowSizeChanged;
+_hostWindow.SizeChanged -= OnHostWindowSizeChanged;
         _hostWindow.Deactivated -= OnHostWindowDeactivated;
+        _hostWindow.LayoutUpdated -= OnHostWindowLayoutUpdated;
         _hostWindow.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _hostWindow.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
         _hostWindow.RemoveHandler(InputElement.TextInputEvent, OnTextInput);
@@ -179,6 +182,16 @@ public partial class RdpViewportView : UserControl
         ReleasePressedRdpKeys();
     }
 
+    private void OnHostWindowLayoutUpdated(object? sender, EventArgs e)
+    {
+        var scale = _hostWindow?.RenderScaling ?? 1.0;
+        if (Math.Abs(scale - _lastObservedScale) > 0.001)
+        {
+            _lastObservedScale = scale;
+            QueueViewportResolutionUpdate();
+        }
+    }
+
     private void OnRdpViewportSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         QueueViewportResolutionUpdate();
@@ -193,39 +206,40 @@ public partial class RdpViewportView : UserControl
 
         if (DataContext is MainWindowViewModel vm)
         {
+            var scale = _hostWindow?.RenderScaling ?? 1.0;
+            _lastObservedScale = scale;
             var size = RdpScrollViewer.Bounds.Size;
-            if (size.Width >= MinimumRemoteWidth && size.Height >= MinimumRemoteHeight)
+            var physWidth = (int)(size.Width * scale);
+            var physHeight = (int)(size.Height * scale);
+            if (physWidth >= MinimumRemoteWidth && physHeight >= MinimumRemoteHeight)
             {
-                vm.UpdateResolution((int)size.Width, (int)size.Height);
+                vm.UpdateResolution(physWidth, physHeight, scale);
             }
         }
     }
 
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (DataContext is not MainWindowViewModel vm) return;
         var pos = e.GetPosition(RdpImage);
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.SendMouseEvent(PTR_FLAGS_MOVE, (ushort)pos.X, (ushort)pos.Y);
-        }
+        vm.SendMouseEventScaled(PTR_FLAGS_MOVE, pos.X, pos.Y);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (DataContext is not MainWindowViewModel vm) return;
         var pos = e.GetPosition(RdpImage);
         ushort flags = PTR_FLAGS_DOWN;
         var point = e.GetCurrentPoint(RdpImage);
         if (point.Properties.IsLeftButtonPressed) flags |= PTR_FLAGS_BUTTON1;
         if (point.Properties.IsRightButtonPressed) flags |= PTR_FLAGS_BUTTON2;
         if (point.Properties.IsMiddleButtonPressed) flags |= PTR_FLAGS_BUTTON3;
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.SendMouseEvent(flags, (ushort)pos.X, (ushort)pos.Y);
-        }
+        vm.SendMouseEventScaled(flags, pos.X, pos.Y);
     }
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (DataContext is not MainWindowViewModel vm) return;
         var pos = e.GetPosition(RdpImage);
         ushort flags = 0;
         switch (e.GetCurrentPoint(RdpImage).Properties.PointerUpdateKind)
@@ -241,26 +255,19 @@ public partial class RdpViewportView : UserControl
                 break;
         }
 
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.SendMouseEvent(flags, (ushort)pos.X, (ushort)pos.Y);
-        }
+        vm.SendMouseEventScaled(flags, pos.X, pos.Y);
     }
 
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel vm)
-        {
-            return;
-        }
-
+        if (DataContext is not MainWindowViewModel vm) return;
         var pos = e.GetPosition(RdpImage);
-        SendWheelDelta(vm, PTR_FLAGS_WHEEL, e.Delta.Y, (ushort)pos.X, (ushort)pos.Y);
-        SendWheelDelta(vm, PTR_FLAGS_HWHEEL, e.Delta.X, (ushort)pos.X, (ushort)pos.Y);
+        SendWheelDelta(vm, PTR_FLAGS_WHEEL, e.Delta.Y, pos.X, pos.Y);
+        SendWheelDelta(vm, PTR_FLAGS_HWHEEL, e.Delta.X, pos.X, pos.Y);
         e.Handled = true;
     }
 
-    private static void SendWheelDelta(MainWindowViewModel vm, ushort wheelFlag, double delta, ushort x, ushort y)
+    private static void SendWheelDelta(MainWindowViewModel vm, ushort wheelFlag, double delta, double dipX, double dipY)
     {
         if (delta == 0)
         {
@@ -279,7 +286,7 @@ public partial class RdpViewportView : UserControl
             flags |= PTR_FLAGS_WHEEL_NEGATIVE;
         }
 
-        vm.SendMouseEvent(flags, x, y);
+        vm.SendMouseEventScaled(flags, dipX, dipY);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

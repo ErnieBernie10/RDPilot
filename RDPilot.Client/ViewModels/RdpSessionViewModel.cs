@@ -11,6 +11,30 @@ namespace RDPilot.Client.ViewModels;
 public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 {
     [ObservableProperty] private WriteableBitmap? _screen;
+
+    public double DisplayWidth
+    {
+        get
+        {
+            if (Screen == null || _renderScaling <= 0) return 0;
+            return Screen.PixelSize.Width / _renderScaling;
+        }
+    }
+
+    public double DisplayHeight
+    {
+        get
+        {
+            if (Screen == null || _renderScaling <= 0) return 0;
+            return Screen.PixelSize.Height / _renderScaling;
+        }
+    }
+
+    partial void OnScreenChanged(WriteableBitmap? value)
+    {
+        OnPropertyChanged(nameof(DisplayWidth));
+        OnPropertyChanged(nameof(DisplayHeight));
+    }
     [ObservableProperty] private RdpSessionStatus _status = RdpSessionStatus.Connecting;
     [ObservableProperty] private RdpSessionError? _lastError;
 
@@ -26,6 +50,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private int _disposed;
     private int _requestedWidth;
     private int _requestedHeight;
+    private double _renderScaling = 1.0;
+    private uint _dpiScalePercent = 100;
 
     public RdpSessionViewModel(
         SavedConnection connection,
@@ -33,6 +59,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         string gatewayPassword,
         int width,
         int height,
+        double renderScaling,
         int colorDepth,
         bool compression,
         bool fontSmoothing,
@@ -49,13 +76,15 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Title = connection.Name;
         _requestedWidth = width;
         _requestedHeight = height;
+        _renderScaling = renderScaling > 0 ? renderScaling : 1.0;
+        _dpiScalePercent = (uint)Math.Max(100, Math.Round(_renderScaling * 100));
         _remoteClipboardTextReceived = remoteClipboardTextReceived;
         _frameCallback = OnFrameReceived;
         _clipboardCallback = OnRemoteClipboardTextReceived;
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
         _certificateTrustDecision = certificateTrustDecision;
-        _framePresenter = new ManagedFramePresenter(Title, width, height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty));
+        _framePresenter = new ManagedFramePresenter(Title, width, height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, _renderScaling);
 
         try
         {
@@ -83,6 +112,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 fullWindowDrag,
                 (int)connectionType,
                 keyboardLayout,
+                _dpiScalePercent,
                 _frameCallback,
                 _clipboardCallback,
                 _statusCallback,
@@ -119,7 +149,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
         _certificateTrustDecision = static _ => CertificateTrustDecision.Reject;
-        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), initializeBitmap: false);
+        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, initializeBitmap: false);
         LastError = error;
         Status = status;
     }
@@ -189,16 +219,22 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Status = RdpSessionStatus.Disconnected;
     }
 
-    public void UpdateResolution(int width, int height)
+    public void UpdateResolution(int width, int height, double renderScaling = 0)
     {
         if (!TryGetActiveHandle(out var handle) || width <= 0 || height <= 0)
         {
             return;
         }
 
+        if (renderScaling > 0)
+        {
+            _renderScaling = renderScaling;
+            _framePresenter.UpdateRenderScaling(renderScaling);
+        }
+
         _requestedWidth = width;
         _requestedHeight = height;
-        NativeWrapper.rdp_session_update_resolution(handle, width, height);
+        NativeWrapper.rdp_session_update_resolution(handle, width, height, _dpiScalePercent);
     }
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y)
@@ -206,6 +242,15 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         if (!TryGetActiveHandle(out var handle)) return;
         _framePresenter.MarkInputSent();
         NativeWrapper.rdp_session_send_mouse_event(handle, flags, x, y);
+    }
+
+    public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
+    {
+        if (!TryGetActiveHandle(out var handle)) return;
+        _framePresenter.MarkInputSent();
+        ushort px = (ushort)Math.Clamp(dipX * _renderScaling, 0, 65535);
+        ushort py = (ushort)Math.Clamp(dipY * _renderScaling, 0, 65535);
+        NativeWrapper.rdp_session_send_mouse_event(handle, flags, px, py);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
@@ -254,10 +299,21 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         });
     }
 
-    private void OnFrameReceived(IntPtr session, IntPtr data, int width, int height)
+    private void OnFrameReceived(IntPtr session, IntPtr data, int width, int height, int dirtyX, int dirtyY, int dirtyWidth, int dirtyHeight, int sourceStride)
     {
         if (!IsActiveCallbackSession(session)) return;
-        _framePresenter.EnqueueFrame(data, width, height);
+        _framePresenter.EnqueueFrame(width, height);
+    }
+
+    private bool PresentPending(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
+    {
+        if (!TryGetActiveHandle(out var handle))
+        {
+            dirtyX = dirtyY = dirtyWidth = dirtyHeight = 0;
+            fbWidth = fbHeight = 0;
+            return false;
+        }
+        return NativeWrapper.rdp_session_present(handle, dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
     }
 
     private int OnCertificateDecisionRequested(

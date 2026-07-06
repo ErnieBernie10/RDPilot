@@ -6,7 +6,7 @@
 
 RDPilot is a fast Avalonia RDP client backed by FreeRDP. It focuses on responsive remote desktop sessions, dynamic resolution, secure saved profiles, and a clean tabbed interface.
 
-Windows is currently the only supported platform. Linux support is in progress.
+RDPilot currently supports Windows and Linux.
 
 ## Features
 
@@ -19,7 +19,13 @@ Windows is currently the only supported platform. Linux support is in progress.
 
 ## Install
 
-Download the latest Windows installer from the GitHub Releases page:
+Install on Windows with winget:
+
+```powershell
+winget install RDPilot.RDPilot
+```
+
+The latest Windows installer is also available from the GitHub Releases page:
 
 ```text
 https://github.com/ErnieBernie10/RDPilot/releases
@@ -31,12 +37,6 @@ The installer is per-user and installs to:
 %LOCALAPPDATA%\Programs\RDPilot
 ```
 
-After the winget package is accepted, installation will also be available with:
-
-```powershell
-winget install RDPilot.RDPilot
-```
-
 On Arch Linux, RDPilot is currently available from the GitHub Release package:
 
 ```sh
@@ -44,7 +44,7 @@ curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v0.2.0/rdpil
 sudo pacman -U rdpilot-0.2.0-1-x86_64.pkg.tar.zst
 ```
 
-AUR packaging is planned and will be available soon.
+Linux is supported, but the package has not been published to the AUR yet.
 
 ## Usage
 
@@ -73,7 +73,11 @@ Passwords are stored separately:
 
 - Clipboard redirection is text-only.
 - Audio playback and device redirection are disabled.
-- RDPGFX is disabled; RDPilot currently uses the classic GDI rendering path for resize stability.
+- RDPilot uses the classic GDI rendering path by default for resize stability.
+- Experimental RDPGFX-through-GDI rendering can be enabled for testing with `RDPILOT_RENDERING_MODE=gfx-gdi`.
+- Experimental direct RDPGFX surface rendering can be enabled for testing with `RDPILOT_RENDERING_MODE=rdpgfx-surface`. Experimental RDPGFX modes force 32-bit color depth for codec negotiation. Use `classic-gdi` or leave the variable unset for the default path.
+- RDPGFX codec negotiation can be overridden with `RDPILOT_GFX_CODEC_POLICY=avc` to prefer H.264/AVC444, `RDPILOT_GFX_CODEC_POLICY=avc420` to advertise only the AVC420-capable 8.1 path, `RDPILOT_GFX_CODEC_POLICY=server` to allow the server's default codec choices, or `RDPILOT_GFX_CODEC_POLICY=sharp` to advertise only older non-progressive RDPGFX capabilities. The surface renderer defaults to `avc`; `gfx-gdi` defaults to `sharp`.
+- RDPGFX frame acknowledgement pacing can be tested with `RDPILOT_GFX_FRAME_ACK=on` or `RDPILOT_GFX_FRAME_ACK=off`. Frame acknowledgements default to `on`; disabling them can freeze some servers. QoE acknowledgements can be enabled with `RDPILOT_GFX_QOE_ACK=on` and default to `off`.
 - Console diagnostics include `[PERF_NATIVE]`, `[PERF_UI]`, `[PERF_INPUT]`, and `[CLIPRDR]` logs.
 
 ## Contributing
@@ -127,7 +131,7 @@ The default vcpkg location is a sibling of this repository, for example `C:/User
 
 ### Linux Development
 
-Linux support is in progress. The notes below are for contributors working on Linux builds and are not a supported end-user installation path yet.
+Linux is supported. The notes below are for contributors working on Linux builds.
 
 Requirements:
 
@@ -198,7 +202,7 @@ PKGBUILD
 .SRCINFO
 ```
 
-Copy the generated `PKGBUILD` and `.SRCINFO` into the `rdpilot` AUR repository for each release.
+The generated `PKGBUILD` and `.SRCINFO` are release artifacts for now. The package has not been published to the AUR yet.
 
 Submit or update winget manually with `wingetcreate` after testing the release installer.
 

@@ -16,6 +16,7 @@
 #include <freerdp/gdi/gfx.h>
 #include <freerdp/settings.h>
 #include <freerdp/update.h>
+#include <freerdp/utils/gfx.h>
 #include <winpr/sysinfo.h>
 #include <winpr/input.h>
 #include <winpr/stream.h>
@@ -25,6 +26,7 @@
 #include <winpr/wtypes.h>
 #include <winpr/thread.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +41,8 @@
 #define DEFAULT_RDP_PORT 3389
 #define INPUT_QUEUE_CAPACITY 256
 #define PTR_FLAGS_MOVE 0x0800
+#define INPUT_LOOP_TIMEOUT_MS 10
+#define MIN_MOVE_SEND_INTERVAL_MS 8
 
 typedef enum {
     INPUT_EVENT_MOUSE,
@@ -53,6 +57,11 @@ typedef struct {
     uint16_t code;
 } input_event;
 
+typedef enum {
+    RENDERING_MODE_CLASSIC_GDI,
+    RENDERING_MODE_GFX_GDI
+} rendering_mode;
+
 struct rdp_session {
     FrameCallback callback;
     ClipboardTextCallback clipboard_text_callback;
@@ -65,6 +74,7 @@ struct rdp_session {
     HANDLE thread;
     bool running;
     bool connect_succeeded;
+    rendering_mode render_mode;
     bool disp_ready;
     UINT32 last_sent_width;
     UINT32 last_sent_height;
@@ -80,6 +90,14 @@ struct rdp_session {
     UINT64 perf_frame_bytes;
     UINT64 perf_frame_gap_total_ms;
     UINT32 perf_frame_gap_max_ms;
+    ULONGLONG perf_loop_last_log_tick;
+    UINT32 perf_loop_count;
+    UINT32 perf_loop_slow_count;
+    UINT32 perf_loop_max_total_ms;
+    UINT32 perf_loop_max_input_ms;
+    UINT32 perf_loop_max_clipboard_ms;
+    UINT32 perf_loop_max_check_fds_ms;
+    UINT32 perf_loop_max_resize_ms;
     CRITICAL_SECTION input_lock;
     input_event input_queue[INPUT_QUEUE_CAPACITY];
     UINT32 input_queue_count;
@@ -89,9 +107,18 @@ struct rdp_session {
     UINT32 input_keyboard_log_count;
     UINT32 input_dropped;
     UINT32 input_mouse_moves_coalesced;
+    ULONGLONG last_move_send_tick;
+    UINT32 input_move_throttled;
+    UINT32 dpi_scale_percent;
     CRITICAL_SECTION clipboard_lock;
     char* local_clipboard_text;
     bool clipboard_format_pending;
+    CRITICAL_SECTION frame_lock;
+    volatile LONG pending_frame;
+    INT32 pending_dirty_x;
+    INT32 pending_dirty_y;
+    INT32 pending_dirty_w;
+    INT32 pending_dirty_h;
 };
 
 typedef struct {

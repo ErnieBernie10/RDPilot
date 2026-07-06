@@ -9,7 +9,10 @@
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
                       SizeChanged="OnRdpViewportSizeChanged">
-            <Image Source="{Binding SelectedSession.Screen}" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
+            <Image Source="{Binding SelectedSession.Screen}" Stretch="Fill"
+                   Width="{Binding SelectedSession.DisplayWidth}"
+                   Height="{Binding SelectedSession.DisplayHeight}"
+                   HorizontalAlignment="Left" VerticalAlignment="Top"
                    PointerMoved="OnPointerMoved"
                    PointerPressed="OnPointerPressed"
                    PointerReleased="OnPointerReleased"
