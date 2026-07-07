@@ -71,14 +71,14 @@ Passwords are stored separately:
 
 ## Notes
 
-- Clipboard redirection is text-only.
+- Clipboard redirection is currently text-focused.
 - Audio playback and device redirection are disabled.
-- RDPilot uses the classic GDI rendering path by default for resize stability.
-- Experimental RDPGFX-through-GDI rendering can be enabled for testing with `RDPILOT_RENDERING_MODE=gfx-gdi`.
-- Experimental direct RDPGFX surface rendering can be enabled for testing with `RDPILOT_RENDERING_MODE=rdpgfx-surface`. Experimental RDPGFX modes force 32-bit color depth for codec negotiation. Use `classic-gdi` or leave the variable unset for the default path.
-- RDPGFX codec negotiation can be overridden with `RDPILOT_GFX_CODEC_POLICY=avc` to prefer H.264/AVC444, `RDPILOT_GFX_CODEC_POLICY=avc420` to advertise only the AVC420-capable 8.1 path, `RDPILOT_GFX_CODEC_POLICY=server` to allow the server's default codec choices, or `RDPILOT_GFX_CODEC_POLICY=sharp` to advertise only older non-progressive RDPGFX capabilities. The surface renderer defaults to `avc`; `gfx-gdi` defaults to `sharp`.
-- RDPGFX frame acknowledgement pacing can be tested with `RDPILOT_GFX_FRAME_ACK=on` or `RDPILOT_GFX_FRAME_ACK=off`. Frame acknowledgements default to `on`; disabling them can freeze some servers. QoE acknowledgements can be enabled with `RDPILOT_GFX_QOE_ACK=on` and default to `off`.
+- The default rendering mode is `gfx-gdi`.
+- `classic-gdi` is kept as a fallback: `RDPILOT_RENDERING_MODE=classic-gdi`.
+- RDPGFX codec negotiation can be overridden with `RDPILOT_GFX_CODEC_POLICY=server`, `avc`, `avc420`, or `sharp`.
+- RDPGFX frame acknowledgement pacing can be tested with `RDPILOT_GFX_FRAME_ACK=on|off`. QoE acknowledgements can be enabled with `RDPILOT_GFX_QOE_ACK=on`.
 - Console diagnostics include `[PERF_NATIVE]`, `[PERF_UI]`, `[PERF_INPUT]`, and `[CLIPRDR]` logs.
+- Dependency/build modes are documented in `docs/dependencies.md`.
 
 ## Contributing
 
@@ -128,6 +128,8 @@ artifacts/installer/RDPilot-Setup-<version>-win-x64.exe
 ```
 
 The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when this repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to use a different location.
+
+See `docs/dependencies.md` for the current dependency inventory.
 
 ### Linux Development
 

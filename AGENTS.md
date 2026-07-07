@@ -76,7 +76,7 @@ Shared-buffer presentation (mirrors `wfreerdp.exe`):
 RDPGFX investigation notes (historical context):
 
 - If switching back from the old experimental branch/stash to a clean tree, delete `RDPilot.Wrapper/build/vcpkg-msvc` if CMake complains about missing root `vcpkg.json`; the stale CMake cache may still point at the manifest from the experimental branch.
-- `wfreerdp.exe` was built by enabling `WITH_CLIENT_WINDOWS=ON`, `WITH_CLIENT_INTERFACE=ON`, and copying `wfreerdp` tools in the FreeRDP overlay port. It requires `wfreerdp-client3.dll` beside the executable.
+- `wfreerdp.exe` was used for historical Windows diagnostics. If you use it again, ensure the matching FreeRDP runtime DLLs are beside the executable.
 - `wfreerdp` uses `PIXEL_FORMAT_BGRX32` local framebuffer and FreeRDP's standard Windows GDI presentation (`InvalidateRect`/`BitBlt`) with `gdi_graphics_pipeline_init`. RDPilot now matches that path on the native side and only deviates on the present primitive (Avalonia `WriteableBitmap` instead of `BitBlt`).
 - FreeRDP with `ffmpeg` enabled defines `WITH_GFX_H264`; without the manifest/ffmpeg build it does not advertise/decode RDPGFX H.264/AVC.
 - Even with `WITH_GFX_H264`, tested servers confirmed `RDPGFX_CAPVERSION_81` with AVC420 flag `0x00000002` but still sent `avc=0`; actual updates were ClearCodec/progressive.

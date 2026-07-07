@@ -25,16 +25,24 @@ if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
     throw "AppVersion '$AppVersion' is not valid. Use major.minor.patch, for example 0.1.0."
 }
 
-dotnet publish $projectPath `
-    -c Release `
-    -r win-x64 `
-    --self-contained true `
-    "/p:Version=$AppVersion" `
-    "/p:AssemblyVersion=$AppVersion.0" `
-    "/p:FileVersion=$AppVersion.0" `
-    "/p:InformationalVersion=$AppVersion" `
-    "/p:NativeWrapperUseVcpkg=true" `
+$dotnetArgs = @(
+    "publish",
+    $projectPath,
+    "-c",
+    "Release",
+    "-r",
+    "win-x64",
+    "--self-contained",
+    "true",
+    "/p:Version=$AppVersion",
+    "/p:AssemblyVersion=$AppVersion.0",
+    "/p:FileVersion=$AppVersion.0",
+    "/p:InformationalVersion=$AppVersion",
+    "/p:NativeWrapperUseVcpkg=true",
     "/p:NativeWrapperVcpkgRoot=$vcpkgRootForMsBuild"
+)
+
+dotnet @dotnetArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."

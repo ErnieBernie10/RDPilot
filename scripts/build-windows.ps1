@@ -21,6 +21,7 @@ $dotnetArgs = @(
     "/p:NativeWrapperVcpkgRoot=$($VcpkgRoot -replace '\\', '/')"
 )
 
+
 dotnet @dotnetArgs
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet build failed with exit code $LASTEXITCODE."
