@@ -22,10 +22,10 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed \
+            base-devel \
             cmake \
             dotnet-sdk \
             freerdp \
-            gcc \
             git \
             pkgconf
 
