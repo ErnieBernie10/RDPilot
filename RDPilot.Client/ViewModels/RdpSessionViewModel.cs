@@ -412,6 +412,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
         _framePresenter.Dispose();
         Interlocked.Exchange(ref _disposed, 1);
+        GC.SuppressFinalize(this);
     }
 
     private bool TryGetActiveHandle(out IntPtr handle)

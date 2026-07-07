@@ -85,7 +85,7 @@ void process_pending_input(rdp_session* session)
                        (event->flags & 0x0100) ? "true" : "false",
                        (event->flags & 0x8000) ? "true" : "false");
             }
-            freerdp_input_send_keyboard_event(session->instance->context->input, event->flags, event->code);
+            freerdp_input_send_keyboard_event(session->instance->context->input, event->flags, (UINT8)event->code);
         }
     }
 

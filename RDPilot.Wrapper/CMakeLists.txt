@@ -56,6 +56,12 @@ add_library(freerdp_wrapper SHARED
 
 target_compile_definitions(freerdp_wrapper PRIVATE FREERDP_WRAPPER_EXPORTS)
 
+if(MSVC)
+    target_compile_options(freerdp_wrapper PRIVATE /W4)
+elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(freerdp_wrapper PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 if(WIN32 AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_definitions(freerdp_wrapper PRIVATE __STDC_NO_THREADS__=1)
 endif()

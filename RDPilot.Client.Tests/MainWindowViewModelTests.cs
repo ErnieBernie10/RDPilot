@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
 using RDPilot.Client.Models;
@@ -9,6 +10,7 @@ using Xunit;
 
 namespace RDPilot.Client.Tests;
 
+[SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "xUnit test names use underscores for readability.")]
 public sealed class MainWindowViewModelTests
 {
     [Fact]

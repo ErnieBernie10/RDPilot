@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -8,6 +9,7 @@ using RDPilot.Client.Models;
 
 namespace RDPilot.Client.Services;
 
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Kept as an instance service for DI/testability and API consistency.")]
 public sealed class ConnectionStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

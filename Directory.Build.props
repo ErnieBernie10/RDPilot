@@ -8,5 +8,10 @@
     <Company Condition="'$(Company)' == ''">RDPilot</Company>
     <Authors Condition="'$(Authors)' == ''">RDPilot</Authors>
     <Copyright Condition="'$(Copyright)' == ''">Copyright (c) RDPilot</Copyright>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
   </PropertyGroup>
 </Project>

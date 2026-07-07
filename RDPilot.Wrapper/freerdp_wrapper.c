@@ -47,6 +47,8 @@ void log_channel_rc(const char* operation, UINT rc)
 
 static void log_native_frame_stats(rdp_session* session, UINT32 width, UINT32 height, size_t frame_bytes)
 {
+    (void)width;
+    (void)height;
     if (!session) return;
     ULONGLONG now = GetTickCount64();
     if (session->perf_last_log_tick == 0)
@@ -68,16 +70,6 @@ static void log_native_frame_stats(rdp_session* session, UINT32 width, UINT32 he
     ULONGLONG elapsed = now - session->perf_last_log_tick;
     if (elapsed >= 1000)
     {
-        double seconds = elapsed / 1000.0;
-        double fps = session->perf_frame_count / seconds;
-        double mib_per_sec = (session->perf_frame_bytes / 1048576.0) / seconds;
-        double avg_gap = session->perf_frame_count > 1
-            ? (double)session->perf_frame_gap_total_ms / (double)(session->perf_frame_count - 1)
-            : 0.0;
-
-        //printf("[PERF_NATIVE] frames=%.1f/s dirtyFrame=%.1f MiB/s size=%ux%u avgGap=%.1fms maxGap=%ums\n",
-        //       fps, mib_per_sec, width, height, avg_gap, session->perf_frame_gap_max_ms);
-
         session->perf_last_log_tick = now;
         session->perf_frame_count = 0;
         session->perf_frame_bytes = 0;
@@ -332,6 +324,21 @@ char* duplicate_string(const char* text)
     }
 
     return copy;
+}
+
+static void copy_string_field(char* dest, size_t dest_size, const char* src)
+{
+    if (!dest || dest_size == 0) return;
+    if (!src)
+    {
+        dest[0] = '\0';
+        return;
+    }
+
+    size_t length = strlen(src);
+    if (length >= dest_size) length = dest_size - 1;
+    memcpy(dest, src, length);
+    dest[length] = '\0';
 }
 
 static void normalize_resolution(UINT32* width, UINT32* height)
@@ -633,6 +640,7 @@ static UINT on_display_control_caps(DispClientContext* context, UINT32 maxNumMon
 
 static UINT on_gfx_caps_confirm_log(RdpgfxClientContext* context, const RDPGFX_CAPS_CONFIRM_PDU* caps)
 {
+    (void)context;
     if (caps && caps->capsSet)
     {
         printf("[RDPGFX] capsConfirm version=0x%08X flags=0x%08X\n",
@@ -1206,7 +1214,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
 
     bool has_gateway = params->gateway_host[0] != '\0';
     connection_error error;
-    connection_error direct_error;
+    connection_error direct_error = { 0 };
     bool connected = connect_attempt(session, params, false, &error);
     if (!connected)
     {
@@ -1384,15 +1392,15 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     }
     memset(params, 0, sizeof(connection_params));
     params->session = session;
-    strncpy(params->host, host, 255);
-    strncpy(params->connect_host, connect_host && connect_host[0] != '\0' ? connect_host : host, 255);
-    strncpy(params->domain, domain, 255);
-    strncpy(params->user, user, 255);
-    strncpy(params->password, password, 255);
-    if (gateway_host) strncpy(params->gateway_host, gateway_host, 255);
-    if (gateway_domain) strncpy(params->gateway_domain, gateway_domain, 255);
-    if (gateway_user) strncpy(params->gateway_user, gateway_user, 255);
-    if (gateway_password) strncpy(params->gateway_password, gateway_password, 255);
+    copy_string_field(params->host, sizeof(params->host), host);
+    copy_string_field(params->connect_host, sizeof(params->connect_host), connect_host && connect_host[0] != '\0' ? connect_host : host);
+    copy_string_field(params->domain, sizeof(params->domain), domain);
+    copy_string_field(params->user, sizeof(params->user), user);
+    copy_string_field(params->password, sizeof(params->password), password);
+    copy_string_field(params->gateway_host, sizeof(params->gateway_host), gateway_host);
+    copy_string_field(params->gateway_domain, sizeof(params->gateway_domain), gateway_domain);
+    copy_string_field(params->gateway_user, sizeof(params->gateway_user), gateway_user);
+    copy_string_field(params->gateway_password, sizeof(params->gateway_password), gateway_password);
     params->width = (int)initial_width;
     params->height = (int)initial_height;
     params->color_depth = (int)normalize_color_depth(color_depth);

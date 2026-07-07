@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -8,7 +9,9 @@ using System.Text;
 
 namespace RDPilot.Client;
 
-public static class NativeWrapper
+[SuppressMessage("Interoperability", "CA2101:Specify marshaling for P/Invoke string arguments", Justification = "The wrapper uses explicit UTF-8/native interop signatures where needed.")]
+[SuppressMessage("Performance", "CA1838:Avoid StringBuilder parameters for P/Invokes", Justification = "GetKeyboardLayoutName requires a writable character buffer.")]
+internal static class NativeWrapper
 {
     private const string LibName = "freerdp_wrapper";
     private const string NativeDllDirectoryEnvironmentVariable = "RDPILOT_NATIVE_DLL_DIR";
@@ -105,16 +108,16 @@ public static class NativeWrapper
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height, int dirtyX, int dirtyY, int dirtyWidth, int dirtyHeight, int sourceStride);
+    internal delegate void FrameCallback(IntPtr session, IntPtr data, int width, int height, int dirtyX, int dirtyY, int dirtyWidth, int dirtyHeight, int sourceStride);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
+    internal delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
+    internal delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate int CertificateDecisionCallback(
+    internal delegate int CertificateDecisionCallback(
         IntPtr session,
         IntPtr host,
         ushort port,
@@ -128,7 +131,7 @@ public static class NativeWrapper
         IntPtr previousFingerprint);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr rdp_session_connect(
+    internal static extern IntPtr rdp_session_connect(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string host,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string connectHost,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string domain,
@@ -156,32 +159,32 @@ public static class NativeWrapper
             CertificateDecisionCallback certificateDecisionCallback);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_disconnect(IntPtr session);
+    internal static extern void rdp_session_disconnect(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_free(IntPtr session);
+    internal static extern void rdp_session_free(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_update_resolution(IntPtr session, int width, int height, uint dpiScalePercent);
+    internal static extern void rdp_session_update_resolution(IntPtr session, int width, int height, uint dpiScalePercent);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_send_mouse_event(IntPtr session, ushort flags, ushort x, ushort y);
+    internal static extern void rdp_session_send_mouse_event(IntPtr session, ushort flags, ushort x, ushort y);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_send_keyboard_event(IntPtr session, ushort flags, ushort code);
+    internal static extern void rdp_session_send_keyboard_event(IntPtr session, ushort flags, ushort code);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
+    internal static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_clipboard_set_local_files(IntPtr session, IntPtr filePaths, nint fileCount);
+    internal static extern void rdp_session_clipboard_set_local_files(IntPtr session, IntPtr filePaths, nint fileCount);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
+    internal static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
-    public static extern bool rdp_session_present(
+    internal static extern bool rdp_session_present(
         IntPtr session,
         IntPtr dest,
         int destStride,

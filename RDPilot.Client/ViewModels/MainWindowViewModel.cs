@@ -205,9 +205,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         ActiveShellPanel = ShellPanel.None;
     }
 
-    private bool CanDisconnectSession(RdpSessionViewModel? session) => session?.CanDisconnect == true;
-    private bool CanReconnectSession(RdpSessionViewModel? session) => session?.CanReconnect == true;
-    private bool CanCloseSession(RdpSessionViewModel? session) => session != null;
+    private static bool CanDisconnectSession(RdpSessionViewModel? session) => session?.CanDisconnect == true;
+    private static bool CanReconnectSession(RdpSessionViewModel? session) => session?.CanReconnect == true;
+    private static bool CanCloseSession(RdpSessionViewModel? session) => session != null;
 
     [RelayCommand(CanExecute = nameof(CanDisconnectSession))]
     private async Task DisconnectSessionAsync(RdpSessionViewModel? session)
@@ -341,7 +341,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
 
-return _sessionFactory.Create(
+        return _sessionFactory.Create(
             connection,
             password,
             gatewayPassword,
@@ -418,5 +418,6 @@ return _sessionFactory.Create(
         }
 
         Sessions.Clear();
+        GC.SuppressFinalize(this);
     }
 }

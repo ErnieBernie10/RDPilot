@@ -15,7 +15,7 @@ public sealed class CertificatePromptService : ICertificatePromptService
         return Dispatcher.UIThread.InvokeAsync(async () => await ShowPromptAsync(prompt)).GetAwaiter().GetResult();
     }
 
-    private async Task<CertificateTrustDecision> ShowPromptAsync(RdpCertificatePrompt prompt)
+    private static async Task<CertificateTrustDecision> ShowPromptAsync(RdpCertificatePrompt prompt)
     {
         var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (owner == null)
