@@ -156,6 +156,110 @@ public sealed class RdpSessionViewModelTests
         Assert.Equal("00:11:22", prompt.PreviousFingerprint);
     }
 
+    [Fact]
+    public void NativeStatusCallback_DisposedBeforeDispatcherDrain_DropsPendingStateChange()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Status Dispose Race"), RdpSessionStatus.Connecting);
+        var activeHandle = new IntPtr(0x3456);
+        SetField(session, "_handle", activeHandle);
+
+        InvokePrivate(
+            session,
+            "OnStatusChanged",
+            [typeof(IntPtr), typeof(int), typeof(uint), typeof(IntPtr), typeof(IntPtr)],
+            activeHandle,
+            1,
+            0u,
+            IntPtr.Zero,
+            IntPtr.Zero);
+
+        DisposeWithoutNativeFree(session);
+        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+
+        Assert.Equal(RdpSessionStatus.Connecting, session.Status);
+        Assert.Null(session.LastError);
+        Assert.False(session.IsConnected);
+    }
+
+    [Fact]
+    public void RemoteClipboardCallback_DisposedSession_IgnoresOldHandleDelivery()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Clipboard Dispose"), RdpSessionStatus.Connected);
+        var oldHandle = new IntPtr(0x3456);
+        SetField(session, "_handle", oldHandle);
+
+        var deliveries = new List<(RdpSessionViewModel Session, string Text)>();
+        SetField(
+            session,
+            "_remoteClipboardTextReceived",
+            (Action<RdpSessionViewModel, string>)((vm, text) => deliveries.Add((vm, text))));
+
+        DisposeWithoutNativeFree(session);
+
+        using var text = Utf8String.Alloc("post-dispose clipboard");
+        InvokePrivate(
+            session,
+            "OnRemoteClipboardTextReceived",
+            [typeof(IntPtr), typeof(IntPtr)],
+            oldHandle,
+            text.Pointer);
+
+        Assert.Empty(deliveries);
+    }
+
+    [Fact]
+    public void CertificateDecisionCallback_DisposedSession_RejectsOldHandleWithoutPrompt()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Certificate Dispose"), RdpSessionStatus.Connecting);
+        var oldHandle = new IntPtr(0x4567);
+        SetField(session, "_handle", oldHandle);
+
+        RdpCertificatePrompt? capturedPrompt = null;
+        SetField(
+            session,
+            "_certificateTrustDecision",
+            (Func<RdpCertificatePrompt, CertificateTrustDecision>)(prompt =>
+            {
+                capturedPrompt = prompt;
+                return CertificateTrustDecision.TrustAlways;
+            }));
+
+        DisposeWithoutNativeFree(session);
+
+        using var commonName = Utf8String.Alloc("rdp.example.local");
+        using var subject = Utf8String.Alloc("CN=rdp.example.local");
+        using var issuer = Utf8String.Alloc("CN=Lab CA");
+        using var fingerprint = Utf8String.Alloc("AB:CD:EF");
+
+        var decision = InvokePrivate<int>(
+            session,
+            "OnCertificateDecisionRequested",
+            [typeof(IntPtr), typeof(IntPtr), typeof(ushort), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr), typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr)],
+            oldHandle,
+            IntPtr.Zero,
+            (ushort)3389,
+            commonName.Pointer,
+            subject.Pointer,
+            issuer.Pointer,
+            fingerprint.Pointer,
+            0,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            IntPtr.Zero);
+
+        Assert.Equal((int)CertificateTrustDecision.Reject, decision);
+        Assert.Null(capturedPrompt);
+    }
+
+    private static void DisposeWithoutNativeFree(RdpSessionViewModel session)
+    {
+        SetField(session, "_handle", IntPtr.Zero);
+        session.Dispose();
+    }
+
+
     private static SavedConnection CreateConnection(string name)
     {
         return new SavedConnection

@@ -63,6 +63,41 @@ public sealed class ManagedFramePresenterTests
     }
 
     [Fact]
+    public void EnqueueFrame_MultiplePendingFrames_CoalescesIntoSinglePresentAndRedraw()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var redrawCount = 0;
+        var presentCallCount = 0;
+
+        using var presenter = new ManagedFramePresenter(
+            "Session",
+            width: 64,
+            height: 32,
+            setScreen: _ => { },
+            requestRedraw: () => redrawCount++,
+            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            {
+                presentCallCount++;
+                dirtyX = 0;
+                dirtyY = 0;
+                dirtyWidth = 64;
+                dirtyHeight = 32;
+                fbWidth = 64;
+                fbHeight = 32;
+                return true;
+            });
+
+        presenter.EnqueueFrame(64, 32);
+        presenter.EnqueueFrame(64, 32);
+        presenter.EnqueueFrame(64, 32);
+        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+
+        Assert.Equal(1, presentCallCount);
+        Assert.Equal(1, redrawCount);
+    }
+
+    [Fact]
     public void Dispose_BeforeQueuedPresent_DropsPendingFrameWork()
     {
         AvaloniaTestEnvironment.EnsureInitialized();
