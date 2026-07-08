@@ -4,7 +4,7 @@ BE BRIEF.
 
 ## Project Overview
 
-This is an experimental RDP client with:
+This is an RDP client with:
 
 - `RDPilot.Client`: .NET/Avalonia UI.
 - `RDPilot.Wrapper`: native C shared library wrapping FreeRDP 3 APIs.

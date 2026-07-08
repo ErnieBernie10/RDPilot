@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using RDPilot.Client;
 using RDPilot.Client.Models;
 using RDPilot.Client.ViewModels;
 using Xunit;
@@ -253,10 +254,82 @@ public sealed class RdpSessionViewModelTests
         Assert.Null(capturedPrompt);
     }
 
+    [Fact]
+    [SuppressMessage("xUnit", "xUnit1031:Test methods should not use blocking task operations", Justification = "Keeping this Avalonia test class synchronous avoids thread-affinity issues with the shared dispatcher-backed test environment.")]
+    public void DisconnectAsync_ActiveNativeSession_DisconnectsAndTransitionsDisconnected()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Disconnect Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x5678));
+        AttachNativeSession(session, nativeSession);
+
+        session.DisconnectAsync().GetAwaiter().GetResult();
+
+        Assert.Equal(1, nativeSession.DisconnectCallCount);
+        Assert.Equal(RdpSessionStatus.Disconnected, session.Status);
+        Assert.Null(session.LastError);
+    }
+
+    [Fact]
+    public void UpdateResolution_ActiveNativeSession_ForwardsDimensionsAndConnectTimeDpiScale()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Resolution Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x6789));
+        AttachNativeSession(session, nativeSession);
+
+        session.UpdateResolution(1600, 900, renderScaling: 1.4);
+
+        Assert.Equal((1600, 900, 100u), Assert.Single(nativeSession.ResolutionUpdates));
+        Assert.Equal(1.4, Assert.IsType<double>(GetField(session, "_renderScaling")));
+    }
+
+    [Fact]
+    public void SendMouseEventScaled_ActiveNativeSession_ScalesCoordinatesAndForwardsFlags()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Mouse Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x789A));
+        AttachNativeSession(session, nativeSession);
+        SetField(session, "_renderScaling", 1.5d);
+
+        session.SendMouseEventScaled(0x8001, 10.4, 20.8);
+
+        Assert.Equal((0x8001, (ushort)15, (ushort)31), Assert.Single(nativeSession.MouseEvents));
+    }
+
+    [Fact]
+    public void SetLocalClipboardFiles_ActiveNativeSession_ForwardsUtf8NullTerminatedPaths()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Files Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x89AB));
+        AttachNativeSession(session, nativeSession);
+
+        session.SetLocalClipboardFiles(["C:\\Temp\\alpha.txt", "/tmp/beta.bin"]);
+
+        Assert.Equal(["C:\\Temp\\alpha.txt", "/tmp/beta.bin"], nativeSession.LocalClipboardFiles);
+    }
+
+    [Fact]
+    public void Dispose_ActiveNativeSession_FreesNativeSessionOnce()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Dispose Native Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x9ABC));
+        AttachNativeSession(session, nativeSession);
+
+        session.Dispose();
+
+        Assert.Equal(1, nativeSession.FreeCallCount);
+        Assert.Equal(IntPtr.Zero, Assert.IsType<IntPtr>(GetField(session, "_handle")));
+    }
+
     private static void DisposeWithoutNativeFree(RdpSessionViewModel session)
     {
         SetField(session, "_handle", IntPtr.Zero);
         session.Dispose();
+    }
+
+    private static void AttachNativeSession(RdpSessionViewModel session, INativeRdpSession nativeSession)
+    {
+        SetField(session, "_nativeSession", nativeSession);
+        SetField(session, "_handle", nativeSession.Handle);
     }
 
 
@@ -275,6 +348,13 @@ public sealed class RdpSessionViewModelTests
         var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
         field.SetValue(target, value);
+    }
+
+    private static object? GetField(object target, string fieldName)
+    {
+        var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return field.GetValue(target);
     }
 
     private static void InvokePrivate(object target, string methodName, Type[] parameterTypes, params object?[] args)
@@ -308,6 +388,64 @@ public sealed class RdpSessionViewModelTests
         public void Dispose()
         {
             Marshal.FreeCoTaskMem(Pointer);
+        }
+    }
+
+    private sealed class FakeNativeSession(IntPtr handle) : INativeRdpSession
+    {
+        public IntPtr Handle { get; } = handle;
+        public int DisconnectCallCount { get; private set; }
+        public int FreeCallCount { get; private set; }
+        public List<(int Width, int Height, uint DpiScalePercent)> ResolutionUpdates { get; } = [];
+        public List<(ushort Flags, ushort X, ushort Y)> MouseEvents { get; } = [];
+        public List<string> LocalClipboardFiles { get; } = [];
+
+        public void Disconnect()
+        {
+            DisconnectCallCount++;
+        }
+
+        public void Free()
+        {
+            FreeCallCount++;
+        }
+
+        public void UpdateResolution(int width, int height, uint dpiScalePercent)
+        {
+            ResolutionUpdates.Add((width, height, dpiScalePercent));
+        }
+
+        public void SendMouseEvent(ushort flags, ushort x, ushort y)
+        {
+            MouseEvents.Add((flags, x, y));
+        }
+
+        public void SendKeyboardEvent(ushort flags, ushort code)
+        {
+        }
+
+        public void SetLocalClipboardText(string? text)
+        {
+        }
+
+        public void SetLocalClipboardFiles(IntPtr filePaths, nint fileCount)
+        {
+            for (var i = 0; i < fileCount; i++)
+            {
+                var pathPtr = Marshal.ReadIntPtr(filePaths, i * IntPtr.Size);
+                LocalClipboardFiles.Add(Marshal.PtrToStringUTF8(pathPtr) ?? string.Empty);
+            }
+        }
+
+        public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height)
+        {
+        }
+
+        public bool Present(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
+        {
+            dirtyX = dirtyY = dirtyWidth = dirtyHeight = 0;
+            fbWidth = fbHeight = 0;
+            return false;
         }
     }
 }

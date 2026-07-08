@@ -28,7 +28,21 @@ internal static class AvaloniaTestEnvironment
     public static void RunPendingDispatcherJobs()
     {
         EnsureInitialized();
-        Dispatcher.UIThread.RunJobs();
+
+        RunOnUiThread(static () => Dispatcher.UIThread.RunJobs());
+    }
+
+    public static void RunOnUiThread(Action action)
+    {
+        EnsureInitialized();
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
     }
 
     private sealed class TestApplication : Application

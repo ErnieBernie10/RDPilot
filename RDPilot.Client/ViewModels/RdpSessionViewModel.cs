@@ -46,6 +46,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
     private readonly Func<RdpCertificatePrompt, CertificateTrustDecision> _certificateTrustDecision;
     private readonly ManagedFramePresenter _framePresenter;
+    private INativeRdpSession? _nativeSession;
     private IntPtr _handle;
     private int _disposeStarted;
     private int _disposed;
@@ -91,7 +92,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         {
             var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
             var keyboardLayout = NativeWrapper.GetCurrentKeyboardLayout();
-            _handle = NativeWrapper.rdp_session_connect(
+            _nativeSession = NativeRdpSession.Connect(
                 connection.Host,
                 connectHost,
                 connection.Domain,
@@ -118,6 +119,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 _clipboardCallback,
                 _statusCallback,
                 _certificateDecisionCallback);
+            _handle = _nativeSession.Handle;
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
         {
@@ -198,8 +200,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var handle = _handle;
-        if (handle == IntPtr.Zero)
+        if (!TryGetActiveSession(out var nativeSession))
         {
             if (!IsDisposeStarted)
             {
@@ -210,7 +211,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         }
 
         Status = RdpSessionStatus.Disconnecting;
-        await Task.Run(() => NativeWrapper.rdp_session_disconnect(handle));
+        await Task.Run(nativeSession.Disconnect);
         if (IsDisposeStarted)
         {
             return;
@@ -222,7 +223,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     public void UpdateResolution(int width, int height, double renderScaling = 0)
     {
-        if (!TryGetActiveHandle(out var handle) || width <= 0 || height <= 0)
+        if (!TryGetActiveSession(out var nativeSession) || width <= 0 || height <= 0)
         {
             return;
         }
@@ -232,44 +233,44 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             _renderScaling = renderScaling;
             _framePresenter.UpdateRenderScaling(renderScaling);
         }
-
+        
         _requestedWidth = width;
         _requestedHeight = height;
-        NativeWrapper.rdp_session_update_resolution(handle, width, height, _dpiScalePercent);
+        nativeSession.UpdateResolution(width, height, _dpiScalePercent);
     }
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y)
     {
-        if (!TryGetActiveHandle(out var handle)) return;
+        if (!TryGetActiveSession(out var nativeSession)) return;
         _framePresenter.MarkInputSent();
-        NativeWrapper.rdp_session_send_mouse_event(handle, flags, x, y);
+        nativeSession.SendMouseEvent(flags, x, y);
     }
 
     public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
     {
-        if (!TryGetActiveHandle(out var handle)) return;
+        if (!TryGetActiveSession(out var nativeSession)) return;
         _framePresenter.MarkInputSent();
         ushort px = (ushort)Math.Clamp(dipX * _renderScaling, 0, 65535);
         ushort py = (ushort)Math.Clamp(dipY * _renderScaling, 0, 65535);
-        NativeWrapper.rdp_session_send_mouse_event(handle, flags, px, py);
+        nativeSession.SendMouseEvent(flags, px, py);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
     {
-        if (!TryGetActiveHandle(out var handle)) return;
+        if (!TryGetActiveSession(out var nativeSession)) return;
         _framePresenter.MarkInputSent();
-        NativeWrapper.rdp_session_send_keyboard_event(handle, flags, code);
+        nativeSession.SendKeyboardEvent(flags, code);
     }
 
     public void SetLocalClipboardText(string text)
     {
-        if (!TryGetActiveHandle(out var handle)) return;
-        NativeWrapper.rdp_session_clipboard_set_local_text(handle, text);
+        if (!TryGetActiveSession(out var nativeSession)) return;
+        nativeSession.SetLocalClipboardText(text);
     }
 
     public void SetLocalClipboardFiles(string[] filePaths)
     {
-        if (!TryGetActiveHandle(out var handle) || filePaths == null || filePaths.Length == 0) return;
+        if (!TryGetActiveSession(out var nativeSession) || filePaths == null || filePaths.Length == 0) return;
         
         var ptrs = new IntPtr[filePaths.Length];
         var pathHandles = new GCHandle[filePaths.Length];
@@ -285,7 +286,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             var ptrArrayHandle = GCHandle.Alloc(ptrs, GCHandleType.Pinned);
             try
             {
-                NativeWrapper.rdp_session_clipboard_set_local_files(handle, ptrArrayHandle.AddrOfPinnedObject(), filePaths.Length);
+                nativeSession.SetLocalClipboardFiles(ptrArrayHandle.AddrOfPinnedObject(), filePaths.Length);
             }
             finally
             {
@@ -304,12 +305,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
     {
-        if (!TryGetActiveHandle(out var handle) || bitmapData == null || bitmapData.Length == 0) return;
+        if (!TryGetActiveSession(out var nativeSession) || bitmapData == null || bitmapData.Length == 0) return;
         
         var bitmapHandle = GCHandle.Alloc(bitmapData, GCHandleType.Pinned);
         try
         {
-            NativeWrapper.rdp_session_clipboard_set_local_bitmap(handle, bitmapHandle.AddrOfPinnedObject(), bitmapData.Length, width, height);
+            nativeSession.SetLocalClipboardBitmap(bitmapHandle.AddrOfPinnedObject(), bitmapData.Length, width, height);
         }
         finally
         {
@@ -358,13 +359,14 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private bool PresentPending(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
     {
-        if (!TryGetActiveHandle(out var handle))
+        if (!TryGetActiveSession(out var nativeSession))
         {
             dirtyX = dirtyY = dirtyWidth = dirtyHeight = 0;
             fbWidth = fbHeight = 0;
             return false;
         }
-        return NativeWrapper.rdp_session_present(handle, dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
+
+        return nativeSession.Present(dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
     }
 
     private int OnCertificateDecisionRequested(
@@ -405,9 +407,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         }
 
         var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
-        if (handle != IntPtr.Zero)
+        var nativeSession = Interlocked.Exchange(ref _nativeSession, null);
+        if (handle != IntPtr.Zero && nativeSession != null)
         {
-            NativeWrapper.rdp_session_free(handle);
+            nativeSession.Free();
         }
 
         _framePresenter.Dispose();
@@ -415,10 +418,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private bool TryGetActiveHandle(out IntPtr handle)
+    private bool TryGetActiveSession([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out INativeRdpSession? nativeSession)
     {
-        handle = _handle;
-        return !IsDisposeStarted && handle != IntPtr.Zero;
+        nativeSession = _nativeSession;
+        return !IsDisposeStarted && nativeSession != null && _handle != IntPtr.Zero;
     }
 
     private bool IsActiveCallbackSession(IntPtr session)
