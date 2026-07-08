@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 using RDPilot.Client.Models;
 using RDPilot.Client.Services;
@@ -223,6 +224,109 @@ public sealed class MainWindowViewModelTests
         await ConnectAsync(vm, connection, secretStore);
 
         Assert.Equal(session, vm.SelectedSession);
+    }
+
+    [Fact]
+    public async Task SelectedSessionStatusChange_UpdatesShellStateWhileBackgroundChangeDoesNot()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var factory = new QueueSessionFactory(new[] { first, second });
+
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+
+        await ConnectAsync(vm, first.Connection, secretStore);
+        await ConnectAsync(vm, second.Connection, secretStore);
+        vm.SelectedSession = first;
+
+        first.SetTestStatus(RdpSessionStatus.Disconnected);
+
+        Assert.False(vm.IsConnected);
+        Assert.False(vm.SelectedSessionCanDisconnect);
+        Assert.True(vm.SelectedSessionCanReconnect);
+        Assert.Equal("Disconnected from One.", vm.StatusMessage);
+
+        second.SetTestStatus(
+            RdpSessionStatus.Failed,
+            new RdpSessionError(1, "FREERDP_ERROR_CONNECT_FAILED", "background failure", RdpSessionErrorKind.TimeoutOrTransport));
+
+        Assert.False(vm.IsConnected);
+        Assert.False(vm.SelectedSessionCanDisconnect);
+        Assert.True(vm.SelectedSessionCanReconnect);
+        Assert.Equal("Disconnected from One.", vm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task SessionRedrawRequested_RaisesOnlyForSelectedSession()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var factory = new QueueSessionFactory(new[] { first, second });
+
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+
+        await ConnectAsync(vm, first.Connection, secretStore);
+        await ConnectAsync(vm, second.Connection, secretStore);
+        vm.SelectedSession = first;
+
+        var redrawCount = 0;
+        RdpSessionViewModel? raisedSession = null;
+        vm.SessionRedrawRequested += (_, session) =>
+        {
+            redrawCount++;
+            raisedSession = session;
+        };
+
+        InvokePrivate(vm, "OnSessionRequestRedraw", second, EventArgs.Empty);
+        Assert.Equal(0, redrawCount);
+
+        InvokePrivate(vm, "OnSessionRequestRedraw", first, EventArgs.Empty);
+        Assert.Equal(1, redrawCount);
+        Assert.Same(first, raisedSession);
+    }
+
+    [Fact]
+    public async Task RemoteClipboardTextReceived_RaisesOnlyForSelectedSession()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var factory = new QueueSessionFactory(new[] { first, second });
+
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+
+        await ConnectAsync(vm, first.Connection, secretStore);
+        await ConnectAsync(vm, second.Connection, secretStore);
+        vm.SelectedSession = first;
+
+        var received = new List<(RdpSessionViewModel Session, string Text)>();
+        vm.RemoteClipboardTextReceived += (_, value) => received.Add(value);
+
+        InvokePrivate(vm, "OnRemoteClipboardTextReceived", second, "background");
+        Assert.Empty(received);
+
+        InvokePrivate(vm, "OnRemoteClipboardTextReceived", first, "selected");
+        var clipboardEvent = Assert.Single(received);
+        Assert.Same(first, clipboardEvent.Session);
+        Assert.Equal("selected", clipboardEvent.Text);
+    }
+
+    private static void InvokePrivate(object target, string methodName, params object?[] args)
+    {
+        var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method.Invoke(target, args);
     }
 
     private static async Task ConnectAsync(MainWindowViewModel vm, SavedConnection connection, FakeSecretStore secretStore)
