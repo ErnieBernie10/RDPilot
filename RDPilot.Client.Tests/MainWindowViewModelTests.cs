@@ -322,6 +322,35 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("selected", clipboardEvent.Text);
     }
 
+    [Fact]
+    public async Task RemoteClipboardFilesReceived_RaisesOnlyForSelectedSession()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var factory = new QueueSessionFactory(new[] { first, second });
+
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+
+        await ConnectAsync(vm, first.Connection, secretStore);
+        await ConnectAsync(vm, second.Connection, secretStore);
+        vm.SelectedSession = first;
+
+        var received = new List<(RdpSessionViewModel Session, string[] FilePaths)>();
+        vm.RemoteClipboardFilesReceived += (_, value) => received.Add(value);
+
+        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", second, new[] { "background.txt" });
+        Assert.Empty(received);
+
+        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", first, new[] { "selected.txt" });
+        var clipboardEvent = Assert.Single(received);
+        Assert.Same(first, clipboardEvent.Session);
+        Assert.Equal(["selected.txt"], clipboardEvent.FilePaths);
+    }
+
     private static void InvokePrivate(object target, string methodName, params object?[] args)
     {
         var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -356,7 +385,7 @@ public sealed class MainWindowViewModelTests
             _sessions = new Queue<RdpSessionViewModel>(sessions);
         }
 
-        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, double renderScaling, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, double renderScaling, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived, Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
         {
             return _sessions.Dequeue();
         }

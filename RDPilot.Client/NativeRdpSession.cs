@@ -61,6 +61,7 @@ internal sealed class NativeRdpSession : INativeRdpSession
         uint dpiScalePercent,
         NativeWrapper.FrameCallback frameCallback,
         NativeWrapper.ClipboardTextCallback clipboardCallback,
+        NativeWrapper.ClipboardFilesCallback clipboardFilesCallback,
         NativeWrapper.StatusCallback statusCallback,
         NativeWrapper.CertificateDecisionCallback certificateDecisionCallback)
     {
@@ -89,6 +90,7 @@ internal sealed class NativeRdpSession : INativeRdpSession
             dpiScalePercent,
             frameCallback,
             clipboardCallback,
+            clipboardFilesCallback,
             statusCallback,
             certificateDecisionCallback);
 

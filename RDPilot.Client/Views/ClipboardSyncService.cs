@@ -17,6 +17,12 @@ internal sealed class ClipboardSyncService
         _lastClipboardSignature = BuildTextSignature(text);
     }
 
+    public void BeginRemoteFilesUpdate(string[] filePaths)
+    {
+        _settingClipboardFromRemote = true;
+        _lastClipboardSignature = BuildFilesSignature(filePaths);
+    }
+
     public void EndRemoteTextUpdate()
     {
         _settingClipboardFromRemote = false;
@@ -41,7 +47,7 @@ internal sealed class ClipboardSyncService
 
     public bool TryRememberFiles(string[] filePaths, out string signature)
     {
-        signature = $"files:{string.Join("\n", filePaths)}";
+        signature = BuildFilesSignature(filePaths);
         return TryRememberSignature(signature);
     }
 
@@ -52,6 +58,7 @@ internal sealed class ClipboardSyncService
     }
 
     private static string BuildTextSignature(string text) => $"text:{text}";
+    private static string BuildFilesSignature(string[] filePaths) => $"files:{string.Join("\n", filePaths)}";
 
     private bool TryRememberSignature(string signature)
     {

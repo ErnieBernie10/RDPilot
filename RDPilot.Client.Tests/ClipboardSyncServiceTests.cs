@@ -27,6 +27,18 @@ public sealed class ClipboardSyncServiceTests
     }
 
     [Fact]
+    public void BeginRemoteFilesUpdate_SuppressesLocalPolling()
+    {
+        Assert.True(_service.ShouldPollLocalClipboard);
+
+        _service.BeginRemoteFilesUpdate(["remote.txt"]);
+        Assert.False(_service.ShouldPollLocalClipboard);
+
+        _service.EndRemoteTextUpdate();
+        Assert.True(_service.ShouldPollLocalClipboard);
+    }
+
+    [Fact]
     public void BeginAndEndRemoteUpdate_SuppressesLocalPolling()
     {
         Assert.True(_service.ShouldPollLocalClipboard);

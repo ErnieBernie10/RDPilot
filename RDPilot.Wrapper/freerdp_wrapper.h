@@ -25,6 +25,7 @@ typedef struct rdp_session rdp_session;
  * thread) race gdi_resize. See wfreerdp's wf_end_paint for the reference single-threaded model. */
 typedef void (*FrameCallback)(rdp_session* session, uint8_t* data, int width, int height, int dirty_x, int dirty_y, int dirty_width, int dirty_height, int source_stride);
 typedef void (*ClipboardTextCallback)(rdp_session* session, const char* text);
+typedef void (*ClipboardFilesCallback)(rdp_session* session, const char** file_paths, size_t file_count);
 typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
 typedef int (*CertificateDecisionCallback)(rdp_session* session, const char* host, uint16_t port, const char* common_name, const char* subject, const char* issuer, const char* fingerprint, int is_changed, const char* previous_subject, const char* previous_issuer, const char* previous_fingerprint);
 
@@ -33,7 +34,7 @@ FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const cha
                                                      int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                                      bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
                                                      uint32_t keyboard_layout, uint32_t dpi_scale_percent,
-                                                     FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback);
+                                                     FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent);

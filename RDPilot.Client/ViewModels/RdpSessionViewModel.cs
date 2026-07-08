@@ -41,9 +41,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardCallback;
+    private readonly NativeWrapper.ClipboardFilesCallback _clipboardFilesCallback;
     private readonly NativeWrapper.StatusCallback _statusCallback;
     private readonly NativeWrapper.CertificateDecisionCallback _certificateDecisionCallback;
     private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
+    private readonly Action<RdpSessionViewModel, string[]> _remoteClipboardFilesReceived;
     private readonly Func<RdpCertificatePrompt, CertificateTrustDecision> _certificateTrustDecision;
     private readonly ManagedFramePresenter _framePresenter;
     private INativeRdpSession? _nativeSession;
@@ -72,6 +74,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         bool fullWindowDrag,
         RdpConnectionType connectionType,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
+        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived,
         Func<RdpCertificatePrompt, CertificateTrustDecision> certificateTrustDecision)
     {
         Connection = connection.Clone();
@@ -81,8 +84,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _renderScaling = renderScaling > 0 ? renderScaling : 1.0;
         _dpiScalePercent = (uint)Math.Max(100, Math.Round(_renderScaling * 100));
         _remoteClipboardTextReceived = remoteClipboardTextReceived;
+        _remoteClipboardFilesReceived = remoteClipboardFilesReceived;
         _frameCallback = OnFrameReceived;
         _clipboardCallback = OnRemoteClipboardTextReceived;
+        _clipboardFilesCallback = OnRemoteClipboardFilesReceived;
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
         _certificateTrustDecision = certificateTrustDecision;
@@ -117,6 +122,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 _dpiScalePercent,
                 _frameCallback,
                 _clipboardCallback,
+                _clipboardFilesCallback,
                 _statusCallback,
                 _certificateDecisionCallback);
             _handle = _nativeSession.Handle;
@@ -147,8 +153,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Connection = connection.Clone();
         Title = connection.Name;
         _remoteClipboardTextReceived = static (_, _) => { };
+        _remoteClipboardFilesReceived = static (_, _) => { };
         _frameCallback = OnFrameReceived;
         _clipboardCallback = OnRemoteClipboardTextReceived;
+        _clipboardFilesCallback = OnRemoteClipboardFilesReceived;
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
         _certificateTrustDecision = static _ => CertificateTrustDecision.Reject;
@@ -324,6 +332,24 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         var text = Marshal.PtrToStringUTF8(textPtr) ?? "";
         if (IsDisposeStarted) return;
         _remoteClipboardTextReceived(this, text);
+    }
+
+    private unsafe void OnRemoteClipboardFilesReceived(IntPtr session, IntPtr filePathsPtr, nint fileCount)
+    {
+        if (!IsActiveCallbackSession(session) || IsDisposeStarted || filePathsPtr == IntPtr.Zero || fileCount <= 0)
+        {
+            return;
+        }
+
+        var count = checked((int)fileCount);
+        var paths = new string[count];
+        var ptrs = (IntPtr*)filePathsPtr;
+        for (var i = 0; i < count; i++)
+        {
+            paths[i] = Marshal.PtrToStringUTF8(ptrs[i]) ?? string.Empty;
+        }
+
+        _remoteClipboardFilesReceived(this, paths);
     }
 
     private void OnStatusChanged(IntPtr session, int status, uint errorCode, IntPtr errorNamePtr, IntPtr errorMessagePtr)

@@ -36,7 +36,8 @@ public RdpSessionViewModel Create(
         bool menuAnimations,
         bool fullWindowDrag,
         RdpConnectionType connectionType,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
+        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
     {
 return new RdpSessionViewModel(
             connection,
@@ -55,6 +56,7 @@ return new RdpSessionViewModel(
             fullWindowDrag,
             connectionType,
             remoteClipboardTextReceived,
+            remoteClipboardFilesReceived,
             DecideCertificateTrust);
     }
 

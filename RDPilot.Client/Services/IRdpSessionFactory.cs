@@ -22,5 +22,6 @@ RdpSessionViewModel Create(
         bool menuAnimations,
         bool fullWindowDrag,
         RdpConnectionType connectionType,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived);
+        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
+        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived);
 }

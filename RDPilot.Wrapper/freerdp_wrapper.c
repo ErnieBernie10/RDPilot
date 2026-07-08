@@ -682,6 +682,7 @@ static void on_channel_connected(void* context, const ChannelConnectedEventArgs*
             session->cliprdr->ServerFormatDataRequest = on_cliprdr_server_format_data_request;
             session->cliprdr->ServerFileContentsRequest = on_cliprdr_server_file_contents_request;
             session->cliprdr->ServerFormatDataResponse = on_cliprdr_server_format_data_response;
+            session->cliprdr->ServerFileContentsResponse = on_cliprdr_server_file_contents_response;
         }
         printf("[CLIPRDR] channel connected\n");
     }
@@ -1348,13 +1349,14 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
                                  uint32_t keyboard_layout, uint32_t dpi_scale_percent,
-                                 FrameCallback frame_callback, ClipboardTextCallback clipboard_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
+                                 FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
     if (!session) return NULL;
 
     session->dpi_scale_percent = dpi_scale_percent == 0 ? 100 : dpi_scale_percent;
     session->callback = frame_callback;
-    session->clipboard_text_callback = clipboard_callback;
+    session->clipboard_text_callback = clipboard_text_callback;
+    session->clipboard_files_callback = clipboard_files_callback;
     session->status_callback = status_callback;
     session->certificate_decision_callback = certificate_decision_callback;
     session->render_mode = get_configured_rendering_mode();
@@ -1448,6 +1450,7 @@ void rdp_session_free(rdp_session* session) {
     rdp_session_disconnect(session);
     session->callback = NULL;
     session->clipboard_text_callback = NULL;
+    session->clipboard_files_callback = NULL;
     session->status_callback = NULL;
     DeleteCriticalSection(&session->resize_lock);
     DeleteCriticalSection(&session->input_lock);

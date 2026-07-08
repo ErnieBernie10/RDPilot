@@ -36,6 +36,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
     public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
+    public event EventHandler<(RdpSessionViewModel Session, string[] FilePaths)>? RemoteClipboardFilesReceived;
 
     public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
@@ -184,7 +185,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             connection,
             password,
             gatewayPassword,
-            OnRemoteClipboardTextReceived);
+            OnRemoteClipboardTextReceived,
+            OnRemoteClipboardFilesReceived);
 
         SubscribeSession(session);
         Sessions.Add(session);
@@ -246,7 +248,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
 
         StatusMessage = $"Reconnecting {oldSession.Title}...";
-        var newSession = CreateSession(oldSession.Connection, password, gatewayPassword, OnRemoteClipboardTextReceived);
+        var newSession = CreateSession(oldSession.Connection, password, gatewayPassword, OnRemoteClipboardTextReceived, OnRemoteClipboardFilesReceived);
         SubscribeSession(newSession);
         UnsubscribeSession(oldSession);
         Sessions[index] = newSession;
@@ -333,11 +335,20 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void OnRemoteClipboardFilesReceived(RdpSessionViewModel session, string[] filePaths)
+    {
+        if (ReferenceEquals(session, SelectedSession))
+        {
+            RemoteClipboardFilesReceived?.Invoke(this, (session, filePaths));
+        }
+    }
+
     private RdpSessionViewModel CreateSession(
         SavedConnection connection,
         string password,
         string gatewayPassword,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived)
+        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
+        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
     {
         var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
 
@@ -357,7 +368,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             qualitySettings.MenuAnimations,
             qualitySettings.FullWindowDrag,
             qualitySettings.ConnectionType,
-            remoteClipboardTextReceived);
+            remoteClipboardTextReceived,
+            remoteClipboardFilesReceived);
     }
 
     private void SubscribeSession(RdpSessionViewModel session)

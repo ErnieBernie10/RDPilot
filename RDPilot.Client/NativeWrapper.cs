@@ -114,6 +114,9 @@ internal static class NativeWrapper
     internal delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void ClipboardFilesCallback(IntPtr session, IntPtr filePaths, nint fileCount);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -155,6 +158,7 @@ internal static class NativeWrapper
             uint dpiScalePercent,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
+            ClipboardFilesCallback clipboardFilesCallback,
             StatusCallback statusCallback,
             CertificateDecisionCallback certificateDecisionCallback);
 

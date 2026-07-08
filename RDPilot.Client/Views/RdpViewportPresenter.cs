@@ -15,6 +15,7 @@ internal sealed class RdpViewportPresenter
 {
     private readonly Func<MainWindowViewModel?> _getViewModel;
     private readonly Func<IClipboard?> _getClipboard;
+    private readonly Func<string[], IStorageItem[]> _createStorageItems;
     private readonly Func<Size> _getViewportSize;
     private readonly Action _invalidateViewport;
     private readonly Func<Bitmap, byte[]?> _convertBitmapToDib;
@@ -29,6 +30,7 @@ internal sealed class RdpViewportPresenter
     public RdpViewportPresenter(
         Func<MainWindowViewModel?> getViewModel,
         Func<IClipboard?> getClipboard,
+        Func<string[], IStorageItem[]> createStorageItems,
         Func<Size> getViewportSize,
         Action invalidateViewport,
         Func<Bitmap, byte[]?> convertBitmapToDib,
@@ -37,6 +39,7 @@ internal sealed class RdpViewportPresenter
     {
         _getViewModel = getViewModel;
         _getClipboard = getClipboard;
+        _createStorageItems = createStorageItems;
         _getViewportSize = getViewportSize;
         _invalidateViewport = invalidateViewport;
         _convertBitmapToDib = convertBitmapToDib;
@@ -66,6 +69,30 @@ internal sealed class RdpViewportPresenter
         catch (Exception ex)
         {
             Console.WriteLine($"[CLIPRDR] failed to set local clipboard: {ex.Message}");
+        }
+        finally
+        {
+            _clipboardSyncService.EndRemoteTextUpdate();
+        }
+    }
+
+    public async Task HandleRemoteClipboardFilesReceivedAsync(string[] filePaths)
+    {
+        var clipboard = _getClipboard();
+        if (clipboard == null || filePaths.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _clipboardSyncService.BeginRemoteFilesUpdate(filePaths);
+            await clipboard.SetFilesAsync(_createStorageItems(filePaths));
+            Console.WriteLine($"[CLIPRDR] set local clipboard from remote files count={filePaths.Length}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLIPRDR] failed to set local file clipboard: {ex.Message}");
         }
         finally
         {

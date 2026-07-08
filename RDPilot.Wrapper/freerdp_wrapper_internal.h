@@ -29,11 +29,14 @@
 #include <winpr/thread.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #if !defined(_WIN32)
+#include <errno.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #endif
@@ -68,6 +71,7 @@ typedef enum {
 struct rdp_session {
     FrameCallback callback;
     ClipboardTextCallback clipboard_text_callback;
+    ClipboardFilesCallback clipboard_files_callback;
     StatusCallback status_callback;
     CertificateDecisionCallback certificate_decision_callback;
     freerdp* instance;
@@ -130,6 +134,20 @@ struct rdp_session {
     size_t local_file_paths_count;
     size_t local_file_paths_capacity;
     char* temp_directory;
+    UINT32 remote_file_group_descriptor_format_id;
+    UINT32 remote_file_contents_format_id;
+    UINT32 pending_remote_format_id;
+    UINT32 remote_file_stream_id;
+    char** remote_received_file_paths;
+    size_t remote_received_file_paths_count;
+    size_t remote_received_file_paths_capacity;
+    size_t remote_expected_file_count;
+    size_t remote_active_file_index;
+    UINT64 remote_active_file_size;
+    UINT64 remote_active_file_offset;
+    char* remote_active_file_path;
+    FILE* remote_active_file;
+    bool remote_file_transfer_in_progress;
     
     // Bitmap clipboard support
     BYTE* local_bitmap_data;
@@ -198,3 +216,4 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
 UINT on_cliprdr_server_format_data_request(CliprdrClientContext* context, const CLIPRDR_FORMAT_DATA_REQUEST* formatDataRequest);
 UINT on_cliprdr_server_file_contents_request(CliprdrClientContext* context, const CLIPRDR_FILE_CONTENTS_REQUEST* fileContentsRequest);
 UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context, const CLIPRDR_FORMAT_DATA_RESPONSE* formatDataResponse);
+UINT on_cliprdr_server_file_contents_response(CliprdrClientContext* context, const CLIPRDR_FILE_CONTENTS_RESPONSE* fileContentsResponse);
