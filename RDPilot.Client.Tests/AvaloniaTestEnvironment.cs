@@ -1,6 +1,6 @@
-using System;
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Threading;
-using RDPilot.Client;
 
 namespace RDPilot.Client.Tests;
 
@@ -18,7 +18,9 @@ internal static class AvaloniaTestEnvironment
                 return;
             }
 
-            Program.BuildAvaloniaApp().SetupWithoutStarting();
+            AppBuilder.Configure<TestApplication>()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+                .SetupWithoutStarting();
             _initialized = true;
         }
     }
@@ -27,5 +29,9 @@ internal static class AvaloniaTestEnvironment
     {
         EnsureInitialized();
         Dispatcher.UIThread.RunJobs();
+    }
+
+    private sealed class TestApplication : Application
+    {
     }
 }
