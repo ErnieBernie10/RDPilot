@@ -165,7 +165,7 @@ static char* duplicate_printf(const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    int needed = _vscprintf(format, args);
+    int needed = vsnprintf(NULL, 0, format, args);
     va_end(args);
     if (needed < 0)
         return NULL;
@@ -636,17 +636,6 @@ void free_clipboard_data(rdp_session* session)
     clear_remote_file_transfer(session);
     free_temp_directory(session);
     free_local_bitmap_data(session);
-}
-
-static bool has_local_clipboard_text(rdp_session* session)
-{
-    bool has_text = false;
-    if (!session) return false;
-
-    EnterCriticalSection(&session->clipboard_lock);
-    has_text = session->local_clipboard_text && session->local_clipboard_text[0] != '\0';
-    LeaveCriticalSection(&session->clipboard_lock);
-    return has_text;
 }
 
 static UINT send_clipboard_format_list(rdp_session* session)

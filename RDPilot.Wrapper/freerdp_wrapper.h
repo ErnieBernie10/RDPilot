@@ -55,7 +55,7 @@ FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_bitmap(rdp_session* ses
  * dirty rect was copied from the primary buffer into `dest` (row stride `dest_stride`), and the
  * dirty rect/dims are returned in the out_ parameters. Returns false when there was nothing
  * pending, the GDI was not ready, or the GDI dimensions do not match `dest_width`/`dest_height`
- * (resize race): in the resize case *out_width/*out_height receive the actual GDI dimensions so
+ * (resize race): in the resize case out_width / out_height receive the actual GDI dimensions so
  * the caller can recreate its bitmap and retry.
  *
  * The copy happens under `frame_lock`, which is also held around `gdi_resize`, so the primary

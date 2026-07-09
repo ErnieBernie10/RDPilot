@@ -1255,7 +1255,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
         DWORD waitStatus = WaitForMultipleObjects(eventCount, eventHandles, FALSE, INPUT_LOOP_TIMEOUT_MS);
         if (waitStatus == WAIT_FAILED)
         {
-            fprintf(stderr, "RDP loop WaitForMultipleObjects failed: 0x%08lX\n", GetLastError());
+            fprintf(stderr, "RDP loop WaitForMultipleObjects failed: 0x%08X\n", (unsigned)GetLastError());
             break;
         }
 
