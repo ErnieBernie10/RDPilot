@@ -30,6 +30,26 @@ System dependencies currently expected on Linux:
 - pkg-config/pkgconf
 - FreeRDP 3 development files: `freerdp3`, `freerdp-client3`, `winpr3`
 
+## Native/Managed Boundary
+
+Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no policy decisions.
+
+**Managed-owned (safe C#, no `unsafe` blocks):**
+- Resize debounce/coalescing: `ViewportResolutionUpdateScheduler` (quiet-period + min-interval).
+- Pointer-move coalescing/throttling: `PointerMoveScheduler` (latest-only, ~125 Hz min interval).
+- Option normalization: `RdpSessionOptions` (color depth, connection type, DPI scale clamping, resolution clamping).
+- Clipboard file-list shaping: C# sends paths via native `clear/add/commit` primitives.
+- All callback marshaling uses safe `Marshal.PtrToStringUTF8` / `Marshal.ReadIntPtr`.
+
+**Native-owned (FreeRDP mechanics only):**
+- FreeRDP event loop, channel setup/callbacks, GDI/RDPGFX framebuffer lifecycle.
+- CLIPRDR protocol handling (text, files, bitmap format negotiation).
+- RDP-thread input delivery via a simple ordered queue (no coalescing/throttling policy).
+- RDP-thread resolution application via `SendMonitorLayout` (no debounce policy).
+- Direct FreeRDP settings writes (values are pre-normalized by C#).
+
+Do not reintroduce `unsafe` into `RDPilot.Client.csproj`. Do not reintroduce policy logic (debounce, coalescing, normalization) into the native wrapper.
+
 ## Native Wrapper Notes
 
 Important FreeRDP 3 details discovered during dynamic-resolution work:
@@ -41,22 +61,20 @@ Important FreeRDP 3 details discovered during dynamic-resolution work:
 - `FreeRDP_DynamicResolutionUpdate = TRUE` is also set for dynamic-resolution behavior.
 - Dynamic resolution uses `DispClientContext->SendMonitorLayout` after the `DisplayControlCaps` callback fires.
 - Do not send monitor layout updates directly from Avalonia/UI thread. Queue them and send from the RDP thread.
-- Resize updates are debounced to avoid corrupting remote graphics streams during drag-resize.
 
-Current native resize behavior:
+Current resize behavior (managed-owned policy):
 
-- Ignores sizes below `640x480` on the Avalonia side.
-- Ignores minimized-window resize events.
-- Waits for a quiet period before sending `SendMonitorLayout`.
-- Resizes local GDI framebuffer after a successful layout send so Avalonia can resize its bitmap.
+- `ViewportResolutionService` ignores sizes below `640x480` and minimized-window events.
+- `ViewportResolutionUpdateScheduler` applies a quiet-period and minimum-interval debounce before forwarding to `RdpSessionViewModel.UpdateResolution`, which normalizes via `RdpSessionOptions` and forwards to native.
+- Native queues the latest target size and applies `SendMonitorLayout` on the next RDP loop iteration (no debounce policy).
+- Native resizes local GDI framebuffer after a successful layout send so Avalonia can resize its bitmap.
 
-Input and latency behavior:
+Input behavior (managed-owned policy):
 
 - Do not call FreeRDP input APIs directly from Avalonia/UI event handlers.
-- Queue input and process it on the RDP thread.
-- Mouse move events are coalesced latest-only to reduce hover/move flood; clicks, wheel, and keys remain ordered queued events.
-- The coalesced pending mouse move is throttled to ~125 Hz (`MIN_MOVE_SEND_INTERVAL_MS = 8`). RDPGFX frame scheduling on the server gates on input quiescence; the previous busy-poll loop spammed moves at ~500 Hz and made the server pace frames down to 1-12 fps during drag. The pending move stays updated latest-only so the server always sees the most recent position while staying within the rate budget (matches mstsc/wfreerdp).
-- The RDP loop is now the canonical FreeRDP event-driven form (matches `wfreerdp`/`xfreerdp`): `freerdp_get_event_handles` → `WaitForMultipleObjects(..., INPUT_LOOP_TIMEOUT_MS=10)` → `freerdp_check_event_handles` (single call, which itself invokes `freerdp_check_fds` + `freerdp_channels_check_fds` + error-event check). No `Sleep(2)`, no redundant per-handle `WaitForSingleObject(0)`, no standalone `freerdp_check_fds` call. Network data wakes the loop immediately; idle polls are capped at ~100 Hz.
+- `PointerMoveScheduler` coalesces mouse moves latest-only and throttles to ~125 Hz (8 ms min interval). Pending moves are flushed before button/wheel events so clicks carry a near-current position.
+- Native input is a simple ordered FIFO queue drained on the RDP thread. No coalescing or throttling policy in native code.
+- The RDP loop is the canonical FreeRDP event-driven form (matches `wfreerdp`/`xfreerdp`): `freerdp_get_event_handles` → `WaitForManyObjects(..., INPUT_LOOP_TIMEOUT_MS=10)` → `freerdp_check_event_handles` (single call). Network data wakes the loop immediately; idle polls are capped at ~100 Hz.
 - Current low-latency profile uses 16-bit color, compression, bitmap cache, WAN connection type, disabled audio/device redirection, and disabled desktop visual effects.
 
 ## Rendering Notes
@@ -101,7 +119,7 @@ Clipboard redirection currently supports text and local-to-remote file copy/past
 - Native wrapper enables `FreeRDP_RedirectClipboard` and handles the static `cliprdr` channel.
 - The wrapper sends cliprdr client capabilities on `MonitorReady` before advertising local formats.
 - Text uses `CF_UNICODETEXT`.
-- Local-to-remote files use `FileGroupDescriptorW` / `FileContents` streaming on `cliprdr` and currently advertise long format names with file paths omitted (matches the working `wfreerdp` behavior used during implementation).
+- Local-to-remote files use `FileGroupDescriptorW` / `FileContents` streaming on `cliprdr` and currently advertise long format names with file paths omitted (matches the working `wfreerdp` behavior used during implementation). C# sends file paths through native `rdp_session_clipboard_clear_local_files` / `rdp_session_clipboard_add_local_file` / `rdp_session_clipboard_commit_local_files` primitives (no managed pointer-array construction).
 - C# owns interaction with Avalonia's `TopLevel.Clipboard`; native calls back with remote UTF-8 text and C# writes it to the local OS clipboard.
 - Local-to-remote clipboard uses an Avalonia-side polling timer. Text is cached as the latest non-empty string in native code so the RDP thread can answer remote paste requests synchronously; file offers are rebuilt from the current Avalonia clipboard file list.
 - Empty local clipboard reads are ignored because Avalonia/platform clipboard reads may transiently return empty values and should not clear the remote clipboard offer.
@@ -137,7 +155,7 @@ Keyboard handling is scoped to the RDP image but registered on the window's tunn
 ## HiDPI Notes
 
 - The host's render scaling is read from `Window.RenderScaling` (a `TopLevel` property). The view (`RdpViewportView`) computes physical pixel dimensions = DIP viewport size × render scaling, and passes them to the native wrapper as `DesktopWidth`/`DesktopHeight`.
-- DPI scale percentage is passed to `rdp_session_connect` at connect time via `dpi_scale_percent`. The native wrapper clamps it to the RDP-valid steps (100/140/180) and sets `FreeRDP_DesktopScaleFactor`/`FreeRDP_DeviceScaleFactor` accordingly. This makes the remote session DPI-aware so text/menus render at the right size on scaled displays.
+- DPI scale percentage is passed to `rdp_session_connect` at connect time via `dpi_scale_percent`. C# clamps it to the RDP-valid steps (100/140/180) via `RdpSessionOptions.ClampDpiScalePercent` before crossing the native boundary. The native wrapper applies it directly to `FreeRDP_DesktopScaleFactor`/`FreeRDP_DeviceScaleFactor`. This makes the remote session DPI-aware so text/menus render at the right size on scaled displays.
 - DPI scale is **locked at connect time** — `rdp_session_update_resolution` does NOT change the DPI factors. The Windows RDP server does not reliably handle mid-session `desktopScaleFactor` changes (UWP processes like the Start Menu don't reflow). Only the pixel resolution changes dynamically when the window moves between monitors with different DPI. This matches mstsc behaviour.
 - `ManagedFramePresenter` stores `_renderScaling` for coordinate scaling (pointer events multiply DIP coords by `_renderScaling` to get desktop coords) and for `DisplayWidth`/`DisplayHeight` computation (so the Avalonia `Image` is sized correctly in DIPs).
 - `Window.LayoutUpdated` is monitored for render-scaling changes (e.g. window dragged to a different-DPI monitor). The handler triggers a resolution update with the new physical pixel size while keeping the connect-time DPI scale.
@@ -157,4 +175,4 @@ At the time these notes were written:
 dotnet build RDPilot.slnx
 ```
 
-passes with zero warnings/errors, and a short GUI smoke run starts without native-load errors.
+passes with zero errors. The C# layer has no `unsafe` blocks (`AllowUnsafeBlocks` is removed from `RDPilot.Client.csproj`). All option normalization, resize debounce, and input coalescing policy is tested via focused managed tests.
