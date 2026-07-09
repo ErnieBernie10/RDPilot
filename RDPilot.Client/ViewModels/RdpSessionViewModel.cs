@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
@@ -79,10 +78,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     {
         Connection = connection.Clone();
         Title = connection.Name;
+        _renderScaling = renderScaling > 0 ? renderScaling : 1.0;
+        _dpiScalePercent = RdpSessionOptions.ClampDpiScalePercent((uint)Math.Max(100, Math.Round(_renderScaling * 100)));
+        (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
+        colorDepth = RdpSessionOptions.NormalizeColorDepth(colorDepth);
         _requestedWidth = width;
         _requestedHeight = height;
-        _renderScaling = renderScaling > 0 ? renderScaling : 1.0;
-        _dpiScalePercent = (uint)Math.Max(100, Math.Round(_renderScaling * 100));
         _remoteClipboardTextReceived = remoteClipboardTextReceived;
         _remoteClipboardFilesReceived = remoteClipboardFilesReceived;
         _frameCallback = OnFrameReceived;
@@ -117,7 +118,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 themes,
                 menuAnimations,
                 fullWindowDrag,
-                (int)connectionType,
+                RdpSessionOptions.NormalizeConnectionType(connectionType),
                 keyboardLayout,
                 _dpiScalePercent,
                 _frameCallback,
@@ -241,7 +242,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             _renderScaling = renderScaling;
             _framePresenter.UpdateRenderScaling(renderScaling);
         }
-        
+
+        (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
         _requestedWidth = width;
         _requestedHeight = height;
         nativeSession.UpdateResolution(width, height, _dpiScalePercent);
@@ -278,37 +280,9 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     public void SetLocalClipboardFiles(string[] filePaths)
     {
-        if (!TryGetActiveSession(out var nativeSession) || filePaths == null || filePaths.Length == 0) return;
-        
-        var ptrs = new IntPtr[filePaths.Length];
-        var pathHandles = new GCHandle[filePaths.Length];
-        try
-        {
-            for (int i = 0; i < filePaths.Length; i++)
-            {
-                var pathBytes = Encoding.UTF8.GetBytes(filePaths[i] + "\0");
-                pathHandles[i] = GCHandle.Alloc(pathBytes, GCHandleType.Pinned);
-                ptrs[i] = pathHandles[i].AddrOfPinnedObject();
-            }
-            
-            var ptrArrayHandle = GCHandle.Alloc(ptrs, GCHandleType.Pinned);
-            try
-            {
-                nativeSession.SetLocalClipboardFiles(ptrArrayHandle.AddrOfPinnedObject(), filePaths.Length);
-            }
-            finally
-            {
-                ptrArrayHandle.Free();
-            }
-        }
-        finally
-        {
-            foreach (var fileHandle in pathHandles)
-            {
-                if (fileHandle.IsAllocated)
-                    fileHandle.Free();
-            }
-        }
+        if (!TryGetActiveSession(out var nativeSession) || filePaths == null) return;
+
+        nativeSession.SetLocalClipboardFiles(filePaths);
     }
 
     public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
@@ -334,7 +308,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _remoteClipboardTextReceived(this, text);
     }
 
-    private unsafe void OnRemoteClipboardFilesReceived(IntPtr session, IntPtr filePathsPtr, nint fileCount)
+    private void OnRemoteClipboardFilesReceived(IntPtr session, IntPtr filePathsPtr, nint fileCount)
     {
         if (!IsActiveCallbackSession(session) || IsDisposeStarted || filePathsPtr == IntPtr.Zero || fileCount <= 0)
         {
@@ -343,10 +317,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
         var count = checked((int)fileCount);
         var paths = new string[count];
-        var ptrs = (IntPtr*)filePathsPtr;
         for (var i = 0; i < count; i++)
         {
-            paths[i] = Marshal.PtrToStringUTF8(ptrs[i]) ?? string.Empty;
+            var pathPtr = Marshal.ReadIntPtr(filePathsPtr, i * IntPtr.Size);
+            paths[i] = Marshal.PtrToStringUTF8(pathPtr) ?? string.Empty;
         }
 
         _remoteClipboardFilesReceived(this, paths);

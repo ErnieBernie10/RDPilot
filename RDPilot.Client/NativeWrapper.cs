@@ -181,7 +181,13 @@ internal static class NativeWrapper
     internal static extern void rdp_session_clipboard_set_local_text(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string? text);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rdp_session_clipboard_set_local_files(IntPtr session, IntPtr filePaths, nint fileCount);
+    internal static extern void rdp_session_clipboard_clear_local_files(IntPtr session);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void rdp_session_clipboard_add_local_file(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string filePath);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void rdp_session_clipboard_commit_local_files(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);

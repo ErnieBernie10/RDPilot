@@ -49,6 +49,7 @@ static void clear_remote_file_transfer(rdp_session* session);
 static UINT request_remote_file_descriptor(rdp_session* session);
 static UINT request_next_remote_file_chunk(rdp_session* session, bool request_size_only);
 static void finish_remote_file_transfer(rdp_session* session);
+static void update_supported_local_formats(rdp_session* session);
 
 static bool ensure_received_file_paths_capacity(rdp_session* session, size_t needed_capacity)
 {
@@ -1275,6 +1276,15 @@ static bool ensure_file_paths_capacity(rdp_session* session, size_t needed_capac
     return true;
 }
 
+static void mark_local_files_changed(rdp_session* session)
+{
+    if (!session) return;
+
+    update_supported_local_formats(session);
+    session->clipboard_format_pending = true;
+    printf("[CLIPRDR] local files changed count=%zu\n", session->local_file_paths_count);
+}
+
 static void update_supported_local_formats(rdp_session* session)
 {
     if (!session) return;
@@ -1336,40 +1346,51 @@ void rdp_session_clipboard_set_local_bitmap(rdp_session* session, const BYTE* bi
            session->local_bitmap_data_size, session->local_bitmap_width, session->local_bitmap_height);
 }
 
-void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count) {
+void rdp_session_clipboard_clear_local_files(rdp_session* session) {
     if (!session) return;
 
     EnterCriticalSection(&session->clipboard_lock);
-    
-    // Clear existing file paths
     free_local_file_paths(session);
-    
-    // Add new file paths
-    if (file_paths && file_count > 0)
+    LeaveCriticalSection(&session->clipboard_lock);
+}
+
+void rdp_session_clipboard_add_local_file(rdp_session* session, const char* file_path) {
+    if (!session || !file_path || file_path[0] == '\0') return;
+
+    EnterCriticalSection(&session->clipboard_lock);
+    if (ensure_file_paths_capacity(session, session->local_file_paths_count + 1))
     {
-        if (ensure_file_paths_capacity(session, file_count))
+        session->local_file_paths[session->local_file_paths_count] = duplicate_string(file_path);
+        if (session->local_file_paths[session->local_file_paths_count])
         {
-            for (size_t i = 0; i < file_count; i++)
-            {
-                if (file_paths[i] && file_paths[i][0] != '\0')
-                {
-                    session->local_file_paths[session->local_file_paths_count] = duplicate_string(file_paths[i]);
-                    if (session->local_file_paths[session->local_file_paths_count])
-                    {
-                        session->local_file_paths_count++;
-                    }
-                }
-            }
+            session->local_file_paths_count++;
         }
     }
-    
-    // Update supported formats (file formats will be handled separately in format list)
-    update_supported_local_formats(session);
-    session->clipboard_format_pending = true;
-    
     LeaveCriticalSection(&session->clipboard_lock);
+}
 
-    printf("[CLIPRDR] local files changed count=%zu\n", session->local_file_paths_count);
+void rdp_session_clipboard_commit_local_files(rdp_session* session) {
+    if (!session) return;
+
+    EnterCriticalSection(&session->clipboard_lock);
+    mark_local_files_changed(session);
+    LeaveCriticalSection(&session->clipboard_lock);
+}
+
+void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count) {
+    if (!session) return;
+
+    rdp_session_clipboard_clear_local_files(session);
+
+    if (file_paths && file_count > 0)
+    {
+        for (size_t i = 0; i < file_count; i++)
+        {
+            rdp_session_clipboard_add_local_file(session, file_paths[i]);
+        }
+    }
+
+    rdp_session_clipboard_commit_local_files(session);
 }
 
 void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text) {

@@ -30,6 +30,6 @@ public static class RdpQualityDefaults
 
     private static int NormalizeColorDepth(int colorDepth)
     {
-        return colorDepth is 16 or 24 or 32 ? colorDepth : Current.ColorDepth;
+        return RdpSessionOptions.NormalizeColorDepth(colorDepth);
     }
 }

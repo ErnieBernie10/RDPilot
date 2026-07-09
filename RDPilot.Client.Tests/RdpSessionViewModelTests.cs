@@ -84,6 +84,46 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
+    public void RemoteClipboardFilesCallback_IgnoresStaleHandleAndRoutesMatchingUtf8Paths()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Clipboard Files Test"), RdpSessionStatus.Connected);
+        var activeHandle = new IntPtr(0x1235);
+        SetField(session, "_handle", activeHandle);
+
+        var deliveries = new List<(RdpSessionViewModel Session, string[] Paths)>();
+        SetField(
+            session,
+            "_remoteClipboardFilesReceived",
+            (Action<RdpSessionViewModel, string[]>)((vm, paths) => deliveries.Add((vm, paths))));
+
+        using var staleFirst = Utf8String.Alloc("stale-a.txt");
+        using var staleSecond = Utf8String.Alloc("stale-b.txt");
+        using var stalePaths = Utf8PointerArray.Alloc(staleFirst.Pointer, staleSecond.Pointer);
+        InvokePrivate(
+            session,
+            "OnRemoteClipboardFilesReceived",
+            [typeof(IntPtr), typeof(IntPtr), typeof(nint)],
+            new IntPtr(0x9999),
+            stalePaths.Pointer,
+            (nint)2);
+
+        using var activeFirst = Utf8String.Alloc("C:\\Temp\\alpha.txt");
+        using var activeSecond = Utf8String.Alloc("/tmp/beta.bin");
+        using var activePaths = Utf8PointerArray.Alloc(activeFirst.Pointer, activeSecond.Pointer);
+        InvokePrivate(
+            session,
+            "OnRemoteClipboardFilesReceived",
+            [typeof(IntPtr), typeof(IntPtr), typeof(nint)],
+            activeHandle,
+            activePaths.Pointer,
+            (nint)2);
+
+        var delivery = Assert.Single(deliveries);
+        Assert.Same(session, delivery.Session);
+        Assert.Equal(["C:\\Temp\\alpha.txt", "/tmp/beta.bin"], delivery.Paths);
+    }
+
+    [Fact]
     public void CertificateDecisionCallback_RejectsStaleHandleAndBuildsPromptForMatchingHandle()
     {
         var session = new RdpSessionViewModel(CreateConnection("Certificate Test"), RdpSessionStatus.Connecting);
@@ -296,7 +336,7 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
-    public void SetLocalClipboardFiles_ActiveNativeSession_ForwardsUtf8NullTerminatedPaths()
+    public void SetLocalClipboardFiles_ActiveNativeSession_ForwardsFileList()
     {
         var session = new RdpSessionViewModel(CreateConnection("Files Test"), RdpSessionStatus.Connected);
         var nativeSession = new FakeNativeSession(new IntPtr(0x89AB));
@@ -305,6 +345,19 @@ public sealed class RdpSessionViewModelTests
         session.SetLocalClipboardFiles(["C:\\Temp\\alpha.txt", "/tmp/beta.bin"]);
 
         Assert.Equal(["C:\\Temp\\alpha.txt", "/tmp/beta.bin"], nativeSession.LocalClipboardFiles);
+    }
+
+    [Fact]
+    public void SetLocalClipboardFiles_EmptyArray_ClearsExistingFileList()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Files Clear Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x89AC));
+        nativeSession.LocalClipboardFiles.Add("stale.txt");
+        AttachNativeSession(session, nativeSession);
+
+        session.SetLocalClipboardFiles([]);
+
+        Assert.Empty(nativeSession.LocalClipboardFiles);
     }
 
     [Fact]
@@ -391,6 +444,32 @@ public sealed class RdpSessionViewModelTests
         }
     }
 
+    private sealed class Utf8PointerArray : IDisposable
+    {
+        private Utf8PointerArray(IntPtr pointer)
+        {
+            Pointer = pointer;
+        }
+
+        public IntPtr Pointer { get; }
+
+        public static Utf8PointerArray Alloc(params IntPtr[] pointers)
+        {
+            var buffer = Marshal.AllocCoTaskMem(pointers.Length * IntPtr.Size);
+            for (var i = 0; i < pointers.Length; i++)
+            {
+                Marshal.WriteIntPtr(buffer, i * IntPtr.Size, pointers[i]);
+            }
+
+            return new Utf8PointerArray(buffer);
+        }
+
+        public void Dispose()
+        {
+            Marshal.FreeCoTaskMem(Pointer);
+        }
+    }
+
     private sealed class FakeNativeSession(IntPtr handle) : INativeRdpSession
     {
         public IntPtr Handle { get; } = handle;
@@ -428,13 +507,10 @@ public sealed class RdpSessionViewModelTests
         {
         }
 
-        public void SetLocalClipboardFiles(IntPtr filePaths, nint fileCount)
+        public void SetLocalClipboardFiles(string[] filePaths)
         {
-            for (var i = 0; i < fileCount; i++)
-            {
-                var pathPtr = Marshal.ReadIntPtr(filePaths, i * IntPtr.Size);
-                LocalClipboardFiles.Add(Marshal.PtrToStringUTF8(pathPtr) ?? string.Empty);
-            }
+            LocalClipboardFiles.Clear();
+            LocalClipboardFiles.AddRange(filePaths);
         }
 
         public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height)

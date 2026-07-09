@@ -341,25 +341,6 @@ static void copy_string_field(char* dest, size_t dest_size, const char* src)
     dest[length] = '\0';
 }
 
-static void normalize_resolution(UINT32* width, UINT32* height)
-{
-    *width = clamp_uint32(*width, DISPLAY_CONTROL_MIN_MONITOR_WIDTH, DISPLAY_CONTROL_MAX_MONITOR_WIDTH);
-    *height = clamp_uint32(*height, DISPLAY_CONTROL_MIN_MONITOR_HEIGHT, DISPLAY_CONTROL_MAX_MONITOR_HEIGHT);
-    *width -= *width % 2;
-}
-
-static UINT32 normalize_color_depth(int color_depth)
-{
-    return color_depth == 16 || color_depth == 24 || color_depth == 32 ? (UINT32)color_depth : 16;
-}
-
-static UINT32 normalize_connection_type(int connection_type)
-{
-    return connection_type >= CONNECTION_TYPE_MODEM && connection_type <= CONNECTION_TYPE_AUTODETECT
-        ? (UINT32)connection_type
-        : CONNECTION_TYPE_WAN;
-}
-
 static bool equals_ignore_case(const char* left, const char* right)
 {
     if (!left || !right) return false;
@@ -552,7 +533,6 @@ static UINT32 build_performance_flags(const connection_params* params)
 static void queue_resolution_update(rdp_session* session, UINT32 width, UINT32 height)
 {
     if (!session) return;
-    normalize_resolution(&width, &height);
 
     EnterCriticalSection(&session->resize_lock);
     if (width != session->target_width || height != session->target_height)
@@ -560,7 +540,6 @@ static void queue_resolution_update(rdp_session* session, UINT32 width, UINT32 h
         session->target_width = width;
         session->target_height = height;
         session->resize_pending = true;
-        session->resize_queued_tick = GetTickCount64();
     }
     LeaveCriticalSection(&session->resize_lock);
 }
@@ -776,20 +755,16 @@ static bool process_pending_resize(rdp_session* session)
 
     UINT32 width = 0;
     UINT32 height = 0;
-    ULONGLONG queued_tick = 0;
     EnterCriticalSection(&session->resize_lock);
     bool pending = session->resize_pending;
     if (pending)
     {
         width = session->target_width;
         height = session->target_height;
-        queued_tick = session->resize_queued_tick;
     }
     LeaveCriticalSection(&session->resize_lock);
 
     if (!pending) return true;
-    ULONGLONG now = GetTickCount64();
-    if (queued_tick != 0 && now - queued_tick < RESIZE_QUIET_DELAY_MS) return true;
 
     if (width == session->last_sent_width && height == session->last_sent_height)
     {
@@ -798,8 +773,6 @@ static bool process_pending_resize(rdp_session* session)
         LeaveCriticalSection(&session->resize_lock);
         return true;
     }
-
-    if (session->last_resize_tick != 0 && now - session->last_resize_tick < RESIZE_MIN_DELAY_MS) return true;
 
     rdpSettings* settings = session->instance->context->settings;
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth, width);
@@ -828,7 +801,6 @@ static bool process_pending_resize(rdp_session* session)
 
     session->last_sent_width = width;
     session->last_sent_height = height;
-    session->last_resize_tick = now;
 
     if (!is_graphics_pipeline_mode(session->render_mode) && !resize_local_framebuffer(session->instance->context, width, height))
     {
@@ -839,7 +811,7 @@ static bool process_pending_resize(rdp_session* session)
     if (session->target_width == width && session->target_height == height) session->resize_pending = false;
     LeaveCriticalSection(&session->resize_lock);
 
-    printf("Sent monitor layout update after debounce: %ux%u\n", width, height);
+    printf("Sent monitor layout update: %ux%u\n", width, height);
     return true;
 }
 
@@ -1093,7 +1065,7 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     }
     else
     {
-        freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, normalize_connection_type(params->connection_type));
+        freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, (UINT32)params->connection_type);
         freerdp_settings_set_uint32(settings, FreeRDP_PerformanceFlags, build_performance_flags(params));
         freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, params->desktop_wallpaper ? FALSE : TRUE);
         freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, params->full_window_drag ? FALSE : TRUE);
@@ -1120,7 +1092,7 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     printf("[DEBUG] Channels set up, connecting...\n");
     freerdp_settings_set_string(settings, FreeRDP_ClientHostname, "RDPilot");
 
-    UINT32 color_depth = normalize_color_depth(params->color_depth);
+    UINT32 color_depth = (UINT32)params->color_depth;
     if (is_graphics_pipeline_mode(session->render_mode) && color_depth < 32)
     {
         color_depth = 32;
@@ -1130,7 +1102,6 @@ static bool setup_instance(rdp_session* session, const connection_params* params
 
     UINT32 desktop_width = (UINT32)params->width;
     UINT32 desktop_height = (UINT32)params->height;
-    normalize_resolution(&desktop_width, &desktop_height);
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth, desktop_width);
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight, desktop_height);
     session->last_sent_width = desktop_width;
@@ -1382,7 +1353,6 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
 
     UINT32 initial_width = (UINT32)width;
     UINT32 initial_height = (UINT32)height;
-    normalize_resolution(&initial_width, &initial_height);
     session->target_width = initial_width;
     session->target_height = initial_height;
 
@@ -1405,7 +1375,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     copy_string_field(params->gateway_password, sizeof(params->gateway_password), gateway_password);
     params->width = (int)initial_width;
     params->height = (int)initial_height;
-    params->color_depth = (int)normalize_color_depth(color_depth);
+    params->color_depth = (int)color_depth;
     params->compression = compression;
     params->font_smoothing = font_smoothing;
     params->bitmap_cache = bitmap_cache;
@@ -1413,7 +1383,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     params->themes = themes;
     params->menu_animations = menu_animations;
     params->full_window_drag = full_window_drag;
-    params->connection_type = (int)normalize_connection_type(connection_type);
+    params->connection_type = (int)connection_type;
     params->keyboard_layout = keyboard_layout;
 
     session->running = true;

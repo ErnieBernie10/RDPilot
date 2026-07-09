@@ -20,6 +20,8 @@ internal sealed class RdpViewportPresenter
     private readonly Action _invalidateViewport;
     private readonly Func<Bitmap, byte[]?> _convertBitmapToDib;
     private readonly ViewportResolutionService _viewportResolutionService;
+    private readonly ViewportResolutionUpdateScheduler _viewportResolutionUpdateScheduler;
+    private readonly PointerMoveScheduler _pointerMoveScheduler;
     private readonly ClipboardSyncService _clipboardSyncService;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private bool _rdpKeyboardActive;
@@ -35,7 +37,9 @@ internal sealed class RdpViewportPresenter
         Action invalidateViewport,
         Func<Bitmap, byte[]?> convertBitmapToDib,
         ViewportResolutionService viewportResolutionService,
-        ClipboardSyncService clipboardSyncService)
+        ClipboardSyncService clipboardSyncService,
+        ViewportResolutionUpdateScheduler viewportResolutionUpdateScheduler,
+        PointerMoveScheduler pointerMoveScheduler)
     {
         _getViewModel = getViewModel;
         _getClipboard = getClipboard;
@@ -45,6 +49,8 @@ internal sealed class RdpViewportPresenter
         _convertBitmapToDib = convertBitmapToDib;
         _viewportResolutionService = viewportResolutionService;
         _clipboardSyncService = clipboardSyncService;
+        _viewportResolutionUpdateScheduler = viewportResolutionUpdateScheduler;
+        _pointerMoveScheduler = pointerMoveScheduler;
     }
 
     public void HandleSessionRedrawRequested()
@@ -203,13 +209,28 @@ internal sealed class RdpViewportPresenter
                 out var physHeight,
                 out var normalizedScale))
         {
-            vm.UpdateResolution(physWidth, physHeight, normalizedScale);
+            _viewportResolutionUpdateScheduler.Schedule(physWidth, physHeight, normalizedScale, vm.UpdateResolution);
+            return;
         }
+
+        _viewportResolutionUpdateScheduler.Cancel();
+    }
+
+    public void CancelViewportResolutionUpdates()
+    {
+        _viewportResolutionUpdateScheduler.Cancel();
+        _pointerMoveScheduler.Cancel();
     }
 
     public void HandlePointerMoved(double x, double y)
     {
-        _getViewModel()?.SendMouseEventScaled(RdpPointerInputMapper.PointerMoveFlag, x, y);
+        var vm = _getViewModel();
+        if (vm == null)
+        {
+            return;
+        }
+
+        _pointerMoveScheduler.Schedule(x, y, (dipX, dipY) => vm.SendMouseEventScaled(RdpPointerInputMapper.PointerMoveFlag, dipX, dipY));
     }
 
     public void HandlePointerPressed(double x, double y, PointerPointProperties properties)
@@ -220,6 +241,7 @@ internal sealed class RdpViewportPresenter
             return;
         }
 
+        _pointerMoveScheduler.Flush();
         ushort flags = RdpPointerInputMapper.PointerDownFlag;
         if (properties.IsLeftButtonPressed) flags |= RdpPointerInputMapper.PointerButton1Flag;
         if (properties.IsRightButtonPressed) flags |= RdpPointerInputMapper.PointerButton2Flag;
@@ -235,6 +257,7 @@ internal sealed class RdpViewportPresenter
             return;
         }
 
+        _pointerMoveScheduler.Flush();
         ushort flags = 0;
         switch (updateKind)
         {
@@ -260,6 +283,7 @@ internal sealed class RdpViewportPresenter
             return;
         }
 
+        _pointerMoveScheduler.Flush();
         SendWheelDelta(vm, RdpPointerInputMapper.PointerWheelFlag, delta.Y, x, y);
         SendWheelDelta(vm, RdpPointerInputMapper.PointerHorizontalWheelFlag, delta.X, x, y);
     }
@@ -333,6 +357,7 @@ internal sealed class RdpViewportPresenter
 
     public void ReleasePressedRdpKeys()
     {
+        _pointerMoveScheduler.Cancel();
         var vm = _getViewModel();
         if (_pressedRdpKeys.Count == 0 || vm == null)
         {

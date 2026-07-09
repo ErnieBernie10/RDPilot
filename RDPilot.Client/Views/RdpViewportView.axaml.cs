@@ -29,7 +29,9 @@ public partial class RdpViewportView : UserControl
             () => RdpImage.InvalidateVisual(),
             ConvertBitmapToDib,
             new ViewportResolutionService(),
-            new ClipboardSyncService());
+            new ClipboardSyncService(),
+            new ViewportResolutionUpdateScheduler(action => Dispatcher.UIThread.Post(action)),
+            new PointerMoveScheduler(action => Dispatcher.UIThread.Post(action)));
 
         _clipboardPollTimer = new DispatcherTimer
         {
@@ -89,6 +91,7 @@ public partial class RdpViewportView : UserControl
     {
         _clipboardPollTimer.Stop();
         _presenter.ReleasePressedRdpKeys();
+        _presenter.CancelViewportResolutionUpdates();
 
         if (_hostWindow == null)
         {

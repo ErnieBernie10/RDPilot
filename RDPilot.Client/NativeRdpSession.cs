@@ -12,7 +12,7 @@ internal interface INativeRdpSession
     void SendMouseEvent(ushort flags, ushort x, ushort y);
     void SendKeyboardEvent(ushort flags, ushort code);
     void SetLocalClipboardText(string? text);
-    void SetLocalClipboardFiles(IntPtr filePaths, nint fileCount);
+    void SetLocalClipboardFiles(string[] filePaths);
     void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
     bool Present(
         IntPtr dest,
@@ -113,8 +113,19 @@ internal sealed class NativeRdpSession : INativeRdpSession
     public void SetLocalClipboardText(string? text) =>
         NativeWrapper.rdp_session_clipboard_set_local_text(Handle, text);
 
-    public void SetLocalClipboardFiles(IntPtr filePaths, nint fileCount) =>
-        NativeWrapper.rdp_session_clipboard_set_local_files(Handle, filePaths, fileCount);
+    public void SetLocalClipboardFiles(string[] filePaths)
+    {
+        NativeWrapper.rdp_session_clipboard_clear_local_files(Handle);
+        foreach (var filePath in filePaths)
+        {
+            if (!string.IsNullOrWhiteSpace(filePath))
+            {
+                NativeWrapper.rdp_session_clipboard_add_local_file(Handle, filePath);
+            }
+        }
+
+        NativeWrapper.rdp_session_clipboard_commit_local_files(Handle);
+    }
 
     public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height) =>
         NativeWrapper.rdp_session_clipboard_set_local_bitmap(Handle, bitmapData, bitmapDataSize, width, height);

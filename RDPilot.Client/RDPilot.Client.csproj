@@ -6,7 +6,6 @@
         <Nullable>enable</Nullable>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <NativeWrapperProjectDir>$(MSBuildProjectDirectory)/../RDPilot.Wrapper</NativeWrapperProjectDir>
         <NativeWrapperCMakeArgs></NativeWrapperCMakeArgs>
         <NativeWrapperVcpkgRoot Condition="'$(NativeWrapperVcpkgRoot)' == '' and Exists('$(MSBuildProjectDirectory)/../../vcpkg/scripts/buildsystems/vcpkg.cmake')">$(MSBuildProjectDirectory)/../../vcpkg</NativeWrapperVcpkgRoot>

@@ -41,14 +41,10 @@
 #include <sys/stat.h>
 #endif
 
-#define RESIZE_QUIET_DELAY_MS 1000
-#define RESIZE_MIN_DELAY_MS 1500
 #define CONNECT_TIMEOUT_MS 3000
 #define DEFAULT_RDP_PORT 3389
 #define INPUT_QUEUE_CAPACITY 256
-#define PTR_FLAGS_MOVE 0x0800
 #define INPUT_LOOP_TIMEOUT_MS 10
-#define MIN_MOVE_SEND_INTERVAL_MS 8
 
 typedef enum {
     INPUT_EVENT_MOUSE,
@@ -85,8 +81,6 @@ struct rdp_session {
     bool disp_ready;
     UINT32 last_sent_width;
     UINT32 last_sent_height;
-    ULONGLONG last_resize_tick;
-    ULONGLONG resize_queued_tick;
     CRITICAL_SECTION resize_lock;
     bool resize_pending;
     UINT32 target_width;
@@ -108,14 +102,8 @@ struct rdp_session {
     CRITICAL_SECTION input_lock;
     input_event input_queue[INPUT_QUEUE_CAPACITY];
     UINT32 input_queue_count;
-    bool pending_mouse_move;
-    uint16_t pending_mouse_x;
-    uint16_t pending_mouse_y;
     UINT32 input_keyboard_log_count;
     UINT32 input_dropped;
-    UINT32 input_mouse_moves_coalesced;
-    ULONGLONG last_move_send_tick;
-    UINT32 input_move_throttled;
     UINT32 dpi_scale_percent;
     CRITICAL_SECTION clipboard_lock;
     char* local_clipboard_text;

@@ -41,6 +41,9 @@ FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int
 FREERDP_WRAPPER_API void rdp_session_send_mouse_event(rdp_session* session, uint16_t flags, uint16_t x, uint16_t y);
 FREERDP_WRAPPER_API void rdp_session_send_keyboard_event(rdp_session* session, uint16_t flags, uint16_t code);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text);
+FREERDP_WRAPPER_API void rdp_session_clipboard_clear_local_files(rdp_session* session);
+FREERDP_WRAPPER_API void rdp_session_clipboard_add_local_file(rdp_session* session, const char* file_path);
+FREERDP_WRAPPER_API void rdp_session_clipboard_commit_local_files(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_bitmap(rdp_session* session, const uint8_t* bitmap_data, size_t bitmap_data_size, uint32_t width, uint32_t height);
 
