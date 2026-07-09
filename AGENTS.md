@@ -152,6 +152,20 @@ The startup window is intentionally large (`1440x900`) with `MinWidth="900"` and
 
 Keyboard handling is scoped to the RDP image but registered on the window's tunnel route with handled events included. This keeps chords such as `Ctrl+Tab` from losing key-up events while still allowing connection text boxes to receive normal typing when focused.
 
+## Test Notes
+
+Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Avalonia objects or code paths that use `Dispatcher.UIThread`.
+
+- Call `AvaloniaTestEnvironment.EnsureInitialized()` at the start of UI-sensitive tests.
+- Use `AvaloniaTestEnvironment.RunOnUiThread(Action)` and `RunOnUiThread<T>(Func<T>)` to create/dispose Avalonia objects and to invoke methods that must run on the real headless UI thread.
+- Use `RunPendingDispatcherJobs()` only to flush work that was queued with `Dispatcher.UIThread.Post` from a non-UI thread. This is important for race tests where the production code intentionally posts back to the UI thread.
+- For race-style tests, preserve the real ordering. Example: call the callback on the non-UI test thread so it queues UI work, then dispose/mutate state, then call `RunPendingDispatcherJobs()` and assert the queued work was dropped.
+- Do not call `Dispatcher.UIThread.RunJobs()` or `Dispatcher.UIThread.MainLoop()` directly in tests. On the Avalonia 12.x headless platform these can hang when used from the wrong thread or outside the headless session flow.
+- Do not add test-only hooks, fake `Post` delegates, or production behavior changes just to make tests pass. Fix the test harness to use the real headless UI thread instead.
+- Keep pure logic tests free of Avalonia when possible. `PointerMoveScheduler`, `ViewportResolutionUpdateScheduler`, `RdpSessionOptions`, input mappers, and other non-UI helpers should be tested without the headless session.
+- For `ManagedFramePresenter` tests specifically, create the presenter on the UI thread and invoke `EnqueueFrame` on the UI thread for normal presentation/coalescing cases. For dispose-before-present races, queue work from the test thread, dispose on the UI thread, then flush posted jobs.
+- For `RdpSessionViewModel` callback tests, distinguish between synchronous UI-thread execution and posted UI-thread work. `OnStatusChanged` posts; clipboard text/file callbacks do not. Structure tests accordingly.
+
 ## HiDPI Notes
 
 - The host's render scaling is read from `Window.RenderScaling` (a `TopLevel` property). The view (`RdpViewportView`) computes physical pixel dimensions = DIP viewport size × render scaling, and passes them to the native wrapper as `DesktopWidth`/`DesktopHeight`.

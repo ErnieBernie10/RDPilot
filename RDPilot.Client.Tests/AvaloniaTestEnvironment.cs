@@ -1,6 +1,8 @@
+using System;
+using System.Reflection;
+using System.Threading;
 using Avalonia;
 using Avalonia.Headless;
-using Avalonia.Threading;
 
 namespace RDPilot.Client.Tests;
 
@@ -8,6 +10,7 @@ internal static class AvaloniaTestEnvironment
 {
     private static readonly object Sync = new();
     private static bool _initialized;
+    private static HeadlessUnitTestSession? _session;
 
     public static void EnsureInitialized()
     {
@@ -21,28 +24,26 @@ internal static class AvaloniaTestEnvironment
             AppBuilder.Configure<TestApplication>()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions())
                 .SetupWithoutStarting();
+            _session = HeadlessUnitTestSession.GetOrStartForAssembly(Assembly.GetExecutingAssembly());
             _initialized = true;
         }
     }
 
     public static void RunPendingDispatcherJobs()
     {
-        EnsureInitialized();
+        RunOnUiThread(static () => { });
+    }
 
-        RunOnUiThread(static () => Dispatcher.UIThread.RunJobs());
+    public static T RunOnUiThread<T>(Func<T> action)
+    {
+        EnsureInitialized();
+        return _session!.Dispatch(action, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     public static void RunOnUiThread(Action action)
     {
         EnsureInitialized();
-
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            action();
-            return;
-        }
-
-        Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
+        _session!.Dispatch(action, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     private sealed class TestApplication : Application

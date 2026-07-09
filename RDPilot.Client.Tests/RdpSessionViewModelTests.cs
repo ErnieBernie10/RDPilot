@@ -24,17 +24,16 @@ public sealed class RdpSessionViewModelTests
 
         using var errorName = Utf8String.Alloc("FREERDP_ERROR_CONNECT_FAILED");
 
-        InvokePrivate(
-            session,
-            "OnStatusChanged",
-            [typeof(IntPtr), typeof(int), typeof(uint), typeof(IntPtr), typeof(IntPtr)],
-            handle,
-            2,
-            77u,
-            errorName.Pointer,
-            IntPtr.Zero);
-
-        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+            InvokePrivate(
+                session,
+                "OnStatusChanged",
+                [typeof(IntPtr), typeof(int), typeof(uint), typeof(IntPtr), typeof(IntPtr)],
+                handle,
+                2,
+                77u,
+                errorName.Pointer,
+                IntPtr.Zero));
 
         Assert.Equal(RdpSessionStatus.Failed, session.Status);
         Assert.False(session.IsConnected);

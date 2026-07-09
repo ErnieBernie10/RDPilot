@@ -17,8 +17,7 @@ public sealed class ManagedFramePresenterTests
         (int Width, int Height)? secondScreen = null;
         var redrawCount = 0;
         var presentCallCount = 0;
-
-        using var presenter = new ManagedFramePresenter(
+        var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new ManagedFramePresenter(
             "Session",
             width: 64,
             height: 32,
@@ -51,15 +50,15 @@ public sealed class ManagedFramePresenterTests
                 fbHeight = 40;
 
                 return presentCallCount > 1;
-            });
+            }));
 
-        presenter.EnqueueFrame(80, 40);
-        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+        AvaloniaTestEnvironment.RunOnUiThread(() => presenter.EnqueueFrame(80, 40));
 
         Assert.Equal((64, 32), firstScreen);
         Assert.Equal((80, 40), secondScreen);
         Assert.Equal(2, presentCallCount);
         Assert.Equal(1, redrawCount);
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Dispose);
     }
 
     [Fact]
@@ -69,8 +68,7 @@ public sealed class ManagedFramePresenterTests
 
         var redrawCount = 0;
         var presentCallCount = 0;
-
-        using var presenter = new ManagedFramePresenter(
+        var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new ManagedFramePresenter(
             "Session",
             width: 64,
             height: 32,
@@ -86,15 +84,18 @@ public sealed class ManagedFramePresenterTests
                 fbWidth = 64;
                 fbHeight = 32;
                 return true;
-            });
+            }));
 
-        presenter.EnqueueFrame(64, 32);
-        presenter.EnqueueFrame(64, 32);
-        presenter.EnqueueFrame(64, 32);
-        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            presenter.EnqueueFrame(64, 32);
+            presenter.EnqueueFrame(64, 32);
+            presenter.EnqueueFrame(64, 32);
+        });
 
         Assert.Equal(1, presentCallCount);
         Assert.Equal(1, redrawCount);
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Dispose);
     }
 
     [Fact]
@@ -105,8 +106,7 @@ public sealed class ManagedFramePresenterTests
         var setScreenCount = 0;
         var redrawCount = 0;
         var presentCallCount = 0;
-
-        using var presenter = new ManagedFramePresenter(
+        var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new ManagedFramePresenter(
             "Session",
             width: 1,
             height: 1,
@@ -123,10 +123,10 @@ public sealed class ManagedFramePresenterTests
                 fbHeight = 0;
                 return false;
             },
-            initializeBitmap: false);
+            initializeBitmap: false));
 
         presenter.EnqueueFrame(10, 10);
-        presenter.Dispose();
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Dispose);
         AvaloniaTestEnvironment.RunPendingDispatcherJobs();
 
         Assert.Equal(0, setScreenCount);
