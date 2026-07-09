@@ -23,6 +23,7 @@
     <ItemGroup>
         <Folder Include="Models\"/>
         <AvaloniaResource Include="Assets\**"/>
+        <None Include="openssl-rdpilot.cnf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <None Include="connection.local.json" Condition="Exists('connection.local.json')" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
