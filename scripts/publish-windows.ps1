@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $projectPath = Join-Path $repoRoot "RDPilot.Client\RDPilot.Client.csproj"
+$VcpkgRoot = [System.IO.Path]::GetFullPath($VcpkgRoot)
 $toolchain = Join-Path $VcpkgRoot "scripts\buildsystems\vcpkg.cmake"
 
 if (-not (Test-Path -LiteralPath $toolchain)) {
@@ -16,6 +17,8 @@ if (-not (Test-Path -LiteralPath $toolchain)) {
 $vcpkgRootForMsBuild = $VcpkgRoot -replace '\\', '/'
 $project = [xml](Get-Content -LiteralPath $projectPath)
 $targetFramework = $project.Project.PropertyGroup.TargetFramework | Select-Object -First 1
+$publishDir = Join-Path $repoRoot "RDPilot.Client\bin\Release\$targetFramework\win-x64\publish"
+$vcpkgTriplet = "x64-windows"
 
 if (-not $targetFramework) {
     throw "TargetFramework was not found in $projectPath."
@@ -39,7 +42,8 @@ $dotnetArgs = @(
     "/p:FileVersion=$AppVersion.0",
     "/p:InformationalVersion=$AppVersion",
     "/p:NativeWrapperUseVcpkg=true",
-    "/p:NativeWrapperVcpkgRoot=$vcpkgRootForMsBuild"
+    "/p:NativeWrapperVcpkgRoot=$vcpkgRootForMsBuild",
+    "/p:NativeWrapperVcpkgTriplet=$vcpkgTriplet"
 )
 
 dotnet @dotnetArgs
@@ -48,4 +52,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."
 }
 
-"Published to $(Join-Path $repoRoot "RDPilot.Client\bin\Release\$targetFramework\win-x64\publish")"
+"Published to $publishDir"

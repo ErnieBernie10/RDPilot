@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+$VcpkgRoot = [System.IO.Path]::GetFullPath($VcpkgRoot)
 $projectPath = Join-Path $repoRoot "RDPilot.Client\RDPilot.Client.csproj"
 $publishScript = Join-Path $PSScriptRoot "publish-windows.ps1"
 $project = [xml](Get-Content -LiteralPath $projectPath)
