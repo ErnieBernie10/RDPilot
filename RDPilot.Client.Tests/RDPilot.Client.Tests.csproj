@@ -21,4 +21,18 @@
   <ItemGroup>
     <ProjectReference Include="../RDPilot.Client/RDPilot.Client.csproj" />
   </ItemGroup>
+
+  <Target Name="CopyOpenSslProviderFilesToTestOutput"
+          AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(OS)' == 'Windows_NT'">
+    <ItemGroup>
+      <OpenSslProviderFile Include="$(MSBuildThisFileDirectory)..\RDPilot.Client\bin\$(Configuration)\$(TargetFramework)\legacy.dll" />
+      <OpenSslProviderFile Include="$(MSBuildThisFileDirectory)..\RDPilot.Client\bin\$(Configuration)\$(TargetFramework)\openssl-rdpilot.cnf" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(OpenSslProviderFile.Identity)')"
+           Text="Required OpenSSL provider file was not produced by RDPilot.Client: %(OpenSslProviderFile.Identity)" />
+    <Copy SourceFiles="@(OpenSslProviderFile)"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

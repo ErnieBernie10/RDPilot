@@ -2,6 +2,7 @@
   "name": "rdpilot-native-dependencies",
   "version-string": "0.1.0",
   "dependencies": [
+    "openssl",
     {
       "name": "freerdp",
       "default-features": false,
