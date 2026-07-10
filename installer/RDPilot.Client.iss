@@ -38,7 +38,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=..\RDPilot.Client\Assets\rdpilot.ico
-UninstallDisplayIcon={app}\RDPilot.Client.exe
+UninstallDisplayIcon={app}\RDPilot.Client.exe,0
 VersionInfoCompany=RDPilot
 VersionInfoProductName=RDPilot
 VersionInfoProductVersion={#AppVersion}
@@ -54,8 +54,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"
-Name: "{autodesktop}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"; Tasks: desktopicon
+Name: "{group}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"; IconFilename: "{app}\RDPilot.Client.exe"
+Name: "{autodesktop}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"; IconFilename: "{app}\RDPilot.Client.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\RDPilot.Client.exe"; Description: "Launch RDPilot"; Flags: nowait postinstall skipifsilent
