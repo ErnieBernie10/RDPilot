@@ -32,26 +32,8 @@ internal static class NativeWrapper
         if (Directory.Exists(nativeDllDirectory))
         {
             Console.WriteLine($"[DEBUG] Native DLL directory: '{nativeDllDirectory}'");
-            ConfigureOpenSslProviderPath(nativeDllDirectory);
             SetDllDirectory(nativeDllDirectory);
         }
-    }
-
-    private static void ConfigureOpenSslProviderPath(string nativeDllDirectory)
-    {
-        var legacyProviderPath = Path.Combine(nativeDllDirectory, "legacy.dll");
-        if (!File.Exists(legacyProviderPath))
-        {
-            return;
-        }
-
-        var openSslConfigPath = Path.Combine(nativeDllDirectory, "openssl-rdpilot.cnf");
-        if (File.Exists(openSslConfigPath))
-        {
-            Environment.SetEnvironmentVariable("OPENSSL_CONF", openSslConfigPath);
-        }
-
-        Environment.SetEnvironmentVariable("OPENSSL_MODULES", nativeDllDirectory);
     }
 
     private static string GetWindowsNativeDllDirectory()

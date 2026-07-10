@@ -14,11 +14,10 @@
         <NativeWrapperVcpkgTriplet Condition="'$(NativeWrapperVcpkgTriplet)' == ''">x64-windows</NativeWrapperVcpkgTriplet>
         <NativeWrapperVcpkgManifestDir Condition="'$(NativeWrapperVcpkgManifestDir)' == ''">$(MSBuildProjectDirectory)/..</NativeWrapperVcpkgManifestDir>
         <NativeWrapperVcpkgInstalledDir Condition="'$(NativeWrapperVcpkgInstalledDir)' == ''">$(NativeWrapperVcpkgManifestDir)/vcpkg_installed</NativeWrapperVcpkgInstalledDir>
-        <NativeWrapperLegacyProviderPath Condition="'$(Configuration)' == 'Debug'">$(NativeWrapperVcpkgInstalledDir)/$(NativeWrapperVcpkgTriplet)/debug/bin/legacy.dll</NativeWrapperLegacyProviderPath>
-        <NativeWrapperLegacyProviderPath Condition="'$(Configuration)' != 'Debug'">$(NativeWrapperVcpkgInstalledDir)/$(NativeWrapperVcpkgTriplet)/bin/legacy.dll</NativeWrapperLegacyProviderPath>
+        <NativeWrapperVcpkgOverlayPorts Condition="'$(NativeWrapperVcpkgOverlayPorts)' == ''">$(NativeWrapperVcpkgManifestDir)/vcpkg-overlay-ports</NativeWrapperVcpkgOverlayPorts>
         <NativeWrapperUseVcpkg Condition="'$(NativeWrapperUseVcpkg)' == '' and '$(NativeWrapperVcpkgRoot)' != ''">true</NativeWrapperUseVcpkg>
         <NativeWrapperUseVcpkg Condition="'$(NativeWrapperUseVcpkg)' == ''">false</NativeWrapperUseVcpkg>
-        <NativeWrapperCMakeArgs Condition="'$(NativeWrapperUseVcpkg)' == 'true' and '$(NativeWrapperCMakeArgs)' == ''">-DCMAKE_TOOLCHAIN_FILE=$(NativeWrapperVcpkgRoot)/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=$(NativeWrapperVcpkgManifestDir) -DVCPKG_INSTALLED_DIR=$(NativeWrapperVcpkgInstalledDir)</NativeWrapperCMakeArgs>
+        <NativeWrapperCMakeArgs Condition="'$(NativeWrapperUseVcpkg)' == 'true' and '$(NativeWrapperCMakeArgs)' == ''">-DCMAKE_TOOLCHAIN_FILE=$(NativeWrapperVcpkgRoot)/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=$(NativeWrapperVcpkgManifestDir) -DVCPKG_INSTALLED_DIR=$(NativeWrapperVcpkgInstalledDir) -DVCPKG_OVERLAY_PORTS=$(NativeWrapperVcpkgOverlayPorts)</NativeWrapperCMakeArgs>
         <NativeWrapperBuildFlavor Condition="'$(NativeWrapperBuildFlavor)' == '' and '$(NativeWrapperUseVcpkg)' == 'true'">vcpkg-msvc</NativeWrapperBuildFlavor>
         <NativeWrapperBuildFlavor Condition="'$(NativeWrapperBuildFlavor)' == ''">native</NativeWrapperBuildFlavor>
         <NativeWrapperBuildDir>$(NativeWrapperProjectDir)/build/$(NativeWrapperBuildFlavor)</NativeWrapperBuildDir>
@@ -28,7 +27,6 @@
     <ItemGroup>
         <Folder Include="Models\"/>
         <AvaloniaResource Include="Assets\**"/>
-        <None Include="openssl-rdpilot.cnf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <None Include="connection.local.json" Condition="Exists('connection.local.json')" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
@@ -48,10 +46,8 @@
             <NativeLib Include="$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll')" />
             <NativeLib Include="$(NativeWrapperBuildDir)/freerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/freerdp_wrapper.dll')" />
             <NativeLib Include="$(NativeWrapperBuildDir)/$(Configuration)/*.dll" Condition="Exists('$(NativeWrapperBuildDir)/$(Configuration)/freerdp_wrapper.dll')" />
-            <NativeLib Include="$(NativeWrapperLegacyProviderPath)" Condition="'$(NativeWrapperUseVcpkg)' == 'true'" />
         </ItemGroup>
         <Error Condition="'@(NativeLib)' == ''" Text="Native wrapper build succeeded, but no freerdp_wrapper native library was found in $(NativeWrapperBuildDir)." />
-        <Error Condition="'$(OS)' == 'Windows_NT' and '$(NativeWrapperUseVcpkg)' == 'true' and !Exists('$(NativeWrapperLegacyProviderPath)')" Text="OpenSSL legacy provider was not found at $(NativeWrapperLegacyProviderPath). Run vcpkg install from $(NativeWrapperVcpkgManifestDir), or set NativeWrapperVcpkgInstalledDir to the vcpkg installed directory." />
         <Copy SourceFiles="@(NativeLib)"
               DestinationFolder="$(OutputPath)"
               ContinueOnError="false" />
@@ -63,7 +59,6 @@
             <NativePublishLib Include="$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/libfreerdp_wrapper.dll')" />
             <NativePublishLib Include="$(NativeWrapperBuildDir)/freerdp_wrapper.dll" Condition="Exists('$(NativeWrapperBuildDir)/freerdp_wrapper.dll')" />
             <NativePublishLib Include="$(NativeWrapperBuildDir)/$(Configuration)/*.dll" Condition="Exists('$(NativeWrapperBuildDir)/$(Configuration)/freerdp_wrapper.dll')" />
-            <NativePublishLib Include="$(NativeWrapperLegacyProviderPath)" Condition="'$(NativeWrapperUseVcpkg)' == 'true'" />
         </ItemGroup>
         <Copy SourceFiles="@(NativePublishLib)"
               DestinationFolder="$(PublishDir)"

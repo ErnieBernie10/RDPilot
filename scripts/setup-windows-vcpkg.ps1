@@ -5,6 +5,11 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $VcpkgRoot = [System.IO.Path]::GetFullPath($VcpkgRoot)
+$OverlayPorts = Join-Path $RepoRoot "vcpkg-overlay-ports"
+
+if (-not (Test-Path -LiteralPath (Join-Path $OverlayPorts "freerdp\portfile.cmake"))) {
+    throw "The FreeRDP vcpkg overlay was not found at $OverlayPorts."
+}
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw "git is required to clone vcpkg."
@@ -34,7 +39,7 @@ if (-not (Test-Path -LiteralPath $vcpkgExe)) {
 
 Push-Location $RepoRoot
 try {
-    & $vcpkgExe install
+    & $vcpkgExe install "--overlay-ports=$OverlayPorts"
     if ($LASTEXITCODE -ne 0) {
         throw "vcpkg install failed with exit code $LASTEXITCODE."
     }

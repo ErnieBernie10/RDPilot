@@ -28,6 +28,10 @@ if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
     throw "AppVersion '$AppVersion' is not valid. Use major.minor.patch, for example 0.1.0."
 }
 
+if (Test-Path -LiteralPath $publishDir) {
+    Remove-Item -LiteralPath $publishDir -Recurse -Force
+}
+
 $dotnetArgs = @(
     "publish",
     $projectPath,
