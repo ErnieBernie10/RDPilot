@@ -1,5 +1,6 @@
 using Avalonia;
 using System;
+using RDPilot.Client.Services;
 
 namespace RDPilot.Client;
 
@@ -9,8 +10,31 @@ sealed class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        var launchOptions = LaunchOptions.Parse(args);
+        WindowsSingleInstanceCoordinator? coordinator = null;
+        coordinator = WindowsSingleInstanceCoordinator.CreateAsync(
+                launchOptions,
+                connectionId => App.HandleConnectionRequestAsync(connectionId))
+            .GetAwaiter()
+            .GetResult();
+
+        if (!coordinator.IsPrimaryInstance)
+        {
+            coordinator.Dispose();
+            return;
+        }
+
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        finally
+        {
+            coordinator.Dispose();
+        }
+    }
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()

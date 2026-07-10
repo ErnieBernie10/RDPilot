@@ -23,7 +23,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly ConnectionStore _connectionStore;
     private readonly AppSettingsStore _settingsStore;
     private readonly IRdpSessionFactory _sessionFactory;
+    private readonly LaunchOptions _launchOptions;
+    private readonly IJumpListService _jumpListService;
     private AppSettings _settings = new();
+    private readonly Task _initialLoadTask;
     private int _requestedWidth = 1280;
     private int _requestedHeight = 720;
     private double _renderScaling = 1.0;
@@ -38,27 +41,39 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
     public event EventHandler<(RdpSessionViewModel Session, string[] FilePaths)>? RemoteClipboardFilesReceived;
 
-    public MainWindowViewModel() : this(new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
+    public MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore) : this(connectionStore, new AppSettingsStore(), new RdpSessionFactory())
+    public MainWindowViewModel(LaunchOptions launchOptions, IJumpListService jumpListService) : this(launchOptions, jumpListService, new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(connectionStore, new AppSettingsStore(), sessionFactory)
+    public MainWindowViewModel(ConnectionStore connectionStore) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory)
+    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), sessionFactory)
     {
+    }
+
+    public MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, settingsStore, sessionFactory)
+    {
+    }
+
+    public MainWindowViewModel(LaunchOptions launchOptions, IJumpListService jumpListService, ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory)
+    {
+        _launchOptions = launchOptions;
+        _jumpListService = jumpListService;
         _connectionStore = connectionStore;
         _settingsStore = settingsStore;
         _sessionFactory = sessionFactory;
-        _ = LoadConnectionsAsync();
+        _initialLoadTask = LoadConnectionsCoreAsync();
     }
 
-    public async Task LoadConnectionsAsync()
+    public Task LoadConnectionsAsync() => _initialLoadTask;
+
+    private async Task LoadConnectionsCoreAsync()
     {
         try
         {
@@ -70,10 +85,24 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 Connections.Add(connection);
             }
 
+            try
+            {
+                _jumpListService.Refresh(connections);
+            }
+            catch (Exception)
+            {
+                // Optional Windows shell integration must not block profile loading.
+            }
+
             SelectedConnection = Connections.FirstOrDefault();
             StatusMessage = Connections.Count == 0
                 ? "Add a connection to get started."
                 : $"Loaded {Connections.Count} saved connection{(Connections.Count == 1 ? "" : "s")}.";
+
+            if (!string.IsNullOrWhiteSpace(_launchOptions.ConnectionId))
+            {
+                await ConnectByIdAsync(_launchOptions.ConnectionId);
+            }
         }
         catch (Exception ex)
         {
@@ -333,6 +362,19 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             RemoteClipboardTextReceived?.Invoke(this, (session, text));
         }
+    }
+
+    public async Task ConnectByIdAsync(string connectionId)
+    {
+        var connection = Connections.FirstOrDefault(candidate => string.Equals(candidate.Id, connectionId, StringComparison.OrdinalIgnoreCase));
+        if (connection == null)
+        {
+            StatusMessage = "The requested saved connection no longer exists.";
+            return;
+        }
+
+        SelectedConnection = connection;
+        await ConnectAsync();
     }
 
     private void OnRemoteClipboardFilesReceived(RdpSessionViewModel session, string[] filePaths)

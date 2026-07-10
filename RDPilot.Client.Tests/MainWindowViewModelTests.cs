@@ -15,6 +15,38 @@ namespace RDPilot.Client.Tests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
+    public async Task ConnectById_SelectsAndConnectsSavedConnection()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var connection = CreateConnection("Direct Connect");
+        await store.SaveAsync(connection, "pw", true, null, false);
+        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connecting);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([session]));
+        await vm.LoadConnectionsAsync();
+
+        await vm.ConnectByIdAsync(connection.Id);
+
+        Assert.NotNull(vm.SelectedConnection);
+        Assert.Equal(connection.Id, vm.SelectedConnection.Id);
+        Assert.Same(session, vm.SelectedSession);
+    }
+
+    [Fact]
+    public async Task ConnectById_UnknownConnection_ReportsMissingProfile()
+    {
+        using var env = new TestConfigHome();
+        var vm = new MainWindowViewModel(new ConnectionStore(new FakeSecretStore()), new QueueSessionFactory([]));
+        await vm.LoadConnectionsAsync();
+
+        await vm.ConnectByIdAsync("missing");
+
+        Assert.Empty(vm.Sessions);
+        Assert.Equal("The requested saved connection no longer exists.", vm.StatusMessage);
+    }
+
+    [Fact]
     public async Task CloseSelectedSession_SelectsNeighbor()
     {
         using var env = new TestConfigHome();
