@@ -1,18 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:icons="using:FluentIcons.Avalonia"
              xmlns:vm="using:RDPilot.Client.ViewModels"
              x:Class="RDPilot.Client.Views.NavigationRailView"
              x:DataType="vm:MainWindowViewModel">
     <Border Classes="NavigationRail">
         <StackPanel Margin="4" Spacing="4">
-            <Button Content="C"
-                    Classes="RailButton"
+            <Button Classes="RailButton"
                     ToolTip.Tip="Saved connections"
-                    Command="{Binding ToggleConnectionsPanelCommand}"/>
-            <Button Content="S"
-                    Classes="RailButton"
+                    Command="{Binding ToggleConnectionsPanelCommand}">
+                <icons:FluentIcon Icon="Desktop" IconSize="Size20" FontSize="18"/>
+            </Button>
+            <Button Classes="RailButton"
                     ToolTip.Tip="Settings"
-                    Click="OnSettingsClicked"/>
+                    Click="OnSettingsClicked">
+                <icons:FluentIcon Icon="Settings" IconSize="Size20" FontSize="18"/>
+            </Button>
         </StackPanel>
     </Border>
 </UserControl>

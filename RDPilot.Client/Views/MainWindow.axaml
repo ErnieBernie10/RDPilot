@@ -41,7 +41,14 @@
         </Grid>
 
         <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12"/>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
+                <Ellipse Classes="StatusDot"
+                         Classes.StatusConnected="{Binding IsConnected}"
+                         Classes.StatusConnecting="{Binding IsSelectedSessionConnecting}"
+                         Classes.StatusFailed="{Binding IsSelectedSessionFailed}"
+                         Classes.StatusDisconnected="{Binding IsSelectedSessionDisconnected}"/>
+                <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="12" VerticalAlignment="Center"/>
+            </Grid>
         </Border>
     </Grid>
 </Window>

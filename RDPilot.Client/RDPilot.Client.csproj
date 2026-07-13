@@ -77,5 +77,6 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
+        <PackageReference Include="FluentIcons.Avalonia" Version="2.1.331"/>
     </ItemGroup>
 </Project>

@@ -34,6 +34,35 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public ObservableCollection<SavedConnection> Connections { get; } = new();
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
     public bool IsConnectionsPanelOpen => ActiveShellPanel == ShellPanel.Connections;
+    public bool HasSelectedSession => SelectedSession != null;
+    public bool IsViewportLive => SelectedSession?.IsConnected == true;
+    public bool IsViewportSplashVisible => !IsViewportLive;
+    public bool CanShowReconnectAction => SelectedSession?.CanReconnect == true;
+    public bool CanShowConnectAction => SelectedSession == null && SelectedConnection != null;
+    public bool CanShowConnectionsAction => SelectedSession == null && SelectedConnection == null;
+    public bool IsSelectedSessionConnecting => SelectedSession?.IsConnecting == true;
+    public bool IsSelectedSessionFailed => SelectedSession?.IsFailed == true;
+    public bool IsSelectedSessionDisconnected => SelectedSession?.IsDisconnected == true;
+    public string ViewportHeading => SelectedSession?.Status switch
+    {
+        RdpSessionStatus.Connecting => $"Connecting to {SelectedSession.Title}",
+        RdpSessionStatus.Disconnecting => $"Disconnecting from {SelectedSession.Title}",
+        RdpSessionStatus.Disconnected => $"{SelectedSession.Title} is disconnected",
+        RdpSessionStatus.Failed => $"Could not connect to {SelectedSession.Title}",
+        _ when Connections.Count > 0 => "No active session",
+        _ => "No saved connections"
+    };
+    public string ViewportDetail => SelectedSession?.Status switch
+    {
+        RdpSessionStatus.Connecting => "Establishing the remote desktop session.",
+        RdpSessionStatus.Disconnecting => "Closing the remote desktop session.",
+        RdpSessionStatus.Disconnected => "Reconnect to continue using this desktop.",
+        RdpSessionStatus.Failed when SelectedSession.ErrorText is { Length: > 0 } error => error,
+        RdpSessionStatus.Failed => "Check the connection details and try again.",
+        _ when SelectedConnection != null => $"Connect to {SelectedConnection.Name} to begin.",
+        _ when Connections.Count > 0 => "Open Connections to choose a saved connection.",
+        _ => "Add a saved connection to get started."
+    };
     public string ConnectionsFilePath => _connectionStore.ConnectionsFilePath;
     public string SettingsFilePath => _settingsStore.SettingsFilePath;
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
@@ -94,10 +123,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 // Optional Windows shell integration must not block profile loading.
             }
 
-            SelectedConnection = Connections.FirstOrDefault();
+            // A saved profile is not an active choice until the user selects it.
+            // This avoids presenting an ambiguous Connect action in the empty viewport.
+            SelectedConnection = null;
             StatusMessage = Connections.Count == 0
                 ? "Add a connection to get started."
                 : $"Loaded {Connections.Count} saved connection{(Connections.Count == 1 ? "" : "s")}.";
+            NotifyViewportStateChanged();
 
             if (!string.IsNullOrWhiteSpace(_launchOptions.ConnectionId))
             {
@@ -172,6 +204,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     partial void OnSelectedConnectionChanged(SavedConnection? value)
     {
         ConnectCommand.NotifyCanExecuteChanged();
+        NotifyViewportStateChanged();
     }
 
     partial void OnActiveShellPanelChanged(ShellPanel value)
@@ -444,6 +477,22 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         DisconnectSessionCommand.NotifyCanExecuteChanged();
         ReconnectSessionCommand.NotifyCanExecuteChanged();
         CloseSessionCommand.NotifyCanExecuteChanged();
+        NotifyViewportStateChanged();
+    }
+
+    private void NotifyViewportStateChanged()
+    {
+        OnPropertyChanged(nameof(HasSelectedSession));
+        OnPropertyChanged(nameof(IsViewportLive));
+        OnPropertyChanged(nameof(IsViewportSplashVisible));
+        OnPropertyChanged(nameof(CanShowReconnectAction));
+        OnPropertyChanged(nameof(CanShowConnectAction));
+        OnPropertyChanged(nameof(CanShowConnectionsAction));
+        OnPropertyChanged(nameof(IsSelectedSessionConnecting));
+        OnPropertyChanged(nameof(IsSelectedSessionFailed));
+        OnPropertyChanged(nameof(IsSelectedSessionDisconnected));
+        OnPropertyChanged(nameof(ViewportHeading));
+        OnPropertyChanged(nameof(ViewportDetail));
     }
 
     private void UpdateStatusMessageFromSelectedSession()

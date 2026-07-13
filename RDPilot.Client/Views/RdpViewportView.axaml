@@ -1,24 +1,74 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:icons="using:FluentIcons.Avalonia"
              xmlns:vm="using:RDPilot.Client.ViewModels"
              x:Class="RDPilot.Client.Views.RdpViewportView"
              x:DataType="vm:MainWindowViewModel">
     <Border Classes="ViewportCard">
-        <ScrollViewer Name="RdpScrollViewer"
-                      Background="#0F1115"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      SizeChanged="OnRdpViewportSizeChanged">
-            <Image Source="{Binding SelectedSession.Screen}" Stretch="Fill"
-                   Width="{Binding SelectedSession.DisplayWidth}"
-                   Height="{Binding SelectedSession.DisplayHeight}"
-                   HorizontalAlignment="Left" VerticalAlignment="Top"
-                   PointerMoved="OnPointerMoved"
-                   PointerPressed="OnPointerPressed"
-                   PointerReleased="OnPointerReleased"
-                   PointerWheelChanged="OnPointerWheelChanged"
-                   Focusable="True"
-                   Name="RdpImage"/>
-        </ScrollViewer>
+        <Grid>
+            <ScrollViewer Name="RdpScrollViewer"
+                          Background="#0F1115"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          SizeChanged="OnRdpViewportSizeChanged"
+                          IsVisible="{Binding IsViewportLive}">
+                <Image Source="{Binding SelectedSession.Screen}" Stretch="Fill"
+                       Width="{Binding SelectedSession.DisplayWidth}"
+                       Height="{Binding SelectedSession.DisplayHeight}"
+                       HorizontalAlignment="Left" VerticalAlignment="Top"
+                       PointerMoved="OnPointerMoved"
+                       PointerPressed="OnPointerPressed"
+                       PointerReleased="OnPointerReleased"
+                       PointerWheelChanged="OnPointerWheelChanged"
+                       Focusable="True"
+                       Name="RdpImage"/>
+            </ScrollViewer>
+
+            <Border Classes="Card"
+                    Width="360"
+                    Padding="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding IsViewportSplashVisible}">
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <icons:FluentIcon Icon="Desktop"
+                                      IconSize="Size32"
+                                      FontSize="40"
+                                      HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding ViewportHeading}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               TextAlignment="Center"/>
+                    <TextBlock Text="{Binding ViewportDetail}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Opacity="0.75"/>
+                    <Button Classes="Accent"
+                            Command="{Binding ReconnectSessionCommand}"
+                            CommandParameter="{Binding SelectedSession}"
+                            IsVisible="{Binding CanShowReconnectAction}"
+                            HorizontalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/>
+                            <TextBlock Text="Reconnect"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="Accent"
+                            Command="{Binding ConnectCommand}"
+                            IsVisible="{Binding CanShowConnectAction}"
+                            HorizontalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:FluentIcon Icon="Play" IconSize="Size16" FontSize="16"/>
+                            <TextBlock Text="Connect"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ToggleConnectionsPanelCommand}"
+                            IsVisible="{Binding CanShowConnectionsAction}"
+                            HorizontalAlignment="Center">
+                        <TextBlock Text="Open connections"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Border>
 </UserControl>

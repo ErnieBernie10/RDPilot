@@ -179,6 +179,9 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     };
     public string? ErrorText => LastError?.Message;
     public bool IsConnected => _handle != IntPtr.Zero && Status == RdpSessionStatus.Connected;
+    public bool IsConnecting => Status is RdpSessionStatus.Connecting or RdpSessionStatus.Disconnecting;
+    public bool IsFailed => Status == RdpSessionStatus.Failed;
+    public bool IsDisconnected => Status == RdpSessionStatus.Disconnected;
     public bool CanDisconnect => Status is RdpSessionStatus.Connecting or RdpSessionStatus.Connected;
     public bool CanReconnect => Status is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected;
     public event EventHandler? RequestRedraw;
@@ -193,6 +196,9 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(IsConnecting));
+        OnPropertyChanged(nameof(IsFailed));
+        OnPropertyChanged(nameof(IsDisconnected));
         OnPropertyChanged(nameof(CanDisconnect));
         OnPropertyChanged(nameof(CanReconnect));
     }

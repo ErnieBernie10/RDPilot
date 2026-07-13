@@ -52,13 +52,19 @@
         <Style Selector="TabControl.SessionTabs">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="MinHeight" Value="28"/>
         </Style>
         <Style Selector="TabControl.SessionTabs TabItem">
-            <Setter Property="Padding" Value="8,1,6,3"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="26"/>
-            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="7,2,4,3"/>
+            <Setter Property="Margin" Value="0,0,1,0"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem:selected">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
         </Style>
         <Style Selector="Button.Compact">
             <Setter Property="Padding" Value="10,5"/>
@@ -78,20 +84,46 @@
             <Setter Property="MinHeight" Value="24"/>
         </Style>
         <Style Selector="Button.TabCloseButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="16"/>
-            <Setter Property="MinWidth" Value="16"/>
-            <Setter Property="Height" Value="16"/>
-            <Setter Property="MinHeight" Value="16"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="MinWidth" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="MinHeight" Value="18"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.TabCloseButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListMediumBrush}"/>
+        </Style>
+        <Style Selector="Button.TabCloseButton:pressed">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListHighBrush}"/>
         </Style>
         <Style Selector="Button.IconButton">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Width" Value="32"/>
             <Setter Property="MinWidth" Value="32"/>
             <Setter Property="MinHeight" Value="30"/>
+        </Style>
+        <Style Selector="Ellipse.StatusDot">
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="Fill" Value="#797775"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Ellipse.StatusDot.StatusConnected">
+            <Setter Property="Fill" Value="#107C10"/>
+        </Style>
+        <Style Selector="Ellipse.StatusDot.StatusConnecting">
+            <Setter Property="Fill" Value="#0078D4"/>
+        </Style>
+        <Style Selector="Ellipse.StatusDot.StatusFailed">
+            <Setter Property="Fill" Value="#D13438"/>
+        </Style>
+        <Style Selector="Ellipse.StatusDot.StatusDisconnected">
+            <Setter Property="Fill" Value="#797775"/>
         </Style>
     </Application.Styles>
 </Application>

@@ -34,6 +34,23 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task LoadConnections_DoesNotSelectFirstSavedConnection()
+    {
+        using var env = new TestConfigHome();
+        var store = new ConnectionStore(new FakeSecretStore());
+        await store.SaveAsync(CreateConnection("First"), "pw", true, null, false);
+        await store.SaveAsync(CreateConnection("Second"), "pw", true, null, false);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([]));
+
+        await vm.LoadConnectionsAsync();
+
+        Assert.Null(vm.SelectedConnection);
+        Assert.False(vm.CanShowConnectAction);
+        Assert.True(vm.CanShowConnectionsAction);
+        Assert.Equal("Open Connections to choose a saved connection.", vm.ViewportDetail);
+    }
+
+    [Fact]
     public async Task ConnectById_UnknownConnection_ReportsMissingProfile()
     {
         using var env = new TestConfigHome();

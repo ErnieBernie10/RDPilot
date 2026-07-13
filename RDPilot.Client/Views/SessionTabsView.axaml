@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:icons="using:FluentIcons.Avalonia"
              xmlns:vm="using:RDPilot.Client.ViewModels"
              x:Class="RDPilot.Client.Views.SessionTabsView"
              x:DataType="vm:MainWindowViewModel">
@@ -12,16 +13,22 @@
                     Padding="0">
             <TabControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RdpSessionViewModel">
-                    <Grid MinWidth="160" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" VerticalAlignment="Bottom">
-                        <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Bottom"/>
-                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Opacity="0.65" VerticalAlignment="Bottom" Margin="0,0,0,1"/>
-                        <Button Grid.Column="2"
-                                Content="x"
+                    <Grid MinWidth="140" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="5" VerticalAlignment="Center">
+                        <Ellipse Classes="StatusDot"
+                                 Classes.StatusConnected="{Binding IsConnected}"
+                                 Classes.StatusConnecting="{Binding IsConnecting}"
+                                 Classes.StatusFailed="{Binding IsFailed}"
+                                 Classes.StatusDisconnected="{Binding IsDisconnected}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="10" Opacity="0.58" VerticalAlignment="Center"/>
+                        <Button Grid.Column="3"
                                 Classes="TabCloseButton"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="Close tab"
-                                VerticalAlignment="Bottom"
-                                Click="OnTabCloseClicked"/>
+                                VerticalAlignment="Center"
+                                Click="OnTabCloseClicked">
+                            <icons:FluentIcon Icon="Dismiss" IconSize="Size12" FontSize="12"/>
+                        </Button>
                     </Grid>
                 </DataTemplate>
             </TabControl.ItemTemplate>
@@ -31,9 +38,13 @@
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-            <Button Content="Disconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanDisconnect}"/>
-            <Button Content="Reconnect" Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <Button Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanDisconnect}">
+                <StackPanel Orientation="Horizontal" Spacing="6"><icons:FluentIcon Icon="PlugDisconnected" IconSize="Size16" FontSize="16"/><TextBlock Text="Disconnect"/></StackPanel>
+            </Button>
+            <Button Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}">
+                <StackPanel Orientation="Horizontal" Spacing="6"><icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/><TextBlock Text="Reconnect"/></StackPanel>
+            </Button>
         </StackPanel>
     </Grid>
 </UserControl>
