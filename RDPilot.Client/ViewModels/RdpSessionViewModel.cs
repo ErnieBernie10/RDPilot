@@ -98,6 +98,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         {
             var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
             var keyboardLayout = NativeWrapper.GetCurrentKeyboardLayout();
+            var networkSettings = RdpSessionOptions.NormalizeNetworkSettings(connectionType);
             _nativeSession = NativeRdpSession.Connect(
                 connection.Host,
                 connectHost,
@@ -118,7 +119,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 themes,
                 menuAnimations,
                 fullWindowDrag,
-                RdpSessionOptions.NormalizeConnectionType(connectionType),
+                networkSettings.ConnectionType,
+                networkSettings.NetworkAutoDetect,
                 keyboardLayout,
                 _dpiScalePercent,
                 _frameCallback,

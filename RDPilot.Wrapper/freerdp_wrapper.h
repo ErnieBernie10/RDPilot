@@ -32,7 +32,7 @@ typedef int (*CertificateDecisionCallback)(rdp_session* session, const char* hos
 FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const char* connect_host, const char* domain, const char* user, const char* password,
                                                      const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                                      int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
-                                                     bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
+                                                     bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
                                                      uint32_t keyboard_layout, uint32_t dpi_scale_percent,
                                                      FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);

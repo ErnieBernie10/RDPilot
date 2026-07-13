@@ -273,6 +273,15 @@ public sealed class MainWindowViewModelTests
         await ConnectAsync(vm, connection, secretStore);
 
         Assert.Equal(session, vm.SelectedSession);
+        Assert.Equal(24, factory.ColorDepth);
+        Assert.False(factory.Compression);
+        Assert.False(factory.FontSmoothing);
+        Assert.False(factory.BitmapCache);
+        Assert.False(factory.DesktopWallpaper);
+        Assert.False(factory.Themes);
+        Assert.False(factory.MenuAnimations);
+        Assert.False(factory.FullWindowDrag);
+        Assert.Equal(RdpConnectionType.Lan, factory.ConnectionType);
     }
 
     [Fact]
@@ -429,6 +438,16 @@ public sealed class MainWindowViewModelTests
     {
         private readonly Queue<RdpSessionViewModel> _sessions;
 
+        public int ColorDepth { get; private set; }
+        public bool Compression { get; private set; }
+        public bool FontSmoothing { get; private set; }
+        public bool BitmapCache { get; private set; }
+        public bool DesktopWallpaper { get; private set; }
+        public bool Themes { get; private set; }
+        public bool MenuAnimations { get; private set; }
+        public bool FullWindowDrag { get; private set; }
+        public RdpConnectionType ConnectionType { get; private set; }
+
         public QueueSessionFactory(IEnumerable<RdpSessionViewModel> sessions)
         {
             _sessions = new Queue<RdpSessionViewModel>(sessions);
@@ -436,6 +455,15 @@ public sealed class MainWindowViewModelTests
 
         public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, double renderScaling, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived, Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
         {
+            ColorDepth = colorDepth;
+            Compression = compression;
+            FontSmoothing = fontSmoothing;
+            BitmapCache = bitmapCache;
+            DesktopWallpaper = desktopWallpaper;
+            Themes = themes;
+            MenuAnimations = menuAnimations;
+            FullWindowDrag = fullWindowDrag;
+            ConnectionType = connectionType;
             return _sessions.Dequeue();
         }
     }

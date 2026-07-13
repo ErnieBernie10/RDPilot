@@ -143,6 +143,7 @@ internal static class NativeWrapper
             [MarshalAs(UnmanagedType.I1)] bool menuAnimations,
             [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
             int connectionType,
+            [MarshalAs(UnmanagedType.I1)] bool networkAutoDetect,
             uint keyboardLayout,
             uint dpiScalePercent,
             FrameCallback frameCallback,

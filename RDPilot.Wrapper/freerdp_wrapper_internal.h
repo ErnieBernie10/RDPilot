@@ -177,6 +177,7 @@ typedef struct {
     bool menu_animations;
     bool full_window_drag;
     int connection_type;
+    bool network_auto_detect;
     UINT32 keyboard_layout;
 } connection_params;
 

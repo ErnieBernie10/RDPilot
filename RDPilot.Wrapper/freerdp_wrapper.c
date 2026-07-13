@@ -518,18 +518,6 @@ static UINT32 get_gdi_pixel_format(rendering_mode mode)
     return is_graphics_pipeline_mode(mode) ? PIXEL_FORMAT_BGRX32 : PIXEL_FORMAT_BGRA32;
 }
 
-static UINT32 build_performance_flags(const connection_params* params)
-{
-    UINT32 flags = PERF_DISABLE_CURSOR_SHADOW | PERF_DISABLE_CURSORSETTINGS;
-
-    if (!params->desktop_wallpaper) flags |= PERF_DISABLE_WALLPAPER;
-    if (!params->full_window_drag) flags |= PERF_DISABLE_FULLWINDOWDRAG;
-    if (!params->menu_animations) flags |= PERF_DISABLE_MENUANIMATIONS;
-    if (!params->themes) flags |= PERF_DISABLE_THEMING;
-
-    return flags;
-}
-
 static void queue_resolution_update(rdp_session* session, UINT32 width, UINT32 height)
 {
     if (!session) return;
@@ -1053,26 +1041,14 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, params->compression ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_BitmapCacheEnabled, params->bitmap_cache ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_BitmapCachePersistEnabled, FALSE);
-    if (is_graphics_pipeline_mode(session->render_mode))
-    {
-        freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, CONNECTION_TYPE_LAN);
-        freerdp_settings_set_uint32(settings, FreeRDP_PerformanceFlags, 0);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, FALSE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, FALSE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableMenuAnims, FALSE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableThemes, FALSE);
-        freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, TRUE);
-    }
-    else
-    {
-        freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, (UINT32)params->connection_type);
-        freerdp_settings_set_uint32(settings, FreeRDP_PerformanceFlags, build_performance_flags(params));
-        freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, params->desktop_wallpaper ? FALSE : TRUE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, params->full_window_drag ? FALSE : TRUE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableMenuAnims, params->menu_animations ? FALSE : TRUE);
-        freerdp_settings_set_bool(settings, FreeRDP_DisableThemes, params->themes ? FALSE : TRUE);
-        freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, params->font_smoothing ? TRUE : FALSE);
-    }
+    freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, (UINT32)params->connection_type);
+    freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, params->network_auto_detect ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, params->desktop_wallpaper ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, params->full_window_drag ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableMenuAnims, params->menu_animations ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableThemes, params->themes ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, params->font_smoothing ? TRUE : FALSE);
+    freerdp_performance_flags_make(settings);
 
     printf("[RENDER] mode=%s supportGraphicsPipeline=%s\n",
            rendering_mode_name(session->render_mode),
@@ -1093,12 +1069,23 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_string(settings, FreeRDP_ClientHostname, "RDPilot");
 
     UINT32 color_depth = (UINT32)params->color_depth;
-    if (is_graphics_pipeline_mode(session->render_mode) && color_depth < 32)
-    {
-        color_depth = 32;
-    }
     freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, color_depth);
-    printf("[RENDER] colorDepth=%u\n", color_depth);
+    fprintf(stderr,
+            "[QUALITY] colorDepth=%u connectionType=%u networkAutoDetect=%s compression=%s bitmapCache=%s "
+            "fontSmoothing=%s wallpaper=%s themes=%s menuAnimations=%s fullWindowDrag=%s "
+            "performanceFlags=0x%08X\n",
+            freerdp_settings_get_uint32(settings, FreeRDP_ColorDepth),
+            freerdp_settings_get_uint32(settings, FreeRDP_ConnectionType),
+            freerdp_settings_get_bool(settings, FreeRDP_NetworkAutoDetect) ? "on" : "off",
+            freerdp_settings_get_bool(settings, FreeRDP_CompressionEnabled) ? "on" : "off",
+            freerdp_settings_get_bool(settings, FreeRDP_BitmapCacheEnabled) ? "on" : "off",
+            freerdp_settings_get_bool(settings, FreeRDP_AllowFontSmoothing) ? "on" : "off",
+            freerdp_settings_get_bool(settings, FreeRDP_DisableWallpaper) ? "off" : "on",
+            freerdp_settings_get_bool(settings, FreeRDP_DisableThemes) ? "off" : "on",
+            freerdp_settings_get_bool(settings, FreeRDP_DisableMenuAnims) ? "off" : "on",
+            freerdp_settings_get_bool(settings, FreeRDP_DisableFullWindowDrag) ? "off" : "on",
+            freerdp_settings_get_uint32(settings, FreeRDP_PerformanceFlags));
+    fflush(stderr);
 
     UINT32 desktop_width = (UINT32)params->width;
     UINT32 desktop_height = (UINT32)params->height;
@@ -1318,7 +1305,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
 rdp_session* rdp_session_connect(const char* host, const char* connect_host, const char* domain, const char* user, const char* password,
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
-                                 bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type,
+                                 bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
                                  uint32_t keyboard_layout, uint32_t dpi_scale_percent,
                                  FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
@@ -1384,6 +1371,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     params->menu_animations = menu_animations;
     params->full_window_drag = full_window_drag;
     params->connection_type = (int)connection_type;
+    params->network_auto_detect = network_auto_detect;
     params->keyboard_layout = keyboard_layout;
 
     session->running = true;

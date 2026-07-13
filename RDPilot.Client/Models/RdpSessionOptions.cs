@@ -28,6 +28,14 @@ internal static class RdpSessionOptions
         return NormalizeConnectionType((int)connectionType);
     }
 
+    public static (int ConnectionType, bool NetworkAutoDetect) NormalizeNetworkSettings(RdpConnectionType connectionType)
+    {
+        var normalized = NormalizeConnectionType(connectionType);
+        return normalized == (int)RdpConnectionType.Autodetect
+            ? (0, true)
+            : (normalized, false);
+    }
+
     // Windows RDP server only accepts three values for desktopScaleFactor/deviceScaleFactor:
     // 100 (96 DPI), 140 (134 DPI), 180 (173 DPI). Clamp the host's reported percentage to the
     // nearest valid step so the server honours it. Sending 200 or 125 silently falls back to 100.

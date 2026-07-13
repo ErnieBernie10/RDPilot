@@ -33,6 +33,22 @@ public sealed class RdpSessionOptionsTests
     }
 
     [Theory]
+    [InlineData(RdpConnectionType.Autodetect, 0, true)]
+    [InlineData(RdpConnectionType.Wan, (int)RdpConnectionType.Wan, false)]
+    [InlineData(RdpConnectionType.Lan, (int)RdpConnectionType.Lan, false)]
+    [InlineData((RdpConnectionType)99, (int)RdpConnectionType.Wan, false)]
+    public void NormalizeNetworkSettings_SeparatesDetectionFromServerQualityHint(
+        RdpConnectionType input,
+        int expectedConnectionType,
+        bool expectedNetworkAutoDetect)
+    {
+        var actual = RdpSessionOptions.NormalizeNetworkSettings(input);
+
+        Assert.Equal(expectedConnectionType, actual.ConnectionType);
+        Assert.Equal(expectedNetworkAutoDetect, actual.NetworkAutoDetect);
+    }
+
+    [Theory]
     [InlineData(100u, 100u)]
     [InlineData(125u, 140u)]
     [InlineData(150u, 180u)]

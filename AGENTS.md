@@ -100,7 +100,8 @@ RDPGFX investigation notes (historical context):
 - Even with `WITH_GFX_H264`, tested servers confirmed `RDPGFX_CAPVERSION_81` with AVC420 flag `0x00000002` but still sent `avc=0`; actual updates were ClearCodec/progressive.
 - The smoother server was smoother because it delivered far steadier ClearCodec updates, often around 26-31 FPS. The slower server delivered far fewer completed frames despite similar caps.
 - Frame acknowledgements are required for these servers. Disabling RDPGFX frame ack froze the session. QoE ack did not resolve pacing issues.
-- For RDPGFX, force 32-bit color and use LAN/high-quality connection settings; the legacy low-latency classic-GDI profile uses 16-bit/WAN/disabled visuals and may influence server graphics choices.
+- RDPGFX honors the configured color depth, connection type, and visual-effect quality settings. Its local GDI primary buffer remains `PIXEL_FORMAT_BGRX32` regardless of the negotiated color depth.
+- Managed option normalization represents `Autodetect` as `NetworkAutoDetect=TRUE` with no server quality hint (`ConnectionType=0`). Sending connection type 7 lets Windows select a high-quality experience that can override explicit visual-effect flags.
 - The default `RDPILOT_GFX_CODEC_POLICY` is now `server` (don't filter caps, let the server pick the best codec — matches `wfreerdp`). Forcing `avc420`/`sharp` filters out ClearCodec/Progressive and made tested servers send 2-20 fps with 100-1500 ms frame gaps during drag; `wfreerdp` advertises all caps and the server picks ClearCodec for sharp content. Override with `avc`/`avc420`/`sharp` only for diagnostics.
 
 Do not treat `SurfaceBits` as a full-frame callback. It may represent partial/alternate-surface bitmap data. Full-frame delivery to C# must use the GDI primary framebuffer from `EndPaint`/resize notifications.
