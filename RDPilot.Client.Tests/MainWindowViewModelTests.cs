@@ -182,6 +182,38 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task SaveConnection_RefreshesConnectionsImmediately()
+    {
+        using var env = new TestConfigHome();
+        var vm = new MainWindowViewModel(new ConnectionStore(new FakeSecretStore()), new QueueSessionFactory([]));
+        await vm.LoadConnectionsAsync();
+        var connection = CreateConnection("New Connection");
+
+        await vm.SaveConnectionAsync(new ConnectionEditResult { Connection = connection });
+
+        var saved = Assert.Single(vm.Connections);
+        Assert.Equal(connection.Id, saved.Id);
+        Assert.Same(saved, vm.SelectedConnection);
+    }
+
+    [Fact]
+    public async Task DeleteConnection_RefreshesConnectionsImmediately()
+    {
+        using var env = new TestConfigHome();
+        var store = new ConnectionStore(new FakeSecretStore());
+        var connection = CreateConnection("Delete Me");
+        await store.SaveAsync(connection, null, false, null, false);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([]));
+        await vm.LoadConnectionsAsync();
+        vm.SelectedConnection = Assert.Single(vm.Connections);
+
+        await vm.DeleteSelectedConnectionAsync();
+
+        Assert.Empty(vm.Connections);
+        Assert.Null(vm.SelectedConnection);
+    }
+
+    [Fact]
     public async Task SaveConnection_PersistsQualityOverrides()
     {
         using var env = new TestConfigHome();

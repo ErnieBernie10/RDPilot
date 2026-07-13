@@ -76,17 +76,9 @@ public sealed class WindowsJumpListService : IJumpListService
                 Marshal.ReleaseComObject(destinationList);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            try
-            {
-                Directory.CreateDirectory(AppDataPaths.ConfigDirectory);
-                File.WriteAllText(Path.Combine(AppDataPaths.ConfigDirectory, "jump-list-error.log"), ex.ToString());
-            }
-            catch (IOException)
-            {
-                // Shell integration remains optional if diagnostics cannot be written.
-            }
+            // Shell integration is optional and must not affect the client.
         }
     }
 

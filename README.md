@@ -8,6 +8,10 @@ RDPilot is a fast Avalonia RDP client backed by FreeRDP. It focuses on responsiv
 
 RDPilot currently supports Windows and Linux.
 
+<p align="center">
+  <img src="docs/images/rdpilot-connections.png" alt="RDPilot connection manager" width="1200">
+</p>
+
 ## Features
 
 - Dynamic resolution when the client window changes size.

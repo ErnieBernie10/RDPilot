@@ -4,6 +4,12 @@
              xmlns:model="using:RDPilot.Client.Models"
              x:Class="RDPilot.Client.Views.ConnectionsPanelView"
              x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="ListBox.ConnectionList ListBoxItem">
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </UserControl.Styles>
+
     <Border Classes="OverlayPanel"
             Width="280"
             HorizontalAlignment="Left"
@@ -24,7 +30,7 @@
                 </Grid>
             </Border>
 
-            <ListBox Grid.Row="1" ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}" Background="Transparent" BorderThickness="0" Padding="4">
+            <ListBox Grid.Row="1" Classes="ConnectionList" ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}" Background="Transparent" BorderThickness="0" Padding="4">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="model:SavedConnection">
                         <Border Padding="8,7" CornerRadius="4">

@@ -107,21 +107,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         try
         {
             _settings = await _settingsStore.LoadAsync();
-            var connections = await _connectionStore.LoadAsync();
-            Connections.Clear();
-            foreach (var connection in connections)
-            {
-                Connections.Add(connection);
-            }
-
-            try
-            {
-                _jumpListService.Refresh(connections);
-            }
-            catch (Exception)
-            {
-                // Optional Windows shell integration must not block profile loading.
-            }
+            await RefreshConnectionsAsync();
 
             // A saved profile is not an active choice until the user selects it.
             // This avoids presenting an ambiguous Connect action in the empty viewport.
@@ -172,7 +158,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 result.GatewayPassword,
                 result.GatewayPasswordChanged);
 
-            await LoadConnectionsAsync();
+            await RefreshConnectionsAsync();
             SelectedConnection = Connections.FirstOrDefault(c => c.Id == result.Connection.Id) ?? Connections.FirstOrDefault();
             StatusMessage = $"Saved {result.Connection.Name}.";
         }
@@ -190,13 +176,35 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             var deletedName = SelectedConnection.Name;
             await _connectionStore.DeleteAsync(SelectedConnection);
-            await LoadConnectionsAsync();
+            await RefreshConnectionsAsync();
+            SelectedConnection = null;
             StatusMessage = $"Deleted {deletedName}.";
         }
         catch (Exception ex)
         {
             StatusMessage = $"Unable to delete connection: {ex.Message}";
         }
+    }
+
+    private async Task RefreshConnectionsAsync()
+    {
+        var connections = await _connectionStore.LoadAsync();
+        Connections.Clear();
+        foreach (var connection in connections)
+        {
+            Connections.Add(connection);
+        }
+
+        try
+        {
+            _jumpListService.Refresh(connections);
+        }
+        catch (Exception)
+        {
+            // Optional Windows shell integration must not block profile refresh.
+        }
+
+        NotifyViewportStateChanged();
     }
 
     private bool CanConnect() => SelectedConnection != null;
