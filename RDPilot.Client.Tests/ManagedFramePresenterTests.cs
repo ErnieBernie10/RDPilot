@@ -133,4 +133,45 @@ public sealed class ManagedFramePresenterTests
         Assert.Equal(0, presentCallCount);
         Assert.Equal(0, redrawCount);
     }
+
+    [Fact]
+    public void Suspend_ReleasesBitmapAndResumeRecreatesFullFrame()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var screenSizes = new List<(int Width, int Height)?>();
+        var redrawCount = 0;
+        var presentCallCount = 0;
+        var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new ManagedFramePresenter(
+            "Session",
+            width: 64,
+            height: 32,
+            setScreen: screen => screenSizes.Add(screen is null ? null : (screen.PixelSize.Width, screen.PixelSize.Height)),
+            requestRedraw: () => redrawCount++,
+            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            {
+                presentCallCount++;
+                dirtyX = 0;
+                dirtyY = 0;
+                dirtyWidth = 64;
+                dirtyHeight = 32;
+                fbWidth = 64;
+                fbHeight = 32;
+                return dest != IntPtr.Zero;
+            }));
+
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Suspend);
+        presenter.EnqueueFrame(64, 32);
+        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+
+        Assert.Equal([(64, 32), null], screenSizes);
+        Assert.Equal(0, presentCallCount);
+
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Resume);
+
+        Assert.Equal([(64, 32), null, (64, 32)], screenSizes);
+        Assert.Equal(2, presentCallCount);
+        Assert.Equal(1, redrawCount);
+        AvaloniaTestEnvironment.RunOnUiThread(presenter.Dispose);
+    }
 }

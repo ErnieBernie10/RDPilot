@@ -220,13 +220,15 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsConnectionsPanelOpen));
     }
 
-    partial void OnSelectedSessionChanged(RdpSessionViewModel? value)
+    partial void OnSelectedSessionChanged(RdpSessionViewModel? oldValue, RdpSessionViewModel? newValue)
     {
+        oldValue?.SuspendPresentation();
+        newValue?.ResumePresentation();
         UpdateSelectedSessionState();
-        if (value != null)
+        if (newValue != null)
         {
-            value.UpdateResolution(_requestedWidth, _requestedHeight, _renderScaling);
-            StatusMessage = $"Active session: {value.Title}.";
+            newValue.UpdateResolution(_requestedWidth, _requestedHeight, _renderScaling);
+            StatusMessage = $"Active session: {newValue.Title}.";
         }
     }
 
@@ -325,6 +327,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (wasSelected)
         {
             SelectedSession = newSession;
+        }
+        else
+        {
+            newSession.SuspendPresentation();
         }
         oldSession.Dispose();
     }

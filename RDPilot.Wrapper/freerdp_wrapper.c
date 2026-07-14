@@ -803,6 +803,26 @@ static bool process_pending_resize(rdp_session* session)
     return true;
 }
 
+void rdp_session_request_full_frame(rdp_session* session)
+{
+    if (!session) return;
+
+    EnterCriticalSection(&session->frame_lock);
+    if (session->instance && session->instance->context)
+    {
+        rdpGdi* gdi = session->instance->context->gdi;
+        if (gdi && gdi->primary_buffer && gdi->width > 0 && gdi->height > 0)
+        {
+            session->pending_frame = 1;
+            session->pending_dirty_x = 0;
+            session->pending_dirty_y = 0;
+            session->pending_dirty_w = gdi->width;
+            session->pending_dirty_h = gdi->height;
+        }
+    }
+    LeaveCriticalSection(&session->frame_lock);
+}
+
 static BOOL on_surface_bits(rdpContext* context,
                             const SURFACE_BITS_COMMAND* cmd)
 {

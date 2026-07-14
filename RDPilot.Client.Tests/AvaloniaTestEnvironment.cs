@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using System.Threading;
-using Avalonia;
 using Avalonia.Headless;
 
 namespace RDPilot.Client.Tests;
@@ -21,9 +20,6 @@ internal static class AvaloniaTestEnvironment
                 return;
             }
 
-            AppBuilder.Configure<TestApplication>()
-                .UseHeadless(new AvaloniaHeadlessPlatformOptions())
-                .SetupWithoutStarting();
             _session = HeadlessUnitTestSession.GetOrStartForAssembly(Assembly.GetExecutingAssembly());
             _initialized = true;
         }
@@ -44,9 +40,5 @@ internal static class AvaloniaTestEnvironment
     {
         EnsureInitialized();
         _session!.Dispatch(action, CancellationToken.None).GetAwaiter().GetResult();
-    }
-
-    private sealed class TestApplication : Application
-    {
     }
 }

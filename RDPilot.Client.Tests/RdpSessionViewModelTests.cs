@@ -372,6 +372,24 @@ public sealed class RdpSessionViewModelTests
         Assert.Equal(IntPtr.Zero, Assert.IsType<IntPtr>(GetField(session, "_handle")));
     }
 
+    [Fact]
+    public void ResumePresentation_RequestsFullNativeFrame()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+        var session = new RdpSessionViewModel(CreateConnection("Resume Presentation"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x9ABD));
+        AttachNativeSession(session, nativeSession);
+
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            session.SuspendPresentation();
+            session.ResumePresentation();
+        });
+
+        Assert.Equal(1, nativeSession.RequestFullFrameCallCount);
+        AvaloniaTestEnvironment.RunOnUiThread(session.Dispose);
+    }
+
     private static void DisposeWithoutNativeFree(RdpSessionViewModel session)
     {
         SetField(session, "_handle", IntPtr.Zero);
@@ -477,6 +495,7 @@ public sealed class RdpSessionViewModelTests
         public List<(int Width, int Height, uint DpiScalePercent)> ResolutionUpdates { get; } = [];
         public List<(ushort Flags, ushort X, ushort Y)> MouseEvents { get; } = [];
         public List<string> LocalClipboardFiles { get; } = [];
+        public int RequestFullFrameCallCount { get; private set; }
 
         public void Disconnect()
         {
@@ -514,6 +533,11 @@ public sealed class RdpSessionViewModelTests
 
         public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height)
         {
+        }
+
+        public void RequestFullFrame()
+        {
+            RequestFullFrameCallCount++;
         }
 
         public bool Present(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)

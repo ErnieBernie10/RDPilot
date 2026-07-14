@@ -188,6 +188,25 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public bool CanReconnect => Status is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected;
     public event EventHandler? RequestRedraw;
 
+    internal void SuspendPresentation()
+    {
+        _framePresenter.Suspend();
+    }
+
+    internal void ResumePresentation()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (TryGetActiveSession(out var nativeSession))
+        {
+            nativeSession.RequestFullFrame();
+        }
+        _framePresenter.Resume();
+    }
+
     internal void SetTestStatus(RdpSessionStatus status, RdpSessionError? error = null)
     {
         LastError = error;
@@ -414,14 +433,14 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _framePresenter.Dispose();
+
         var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
         var nativeSession = Interlocked.Exchange(ref _nativeSession, null);
         if (handle != IntPtr.Zero && nativeSession != null)
         {
             nativeSession.Free();
         }
-
-        _framePresenter.Dispose();
         Interlocked.Exchange(ref _disposed, 1);
         GC.SuppressFinalize(this);
     }

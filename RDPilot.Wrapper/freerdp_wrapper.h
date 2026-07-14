@@ -46,6 +46,9 @@ FREERDP_WRAPPER_API void rdp_session_clipboard_add_local_file(rdp_session* sessi
 FREERDP_WRAPPER_API void rdp_session_clipboard_commit_local_files(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_bitmap(rdp_session* session, const uint8_t* bitmap_data, size_t bitmap_data_size, uint32_t width, uint32_t height);
+/* Marks the current GDI primary framebuffer for a full copy on the next present. This is used
+ * when a suspended UI presenter is recreated after its bitmap was released. */
+FREERDP_WRAPPER_API void rdp_session_request_full_frame(rdp_session* session);
 
 /* Presents the pending desktop frame, copying dirty pixels from the FreeRDP GDI primary
  * framebuffer into the caller-provided destination buffer. Must be called from the UI/present

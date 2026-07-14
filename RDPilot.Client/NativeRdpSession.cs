@@ -14,6 +14,7 @@ internal interface INativeRdpSession
     void SetLocalClipboardText(string? text);
     void SetLocalClipboardFiles(string[] filePaths);
     void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
+    void RequestFullFrame();
     bool Present(
         IntPtr dest,
         int destStride,
@@ -131,6 +132,8 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height) =>
         NativeWrapper.rdp_session_clipboard_set_local_bitmap(Handle, bitmapData, bitmapDataSize, width, height);
+
+    public void RequestFullFrame() => NativeWrapper.rdp_session_request_full_frame(Handle);
 
     public bool Present(
         IntPtr dest,

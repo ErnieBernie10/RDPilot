@@ -183,6 +183,9 @@ internal static class NativeWrapper
     internal static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void rdp_session_request_full_frame(IntPtr session);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     internal static extern bool rdp_session_present(
         IntPtr session,

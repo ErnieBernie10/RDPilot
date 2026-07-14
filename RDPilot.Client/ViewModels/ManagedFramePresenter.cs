@@ -15,6 +15,7 @@ internal sealed class ManagedFramePresenter : IDisposable
     private readonly Action _requestRedraw;
     private readonly PresentDelegate _present;
     private int _disposed;
+    private int _suspended;
     private WriteableBitmap? _screen;
     private int _presentQueued;
     private int _pendingCount;
@@ -57,7 +58,7 @@ internal sealed class ManagedFramePresenter : IDisposable
 
     public void EnqueueFrame(int width, int height)
     {
-        if (IsDisposed || width <= 0 || height <= 0) return;
+        if (IsDisposed || IsSuspended || width <= 0 || height <= 0) return;
 
         bool shouldPost;
         lock (_frameLock)
@@ -95,13 +96,54 @@ internal sealed class ManagedFramePresenter : IDisposable
             _pendingCount = 0;
         }
         Interlocked.Exchange(ref _presentQueued, 0);
+        ReleaseScreen();
     }
 
     private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+    private bool IsSuspended => Volatile.Read(ref _suspended) != 0;
+
+    public void Suspend()
+    {
+        if (IsDisposed || Interlocked.Exchange(ref _suspended, 1) != 0)
+        {
+            return;
+        }
+
+        lock (_frameLock)
+        {
+            _pendingCount = 0;
+        }
+        Interlocked.Exchange(ref _presentQueued, 0);
+        ReleaseScreen();
+    }
+
+    public void Resume()
+    {
+        if (IsDisposed || Interlocked.Exchange(ref _suspended, 0) == 0)
+        {
+            return;
+        }
+
+        // The native side has marked its current primary buffer fully dirty. Queue a present
+        // without retaining any geometry from the released managed bitmap.
+        EnqueueFrame(1, 1);
+    }
+
+    private void ReleaseScreen()
+    {
+        var screen = Interlocked.Exchange(ref _screen, null);
+        if (screen == null)
+        {
+            return;
+        }
+
+        _setScreen(null);
+        try { screen.Dispose(); } catch { }
+    }
 
     private void Present()
     {
-        if (IsDisposed)
+        if (IsDisposed || IsSuspended)
         {
             Interlocked.Exchange(ref _presentQueued, 0);
             return;
@@ -138,7 +180,7 @@ internal sealed class ManagedFramePresenter : IDisposable
         {
             for (var attempt = 0; attempt < 3; attempt++)
             {
-                if (IsDisposed) break;
+                if (IsDisposed || IsSuspended) break;
 
                 var screen = _screen;
 
@@ -208,7 +250,7 @@ internal sealed class ManagedFramePresenter : IDisposable
 
                 if (presented) break;
 
-                if (recreate && !IsDisposed)
+                if (recreate && !IsDisposed && !IsSuspended)
                 {
                     Interlocked.Exchange(ref _screen, null);
                     try { screen.Dispose(); } catch { }
@@ -260,7 +302,7 @@ internal sealed class ManagedFramePresenter : IDisposable
             }
         }
 
-        if (morePending && !IsDisposed)
+        if (morePending && !IsDisposed && !IsSuspended)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(Present);
         }
