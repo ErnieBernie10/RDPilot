@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 
 namespace RDPilot.Client.Views;
 
 public partial class MainWindow : Window
 {
+    private static readonly TimeSpan ToolbarHideDelay = TimeSpan.FromMilliseconds(650);
     private readonly SessionTabsView _sessionToolbar;
-    private readonly DispatcherTimer _toolbarHideTimer;
     private readonly HashSet<Key> _locallyHandledFullscreenKeys = [];
+    private readonly SynchronizationContext _uiSynchronizationContext;
+    private CancellationTokenSource? _toolbarHideCancellation;
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
     private bool _isFullscreen;
 
@@ -19,11 +22,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        _uiSynchronizationContext = SynchronizationContext.Current
+            ?? throw new InvalidOperationException("MainWindow must be created on the Avalonia UI thread.");
         _sessionToolbar = new SessionTabsView();
         _sessionToolbar.FullscreenToggleRequested += OnFullscreenToggleRequested;
         SessionToolbarHost.Child = _sessionToolbar;
-        _toolbarHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
-        _toolbarHideTimer.Tick += OnToolbarHideTimerTick;
         SessionToolbarHost.PointerEntered += OnSessionToolbarPointerEntered;
         SessionToolbarHost.PointerExited += OnSessionToolbarPointerExited;
         SessionToolbarHost.GotFocus += OnSessionToolbarGotFocus;
@@ -34,8 +37,7 @@ public partial class MainWindow : Window
 
         Closed += (_, _) =>
         {
-            _toolbarHideTimer.Stop();
-            _toolbarHideTimer.Tick -= OnToolbarHideTimerTick;
+            CancelFullscreenToolbarHide();
             if (DataContext is IDisposable disposable)
             {
                 disposable.Dispose();
@@ -100,7 +102,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            _toolbarHideTimer.Stop();
+            CancelFullscreenToolbarHide();
             SessionToolbarHost.Opacity = 1;
             SessionToolbarHost.IsHitTestVisible = true;
         }
@@ -151,20 +153,15 @@ public partial class MainWindow : Window
     {
         if (_isFullscreen && !SessionToolbarHost.IsPointerOver)
         {
-            _toolbarHideTimer.Start();
+            ScheduleFullscreenToolbarHide();
         }
-    }
-
-    private void OnToolbarHideTimerTick(object? sender, EventArgs e)
-    {
-        HideFullscreenToolbar();
     }
 
     private void ShowFullscreenToolbar()
     {
         if (!_isFullscreen) return;
 
-        _toolbarHideTimer.Stop();
+        CancelFullscreenToolbarHide();
         SessionToolbarHost.Opacity = 0.96;
         SessionToolbarHost.IsHitTestVisible = true;
     }
@@ -173,17 +170,54 @@ public partial class MainWindow : Window
     {
         if (_isFullscreen && !SessionToolbarHost.IsKeyboardFocusWithin)
         {
-            _toolbarHideTimer.Start();
+            CancelFullscreenToolbarHide();
+            var cancellation = new CancellationTokenSource();
+            _toolbarHideCancellation = cancellation;
+            _ = HideFullscreenToolbarAfterDelayAsync(cancellation);
         }
     }
 
     private void HideFullscreenToolbar(bool force = false)
     {
-        _toolbarHideTimer.Stop();
+        CancelFullscreenToolbarHide();
         if (_isFullscreen && (force || (!SessionToolbarHost.IsPointerOver && !SessionToolbarHost.IsKeyboardFocusWithin)))
         {
             SessionToolbarHost.Opacity = 0;
             SessionToolbarHost.IsHitTestVisible = false;
         }
+    }
+
+    private async Task HideFullscreenToolbarAfterDelayAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await Task.Delay(ToolbarHideDelay, cancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        _uiSynchronizationContext.Post(_ => CompleteFullscreenToolbarHide(cancellation), null);
+    }
+
+    private void CompleteFullscreenToolbarHide(CancellationTokenSource cancellation)
+    {
+        if (!ReferenceEquals(_toolbarHideCancellation, cancellation))
+        {
+            return;
+        }
+
+        _toolbarHideCancellation = null;
+        cancellation.Dispose();
+        HideFullscreenToolbar();
+    }
+
+    private void CancelFullscreenToolbarHide()
+    {
+        var cancellation = _toolbarHideCancellation;
+        _toolbarHideCancellation = null;
+        cancellation?.Cancel();
+        cancellation?.Dispose();
     }
 }
