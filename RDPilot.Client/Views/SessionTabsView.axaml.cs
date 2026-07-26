@@ -8,6 +8,8 @@ namespace RDPilot.Client.Views;
 
 public partial class SessionTabsView : UserControl
 {
+    public event EventHandler? FullscreenToggleRequested;
+
     public SessionTabsView()
     {
         InitializeComponent();
@@ -26,6 +28,11 @@ public partial class SessionTabsView : UserControl
         {
             await vm.CloseSessionCommand.ExecuteAsync(session);
         }
+    }
+
+    private void OnFullscreenToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        FullscreenToggleRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private Task<bool> ConfirmCloseSessionAsync(RdpSessionViewModel session)

@@ -45,6 +45,12 @@
             <Button Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}">
                 <StackPanel Orientation="Horizontal" Spacing="6"><icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/><TextBlock Text="Reconnect"/></StackPanel>
             </Button>
+            <Button x:Name="FullscreenToggleButton"
+                    Classes="IconButton FullscreenToolbarButton"
+                    ToolTip.Tip="Enter fullscreen"
+                    Click="OnFullscreenToggleClicked">
+                <icons:FluentIcon Icon="FullScreenMaximize" IconSize="Size16" FontSize="16"/>
+            </Button>
         </StackPanel>
     </Grid>
 </UserControl>

@@ -21,18 +21,25 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="*,Auto">
+    <Grid x:Name="RootLayout" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="*,Auto">
         <Grid x:Name="ShellGrid" ColumnDefinitions="32,*">
-            <views:NavigationRailView Grid.Column="0"/>
+            <views:NavigationRailView x:Name="NavigationRail" Grid.Column="0"/>
 
-            <Grid Grid.Column="1">
-                <Grid RowDefinitions="Auto,*" Margin="2" RowSpacing="1">
-                    <views:SessionTabsView/>
-
-                    <views:RdpViewportView Grid.Row="1"/>
-                </Grid>
-
-                <views:ShellOverlayHostView IsOpen="{Binding IsConnectionsPanelOpen}" OverlayWidth="280" ZIndex="10">
+            <Grid x:Name="ContentGrid" Grid.Column="1" RowDefinitions="Auto,*" Margin="2" RowSpacing="1">
+                <Border x:Name="SessionToolbarHost" VerticalAlignment="Top">
+                    <Border.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+                        </Transitions>
+                    </Border.Transitions>
+                </Border>
+                <views:RdpViewportView Grid.Row="1"/>
+                <Border x:Name="FullscreenRevealZone"
+                        Grid.RowSpan="2"
+                        Height="4"
+                        VerticalAlignment="Top"
+                        IsVisible="False"/>
+                <views:ShellOverlayHostView Grid.RowSpan="2" IsOpen="{Binding IsConnectionsPanelOpen}" OverlayWidth="280" ZIndex="10">
                     <views:ShellOverlayHostView.OverlayContent>
                         <views:ConnectionsPanelView/>
                     </views:ShellOverlayHostView.OverlayContent>
@@ -40,7 +47,7 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
+        <Border x:Name="StatusBar" Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
                 <Ellipse Classes="StatusDot"
                          Classes.StatusConnected="{Binding IsConnected}"
