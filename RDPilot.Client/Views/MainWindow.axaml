@@ -33,7 +33,7 @@
                         </Transitions>
                     </Border.Transitions>
                 </Border>
-                <views:RdpViewportView Grid.Row="1"/>
+                <views:RdpViewportView x:Name="RdpViewport" Grid.Row="1" Focusable="True"/>
                 <Border x:Name="FullscreenRevealZone"
                         Grid.RowSpan="2"
                         Height="4"

@@ -184,7 +184,7 @@ public sealed class MainWindowFullscreenTests
     }
 
     [Fact]
-    public void FullscreenToolbarButton_FocusedEntry_HidesToolbar()
+    public void FullscreenToolbarButton_FocusedEntry_HidesToolbarAndMovesFocusOutsideIt()
     {
         AvaloniaTestEnvironment.RunOnUiThread(() =>
         {
@@ -198,7 +198,10 @@ public sealed class MainWindowFullscreenTests
 
                 button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-                Assert.False(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                Assert.False(toolbarHost.IsHitTestVisible);
+                Assert.False(toolbarHost.IsKeyboardFocusWithin);
+                Assert.False(button.IsFocused);
             }
             finally
             {
@@ -227,6 +230,156 @@ public sealed class MainWindowFullscreenTests
                 Assert.False(toolbarHost.IsPointerOver);
                 Assert.False(toolbarHost.IsKeyboardFocusWithin);
                 Assert.False(toolbarHost.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task FullscreenRevealZone_HidesAfterDirectPointerExitDelay()
+    {
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
+        {
+            var window = CreateFullscreenWindowWithRevealedToolbar();
+            try
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+
+                revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, revealZone));
+
+                await Task.Delay(300);
+                Assert.True(toolbarHost.IsHitTestVisible);
+
+                await Task.Delay(500);
+                Assert.False(toolbarHost.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task FullscreenRevealZone_ExitIntoToolbarCancelsPendingHide()
+    {
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
+        {
+            var window = CreateFullscreenWindowWithRevealedToolbar();
+            try
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+
+                revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, revealZone));
+                await Task.Delay(300);
+                toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, toolbarHost));
+                Assert.False(GetToolbarHideTimer(window).IsEnabled);
+                await Task.Delay(500);
+
+                Assert.True(toolbarHost.IsHitTestVisible);
+                Assert.True(toolbarHost.Opacity > 0);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenF11AutoRepeat_TogglesOnceAndKeepsPressLocalUntilKeyUp()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow { WindowState = WindowState.Maximized };
+            try
+            {
+                window.Show();
+
+                var firstDown = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 };
+                window.RaiseEvent(firstDown);
+                var repeatedDown = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 };
+                window.RaiseEvent(repeatedDown);
+
+                Assert.True(firstDown.Handled);
+                Assert.True(repeatedDown.Handled);
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
+
+                var keyUp = new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.F11 };
+                window.RaiseEvent(keyUp);
+                Assert.True(keyUp.Handled);
+
+                var nextPress = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 };
+                window.RaiseEvent(nextPress);
+                Assert.True(nextPress.Handled);
+                Assert.Equal(WindowState.Maximized, window.WindowState);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenEscapeAutoRepeat_ExitsOnceAndKeepsPressLocalUntilKeyUp()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow { WindowState = WindowState.Maximized };
+            try
+            {
+                window.Show();
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                var firstDown = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+                window.RaiseEvent(firstDown);
+                var repeatedDown = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+                window.RaiseEvent(repeatedDown);
+
+                Assert.True(firstDown.Handled);
+                Assert.True(repeatedDown.Handled);
+                Assert.Equal(WindowState.Maximized, window.WindowState);
+
+                var keyUp = new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Escape };
+                window.RaiseEvent(keyUp);
+                Assert.True(keyUp.Handled);
+
+                var escapeOutsideFullscreen = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+                window.RaiseEvent(escapeOutsideFullscreen);
+                Assert.False(escapeOutsideFullscreen.Handled);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenKeyTracking_WindowDeactivationClearsLostKeyUpState()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow { WindowState = WindowState.Maximized };
+            try
+            {
+                window.Show();
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
+
+                RaiseWindowDeactivated(window);
+
+                var nextPress = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 };
+                window.RaiseEvent(nextPress);
+
+                Assert.True(nextPress.Handled);
+                Assert.Equal(WindowState.Maximized, window.WindowState);
             }
             finally
             {
@@ -281,6 +434,7 @@ public sealed class MainWindowFullscreenTests
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
                 Assert.NotEqual(WindowState.FullScreen, window.WindowState);
                 Assert.False(toolbarHideTimer.IsEnabled);
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.F11 });
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
                 var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
                 revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
@@ -291,6 +445,103 @@ public sealed class MainWindowFullscreenTests
                 Assert.Equal(WindowState.FullScreen, window.WindowState);
                 Assert.True(toolbarHost.IsHitTestVisible);
                 Assert.True(toolbarHost.Opacity > 0);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void ExternalFullscreenEntryAndExit_SynchronizeLayoutAndToggleSemantics()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.Show();
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+                var navigationRail = window.FindControl<NavigationRailView>("NavigationRail")!;
+                var statusBar = window.FindControl<Border>("StatusBar")!;
+
+                window.WindowState = WindowState.FullScreen;
+
+                Assert.False(navigationRail.IsVisible);
+                Assert.False(statusBar.IsVisible);
+                Assert.True(revealZone.IsVisible);
+                Assert.False(toolbarHost.IsHitTestVisible);
+
+                window.WindowState = WindowState.Normal;
+
+                Assert.True(navigationRail.IsVisible);
+                Assert.True(statusBar.IsVisible);
+                Assert.False(revealZone.IsVisible);
+                Assert.True(toolbarHost.IsHitTestVisible);
+
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(WindowState.Normal, window.WindowState);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void ExternalFullscreenEntry_ToggleRestoresObservedPriorWindowState()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow { WindowState = WindowState.Maximized };
+            try
+            {
+                window.Show();
+                window.WindowState = WindowState.FullScreen;
+
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Equal(WindowState.Maximized, window.WindowState);
+                Assert.True(window.FindControl<NavigationRailView>("NavigationRail")!.IsVisible);
+                Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void ExternalMinimizeAndRestore_KeepLayoutAndToggleSynchronizedToActualState()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow { WindowState = WindowState.Maximized };
+            try
+            {
+                window.Show();
+                var navigationRail = window.FindControl<NavigationRailView>("NavigationRail")!;
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+
+                window.WindowState = WindowState.FullScreen;
+                window.WindowState = WindowState.Minimized;
+
+                Assert.True(navigationRail.IsVisible);
+                Assert.False(revealZone.IsVisible);
+
+                window.WindowState = WindowState.Maximized;
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Equal(WindowState.Maximized, window.WindowState);
+                Assert.True(navigationRail.IsVisible);
+                Assert.False(revealZone.IsVisible);
             }
             finally
             {
@@ -342,6 +593,7 @@ public sealed class MainWindowFullscreenTests
         var window = new MainWindow();
         window.Show();
         window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
+        window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.F11 });
         var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
         revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
         Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
@@ -354,6 +606,15 @@ public sealed class MainWindowFullscreenTests
             "_toolbarHideTimer",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<DispatcherTimer>(field?.GetValue(window));
+    }
+
+    private static void RaiseWindowDeactivated(MainWindow window)
+    {
+        var method = typeof(MainWindow).GetMethod(
+            "OnWindowDeactivated",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method.Invoke(window, [window, EventArgs.Empty]);
     }
 
     private static PointerEventArgs CreatePointerEvent(RoutedEvent routedEvent, Visual source)

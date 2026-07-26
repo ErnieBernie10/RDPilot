@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _toolbarHideTimer;
     private readonly HashSet<Key> _locallyHandledFullscreenKeys = [];
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
+    private WindowState _lastNonFullscreenWindowState = WindowState.Normal;
     private bool _isFullscreen;
 
     public MainWindow()
@@ -29,13 +31,18 @@ public partial class MainWindow : Window
         SessionToolbarHost.GotFocus += OnSessionToolbarGotFocus;
         SessionToolbarHost.LostFocus += OnSessionToolbarLostFocus;
         FullscreenRevealZone.PointerEntered += OnFullscreenRevealZonePointerEntered;
+        FullscreenRevealZone.PointerExited += OnFullscreenRevealZonePointerExited;
         AddHandler(InputElement.KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, true);
         AddHandler(InputElement.KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, true);
+        PropertyChanged += OnWindowPropertyChanged;
+        Deactivated += OnWindowDeactivated;
 
         Closed += (_, _) =>
         {
             _toolbarHideTimer.Stop();
             _toolbarHideTimer.Tick -= OnToolbarHideTimerTick;
+            PropertyChanged -= OnWindowPropertyChanged;
+            Deactivated -= OnWindowDeactivated;
             if (DataContext is IDisposable disposable)
             {
                 disposable.Dispose();
@@ -45,18 +52,22 @@ public partial class MainWindow : Window
 
     private void OnFullscreenToggleRequested(object? sender, EventArgs e)
     {
-        SetFullscreen(!_isFullscreen);
+        SetFullscreen(WindowState != WindowState.FullScreen);
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F11)
+        if (_locallyHandledFullscreenKeys.Contains(e.Key))
         {
-            _locallyHandledFullscreenKeys.Add(e.Key);
-            SetFullscreen(!_isFullscreen);
             e.Handled = true;
         }
-        else if (_isFullscreen && e.Key == Key.Escape)
+        else if (e.Key == Key.F11)
+        {
+            _locallyHandledFullscreenKeys.Add(e.Key);
+            SetFullscreen(WindowState != WindowState.FullScreen);
+            e.Handled = true;
+        }
+        else if (WindowState == WindowState.FullScreen && e.Key == Key.Escape)
         {
             _locallyHandledFullscreenKeys.Add(e.Key);
             SetFullscreen(false);
@@ -72,8 +83,44 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        _locallyHandledFullscreenKeys.Clear();
+    }
+
     private void SetFullscreen(bool isFullscreen)
     {
+        if (isFullscreen && WindowState != WindowState.FullScreen)
+        {
+            _windowStateBeforeFullscreen = WindowState == WindowState.Minimized
+                ? _lastNonFullscreenWindowState
+                : WindowState;
+            WindowState = WindowState.FullScreen;
+        }
+        else if (!isFullscreen && WindowState == WindowState.FullScreen)
+        {
+            WindowState = _windowStateBeforeFullscreen;
+        }
+
+        SynchronizeFullscreenState();
+    }
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == WindowStateProperty)
+        {
+            SynchronizeFullscreenState();
+        }
+    }
+
+    private void SynchronizeFullscreenState()
+    {
+        var isFullscreen = WindowState == WindowState.FullScreen;
+        if (!isFullscreen && WindowState != WindowState.Minimized)
+        {
+            _lastNonFullscreenWindowState = WindowState;
+        }
+
         if (_isFullscreen == isFullscreen)
         {
             return;
@@ -81,14 +128,7 @@ public partial class MainWindow : Window
 
         if (isFullscreen)
         {
-            _windowStateBeforeFullscreen = WindowState == WindowState.FullScreen
-                ? WindowState.Normal
-                : WindowState;
-            WindowState = WindowState.FullScreen;
-        }
-        else
-        {
-            WindowState = _windowStateBeforeFullscreen;
+            _windowStateBeforeFullscreen = _lastNonFullscreenWindowState;
         }
 
         _isFullscreen = isFullscreen;
@@ -96,6 +136,7 @@ public partial class MainWindow : Window
 
         if (_isFullscreen)
         {
+            MoveFocusOutsideFullscreenToolbar();
             HideFullscreenToolbar(force: true);
         }
         else
@@ -103,6 +144,14 @@ public partial class MainWindow : Window
             _toolbarHideTimer.Stop();
             SessionToolbarHost.Opacity = 1;
             SessionToolbarHost.IsHitTestVisible = true;
+        }
+    }
+
+    private void MoveFocusOutsideFullscreenToolbar()
+    {
+        if (SessionToolbarHost.IsKeyboardFocusWithin)
+        {
+            RdpViewport.Focus();
         }
     }
 
@@ -130,6 +179,11 @@ public partial class MainWindow : Window
     private void OnFullscreenRevealZonePointerEntered(object? sender, PointerEventArgs e)
     {
         ShowFullscreenToolbar();
+    }
+
+    private void OnFullscreenRevealZonePointerExited(object? sender, PointerEventArgs e)
+    {
+        ScheduleFullscreenToolbarHide();
     }
 
     private void OnSessionToolbarPointerEntered(object? sender, PointerEventArgs e)
