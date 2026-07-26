@@ -23,4 +23,5 @@ ROADMAP.md
 /downloads/
 /installed/
 .superpowers
+.worktrees/
 .omp
