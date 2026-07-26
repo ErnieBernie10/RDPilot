@@ -26,7 +26,7 @@
             <views:NavigationRailView x:Name="NavigationRail" Grid.Column="0"/>
 
             <Grid x:Name="ContentGrid" Grid.Column="1" RowDefinitions="Auto,*" Margin="2" RowSpacing="1">
-                <Border x:Name="SessionToolbarHost" VerticalAlignment="Top">
+                <Border x:Name="SessionToolbarHost" VerticalAlignment="Top" ZIndex="1">
                     <Border.Transitions>
                         <Transitions>
                             <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
@@ -38,6 +38,7 @@
                         Grid.RowSpan="2"
                         Height="4"
                         VerticalAlignment="Top"
+                        ZIndex="2"
                         IsVisible="False"/>
                 <views:ShellOverlayHostView Grid.RowSpan="2" IsOpen="{Binding IsConnectionsPanelOpen}" OverlayWidth="280" ZIndex="10">
                     <views:ShellOverlayHostView.OverlayContent>

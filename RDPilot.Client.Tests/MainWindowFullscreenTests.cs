@@ -1,6 +1,11 @@
+using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using RDPilot.Client.Models;
+using RDPilot.Client.ViewModels;
 using RDPilot.Client.Views;
 using Xunit;
 
@@ -149,8 +154,82 @@ public sealed class MainWindowFullscreenTests
         });
     }
 
+    [Fact]
+    public void FullscreenRevealZone_RevealsHiddenToolbar()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.Show();
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+                Assert.False(toolbarHost.IsHitTestVisible);
+
+                revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
+
+                Assert.True(toolbarHost.IsHitTestVisible);
+                Assert.True(toolbarHost.Opacity > 0);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenTransition_PreservesSelectedSession()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var first = new RdpSessionViewModel(new SavedConnection { Name = "First" }, RdpSessionStatus.Disconnected);
+            var second = new RdpSessionViewModel(new SavedConnection { Name = "Second" }, RdpSessionStatus.Disconnected);
+            var viewModel = new MainWindowViewModel();
+            viewModel.Sessions.Add(first);
+            viewModel.Sessions.Add(second);
+            viewModel.SelectedSession = first;
+
+            var window = new MainWindow { DataContext = viewModel };
+            try
+            {
+                window.Show();
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var tabs = toolbarHost.GetVisualDescendants().OfType<TabControl>().Single();
+                tabs.SelectedIndex = 1;
+                Assert.Same(second, viewModel.SelectedSession);
+
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                FindFullscreenToggleButton(window)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Same(second, viewModel.SelectedSession);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     private static Button? FindFullscreenToggleButton(MainWindow window)
     {
         return window.FindControl<Border>("SessionToolbarHost")?.Child?.FindControl<Button>("FullscreenToggleButton");
     }
+
+    private static PointerEventArgs CreatePointerEvent(RoutedEvent routedEvent, Visual source)
+    {
+        return new PointerEventArgs(
+            routedEvent,
+            null,
+            new Pointer(1, PointerType.Mouse, true),
+            source,
+            new Point(),
+            0,
+            new PointerPointProperties(),
+            KeyModifiers.None);
+    }
+
 }
