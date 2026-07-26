@@ -221,12 +221,27 @@ public partial class RdpViewportView : UserControl
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (IsLocallyHandledFullscreenKey(e))
+        {
+            return;
+        }
+
         e.Handled = _presenter.HandleKeyDown(e.Source, RdpImage, e.Key);
     }
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
+        if (IsLocallyHandledFullscreenKey(e))
+        {
+            return;
+        }
+
         e.Handled = _presenter.HandleKeyUp(e.Source, RdpImage, e.Key);
+    }
+
+    private static bool IsLocallyHandledFullscreenKey(KeyEventArgs e)
+    {
+        return e.Handled && (e.Key == Key.F11 || e.Key == Key.Escape);
     }
 
     private void OnTextInput(object? sender, TextInputEventArgs e)

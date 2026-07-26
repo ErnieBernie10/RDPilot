@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -8,6 +9,7 @@ namespace RDPilot.Client.Views;
 public partial class MainWindow : Window
 {
     private readonly SessionTabsView _sessionToolbar;
+    private readonly HashSet<Key> _locallyHandledFullscreenKeys = [];
     private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
     private bool _isFullscreen;
 
@@ -19,6 +21,7 @@ public partial class MainWindow : Window
         _sessionToolbar.FullscreenToggleRequested += OnFullscreenToggleRequested;
         SessionToolbarHost.Child = _sessionToolbar;
         AddHandler(InputElement.KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, true);
+        AddHandler(InputElement.KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, true);
 
         Closed += (_, _) =>
         {
@@ -38,12 +41,22 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.F11)
         {
+            _locallyHandledFullscreenKeys.Add(e.Key);
             SetFullscreen(!_isFullscreen);
             e.Handled = true;
         }
         else if (_isFullscreen && e.Key == Key.Escape)
         {
+            _locallyHandledFullscreenKeys.Add(e.Key);
             SetFullscreen(false);
+            e.Handled = true;
+        }
+    }
+
+    private void OnWindowKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_locallyHandledFullscreenKeys.Remove(e.Key))
+        {
             e.Handled = true;
         }
     }
