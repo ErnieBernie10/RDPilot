@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using RDPilot.Client.Models;
 using RDPilot.Client.ViewModels;
@@ -272,11 +273,14 @@ public sealed class MainWindowFullscreenTests
             try
             {
                 var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var toolbarHideTimer = GetToolbarHideTimer(window);
                 toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
+                Assert.True(toolbarHideTimer.IsEnabled);
 
                 await Task.Delay(200);
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
                 Assert.NotEqual(WindowState.FullScreen, window.WindowState);
+                Assert.False(toolbarHideTimer.IsEnabled);
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
                 var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
                 revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
@@ -342,6 +346,14 @@ public sealed class MainWindowFullscreenTests
         revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
         Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
         return window;
+    }
+
+    private static DispatcherTimer GetToolbarHideTimer(MainWindow window)
+    {
+        var field = typeof(MainWindow).GetField(
+            "_toolbarHideTimer",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        return Assert.IsType<DispatcherTimer>(field?.GetValue(window));
     }
 
     private static PointerEventArgs CreatePointerEvent(RoutedEvent routedEvent, Visual source)
