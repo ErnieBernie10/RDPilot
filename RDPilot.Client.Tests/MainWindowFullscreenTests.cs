@@ -209,44 +209,38 @@ public sealed class MainWindowFullscreenTests
     [Fact]
     public async Task FullscreenToolbar_HidesAfterPointerExitDelay()
     {
-        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
-        try
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
         {
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            var window = CreateFullscreenWindowWithRevealedToolbar();
+            try
             {
                 var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
                 Assert.False(toolbarHost.IsKeyboardFocusWithin);
                 Assert.False(toolbarHost.IsPointerOver);
                 toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
-            });
 
-            await Task.Delay(300);
-            AvaloniaTestEnvironment.RunPendingDispatcherJobs();
-            AvaloniaTestEnvironment.RunOnUiThread(() => Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible));
+                await Task.Delay(300);
+                Assert.True(toolbarHost.IsHitTestVisible);
 
-            await Task.Delay(500);
-            AvaloniaTestEnvironment.RunPendingDispatcherJobs();
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
-            {
-                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                await Task.Delay(500);
                 Assert.False(toolbarHost.IsPointerOver);
                 Assert.False(toolbarHost.IsKeyboardFocusWithin);
                 Assert.False(toolbarHost.IsHitTestVisible);
-            });
-        }
-        finally
-        {
-            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
-        }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
     public async Task FullscreenToolbar_FocusLossOutsideHidesAfterDelay()
     {
-        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
-        try
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
         {
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            var window = CreateFullscreenWindowWithRevealedToolbar();
+            try
             {
                 var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
                 var button = FindFullscreenToggleButton(window)!;
@@ -258,48 +252,47 @@ public sealed class MainWindowFullscreenTests
                 focusTarget.Focus();
                 Assert.False(toolbarHost.IsKeyboardFocusWithin);
                 Assert.True(toolbarHost.IsHitTestVisible);
-            });
 
-            await Task.Delay(800);
-            AvaloniaTestEnvironment.RunPendingDispatcherJobs();
-            AvaloniaTestEnvironment.RunOnUiThread(() => Assert.False(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible));
-        }
-        finally
-        {
-            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
-        }
+                await Task.Delay(800);
+                Assert.False(toolbarHost.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
-    public async Task FullscreenExit_CancelsPendingHideAndRestoresToolbarAfterDelay()
+    public async Task FullscreenExit_CancelsPendingHideAcrossReentry()
     {
-        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
-        try
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
         {
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            var window = CreateFullscreenWindowWithRevealedToolbar();
+            try
             {
                 var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
                 toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
-            });
 
-            await Task.Delay(200);
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
-                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 }));
-
-            await Task.Delay(600);
-            AvaloniaTestEnvironment.RunPendingDispatcherJobs();
-            AvaloniaTestEnvironment.RunOnUiThread(() =>
-            {
-                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                await Task.Delay(200);
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
                 Assert.NotEqual(WindowState.FullScreen, window.WindowState);
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+                revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
+                Assert.True(toolbarHost.IsHitTestVisible);
+
+                await Task.Delay(600);
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
                 Assert.True(toolbarHost.IsHitTestVisible);
                 Assert.True(toolbarHost.Opacity > 0);
-            });
-        }
-        finally
-        {
-            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
-        }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
