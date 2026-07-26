@@ -1,4 +1,5 @@
 using System.Linq;
+using ReflectionBindingFlags = System.Reflection.BindingFlags;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -182,6 +183,120 @@ public sealed class MainWindowFullscreenTests
     }
 
     [Fact]
+    public void FullscreenToolbarButton_FocusedEntry_HidesToolbar()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.Show();
+                var button = FindFullscreenToggleButton(window)!;
+                button.Focus();
+                Assert.True(button.IsFocused);
+
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.False(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenToolbar_HidesAfterPointerExit()
+    {
+        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
+        try
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                Assert.False(toolbarHost.IsKeyboardFocusWithin);
+                Assert.False(toolbarHost.IsPointerOver);
+                toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
+            });
+
+            AvaloniaTestEnvironment.RunOnUiThread(() => AdvanceToolbarHideTimer(window));
+
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                Assert.False(toolbarHost.IsPointerOver);
+                Assert.False(toolbarHost.IsKeyboardFocusWithin);
+                Assert.False(toolbarHost.IsHitTestVisible);
+            });
+        }
+        finally
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
+        }
+    }
+
+    [Fact]
+    public void FullscreenToolbar_FocusRetainsVisibilityUntilFocusLeaves()
+    {
+        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
+        try
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                var button = FindFullscreenToggleButton(window)!;
+                button.Focus();
+                Assert.True(toolbarHost.IsKeyboardFocusWithin);
+                toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
+            });
+
+            AvaloniaTestEnvironment.RunOnUiThread(() => Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible));
+
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                Assert.False(toolbarHost.IsPointerOver);
+                toolbarHost.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
+            });
+
+            AvaloniaTestEnvironment.RunOnUiThread(() => Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible));
+        }
+        finally
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
+        }
+    }
+
+    [Fact]
+    public void FullscreenExit_CancelsPendingHideAndRestoresToolbar()
+    {
+        var window = AvaloniaTestEnvironment.RunOnUiThread(CreateFullscreenWindowWithRevealedToolbar);
+        try
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                toolbarHost.RaiseEvent(CreatePointerEvent(InputElement.PointerExitedEvent, toolbarHost));
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
+            });
+
+            AvaloniaTestEnvironment.RunOnUiThread(() => AdvanceToolbarHideTimer(window));
+            AvaloniaTestEnvironment.RunOnUiThread(() =>
+            {
+                var toolbarHost = window.FindControl<Border>("SessionToolbarHost")!;
+                Assert.NotEqual(WindowState.FullScreen, window.WindowState);
+                Assert.True(toolbarHost.IsHitTestVisible);
+                Assert.True(toolbarHost.Opacity > 0);
+            });
+        }
+        finally
+        {
+            AvaloniaTestEnvironment.RunOnUiThread(window.Close);
+        }
+    }
+
+    [Fact]
     public void FullscreenTransition_PreservesSelectedSession()
     {
         AvaloniaTestEnvironment.RunOnUiThread(() =>
@@ -217,6 +332,24 @@ public sealed class MainWindowFullscreenTests
     private static Button? FindFullscreenToggleButton(MainWindow window)
     {
         return window.FindControl<Border>("SessionToolbarHost")?.Child?.FindControl<Button>("FullscreenToggleButton");
+    }
+
+    private static MainWindow CreateFullscreenWindowWithRevealedToolbar()
+    {
+        var window = new MainWindow();
+        window.Show();
+        window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F11 });
+        var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+        revealZone.RaiseEvent(CreatePointerEvent(InputElement.PointerEnteredEvent, revealZone));
+        Assert.True(window.FindControl<Border>("SessionToolbarHost")!.IsHitTestVisible);
+        return window;
+    }
+
+    private static void AdvanceToolbarHideTimer(MainWindow window)
+    {
+        typeof(MainWindow)
+            .GetMethod("OnToolbarHideTimerTick", ReflectionBindingFlags.Instance | ReflectionBindingFlags.NonPublic)!
+            .Invoke(window, [null, EventArgs.Empty]);
     }
 
     private static PointerEventArgs CreatePointerEvent(RoutedEvent routedEvent, Visual source)

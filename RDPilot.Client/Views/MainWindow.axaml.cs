@@ -96,7 +96,7 @@ public partial class MainWindow : Window
 
         if (_isFullscreen)
         {
-            HideFullscreenToolbar();
+            HideFullscreenToolbar(force: true);
         }
         else
         {
@@ -149,9 +149,9 @@ public partial class MainWindow : Window
 
     private void OnSessionToolbarLostFocus(object? sender, FocusChangedEventArgs e)
     {
-        if (!SessionToolbarHost.IsPointerOver)
+        if (_isFullscreen && !SessionToolbarHost.IsPointerOver)
         {
-            ScheduleFullscreenToolbarHide();
+            _toolbarHideTimer.Start();
         }
     }
 
@@ -177,10 +177,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void HideFullscreenToolbar()
+    private void HideFullscreenToolbar(bool force = false)
     {
         _toolbarHideTimer.Stop();
-        if (_isFullscreen && !SessionToolbarHost.IsPointerOver && !SessionToolbarHost.IsKeyboardFocusWithin)
+        if (_isFullscreen && (force || (!SessionToolbarHost.IsPointerOver && !SessionToolbarHost.IsKeyboardFocusWithin)))
         {
             SessionToolbarHost.Opacity = 0;
             SessionToolbarHost.IsHitTestVisible = false;
