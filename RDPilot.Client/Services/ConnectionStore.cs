@@ -141,6 +141,7 @@ public sealed class ConnectionStore
         {
             Name = string.IsNullOrWhiteSpace(settings.Name) ? settings.Host : settings.Name,
             Host = settings.Host ?? "",
+            Port = RdpSessionOptions.NormalizePort(settings.Port),
             Domain = settings.Domain ?? "",
             Username = settings.Username ?? "",
             GatewayHost = settings.GatewayHost ?? "",
@@ -165,6 +166,7 @@ public sealed class ConnectionStore
     {
         public string? Name { get; set; }
         public string? Host { get; set; }
+        public ushort Port { get; set; }
         public string? Domain { get; set; }
         public string? Username { get; set; }
         public string? Password { get; set; }

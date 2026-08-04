@@ -10,10 +10,16 @@ internal static class RdpSessionOptions
     public const int DefaultColorDepth = 16;
     public const RdpConnectionType DefaultConnectionType = RdpConnectionType.Wan;
     public const uint DefaultDpiScalePercent = 100;
+    public const ushort DefaultPort = 3389;
 
     public static int NormalizeColorDepth(int colorDepth)
     {
         return colorDepth is 16 or 24 or 32 ? colorDepth : DefaultColorDepth;
+    }
+
+    public static ushort NormalizePort(ushort port)
+    {
+        return port == 0 ? DefaultPort : port;
     }
 
     public static int NormalizeConnectionType(int connectionType)

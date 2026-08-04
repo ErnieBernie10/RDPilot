@@ -29,7 +29,7 @@ typedef void (*ClipboardFilesCallback)(rdp_session* session, const char** file_p
 typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
 typedef int (*CertificateDecisionCallback)(rdp_session* session, const char* host, uint16_t port, const char* common_name, const char* subject, const char* issuer, const char* fingerprint, int is_changed, const char* previous_subject, const char* previous_issuer, const char* previous_fingerprint);
 
-FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const char* connect_host, const char* domain, const char* user, const char* password,
+FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const char* connect_host, uint16_t port, const char* domain, const char* user, const char* password,
                                                      const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                                      int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                                      bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,

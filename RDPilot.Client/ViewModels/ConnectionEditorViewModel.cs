@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using RDPilot.Client.Models;
+using System.Globalization;
 
 namespace RDPilot.Client.ViewModels;
 
@@ -11,6 +12,7 @@ public partial class ConnectionEditorViewModel : ViewModelBase
     [ObservableProperty] private string _title;
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private string _host = "";
+    [ObservableProperty] private string _port = "3389";
     [ObservableProperty] private string _domain = "";
     [ObservableProperty] private string _username = "";
     [ObservableProperty] private string _password = "";
@@ -27,6 +29,7 @@ public partial class ConnectionEditorViewModel : ViewModelBase
         _title = _isEdit ? "Edit connection" : "Add connection";
         Name = _original.Name;
         Host = _original.Host;
+        Port = _original.Port.ToString(CultureInfo.InvariantCulture);
         Domain = _original.Domain;
         Username = _original.Username;
         GatewayHost = _original.GatewayHost;
@@ -55,9 +58,16 @@ public partial class ConnectionEditorViewModel : ViewModelBase
             return null;
         }
 
+        if (!ushort.TryParse(Port.Trim(), out var port) || port == 0)
+        {
+            ValidationMessage = "Port must be a number from 1 to 65535.";
+            return null;
+        }
+
         var connection = _original.Clone();
         connection.Name = Name.Trim();
         connection.Host = Host.Trim();
+        connection.Port = port;
         connection.Domain = Domain.Trim();
         connection.Username = Username.Trim();
         connection.GatewayHost = GatewayHost.Trim();

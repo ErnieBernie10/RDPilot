@@ -89,4 +89,13 @@ public sealed class RdpSessionOptionsTests
         var (width, height) = RdpSessionOptions.NormalizeResolution(1920, 1080);
         Assert.Equal((1920, 1080), (width, height));
     }
+
+    [Theory]
+    [InlineData((ushort)0, (ushort)3389)]
+    [InlineData((ushort)3389, (ushort)3389)]
+    [InlineData((ushort)65535, (ushort)65535)]
+    public void NormalizePort_UsesDefaultForInvalidPersistedValue(ushort input, ushort expected)
+    {
+        Assert.Equal(expected, RdpSessionOptions.NormalizePort(input));
+    }
 }

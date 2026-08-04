@@ -44,15 +44,6 @@ void process_pending_input(rdp_session* session)
         }
         else
         {
-            if (session->input_keyboard_log_count < 32)
-            {
-                session->input_keyboard_log_count++;
-                printf("[KEYBOARD] phase=native-send flags=0x%04X code=0x%02X extended=%s release=%s\n",
-                       event->flags,
-                       event->code,
-                       (event->flags & 0x0100) ? "true" : "false",
-                       (event->flags & 0x8000) ? "true" : "false");
-            }
             freerdp_input_send_keyboard_event(session->instance->context->input, event->flags, (UINT8)event->code);
         }
     }

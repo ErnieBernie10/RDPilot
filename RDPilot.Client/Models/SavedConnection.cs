@@ -7,6 +7,7 @@ public sealed class SavedConnection
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "New connection";
     public string Host { get; set; } = "";
+    public ushort Port { get; set; } = 3389;
     public string Domain { get; set; } = "";
     public string Username { get; set; } = "";
     public string GatewayHost { get; set; } = "";
@@ -23,6 +24,7 @@ public sealed class SavedConnection
             Id = Id,
             Name = Name,
             Host = Host,
+            Port = Port,
             Domain = Domain,
             Username = Username,
             GatewayHost = GatewayHost,

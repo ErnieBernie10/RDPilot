@@ -25,8 +25,6 @@ internal sealed class RdpViewportPresenter
     private readonly ClipboardSyncService _clipboardSyncService;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private bool _rdpKeyboardActive;
-    private int _keyboardLogCount;
-    private int _textInputLogCount;
     private double _lastObservedScale = 1.0;
 
     public RdpViewportPresenter(
@@ -70,11 +68,9 @@ internal sealed class RdpViewportPresenter
         {
             _clipboardSyncService.BeginRemoteTextUpdate(text);
             await clipboard.SetTextAsync(text);
-            Console.WriteLine($"[CLIPRDR] set local clipboard from remote chars={text.Length}");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[CLIPRDR] failed to set local clipboard: {ex.Message}");
         }
         finally
         {
@@ -94,11 +90,9 @@ internal sealed class RdpViewportPresenter
         {
             _clipboardSyncService.BeginRemoteFilesUpdate(filePaths);
             await clipboard.SetFilesAsync(_createStorageItems(filePaths));
-            Console.WriteLine($"[CLIPRDR] set local clipboard from remote files count={filePaths.Length}");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[CLIPRDR] failed to set local file clipboard: {ex.Message}");
         }
         finally
         {
@@ -160,7 +154,6 @@ internal sealed class RdpViewportPresenter
             {
                 if (_clipboardSyncService.TryRememberText(text, out _))
                 {
-                    Console.WriteLine($"[CLIPRDR] local clipboard text chars={text.Length}");
                     vm?.SetLocalClipboardText(text);
                 }
 
@@ -177,9 +170,8 @@ internal sealed class RdpViewportPresenter
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[CLIPRDR] failed to poll local clipboard: {ex.Message}");
         }
     }
 
@@ -306,10 +298,8 @@ internal sealed class RdpViewportPresenter
             return false;
         }
 
-        ushort originalScancode = scancode;
         ushort flags = RdpKeyboardInputMapper.BuildKeyFlags(scancode, isRelease: false, out scancode);
 
-        LogKeyboardEvent("down", key, flags, scancode, originalScancode);
         _rdpKeyboardActive = true;
         _pressedRdpKeys.Add(key);
         vm.SendKeyboardEvent(flags, scancode);
@@ -334,25 +324,12 @@ internal sealed class RdpViewportPresenter
             return false;
         }
 
-        ushort originalScancode = scancode;
         ushort flags = RdpKeyboardInputMapper.BuildKeyFlags(scancode, isRelease: true, out scancode);
 
-        LogKeyboardEvent("up", key, flags, scancode, originalScancode);
         vm.SendKeyboardEvent(flags, scancode);
         _pressedRdpKeys.Remove(key);
         _rdpKeyboardActive = _pressedRdpKeys.Count > 0;
         return true;
-    }
-
-    public void HandleTextInput(object? source, object rdpImage, string? text)
-    {
-        if (!ReferenceEquals(source, rdpImage) || string.IsNullOrEmpty(text) || _textInputLogCount >= 32)
-        {
-            return;
-        }
-
-        _textInputLogCount++;
-        Console.WriteLine($"[KEYBOARD] phase=avalonia-text text={FormatTextForLog(text)} length={text.Length}");
     }
 
     public void ReleasePressedRdpKeys()
@@ -384,26 +361,6 @@ internal sealed class RdpViewportPresenter
     private bool ShouldHandleKeyboardEvent(object? source, object rdpImage)
     {
         return ReferenceEquals(source, rdpImage) || _rdpKeyboardActive;
-    }
-
-    private void LogKeyboardEvent(string phase, Key key, ushort flags, ushort scancode, ushort originalScancode)
-    {
-        if (_keyboardLogCount >= 32)
-        {
-            return;
-        }
-
-        _keyboardLogCount++;
-        Console.WriteLine($"[KEYBOARD] phase=avalonia-{phase} key={key} flags=0x{flags:X4} scancode=0x{scancode:X2} original=0x{originalScancode:X3}");
-    }
-
-    private static string FormatTextForLog(string text)
-    {
-        return text
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal);
     }
 
     private static void SendWheelDelta(MainWindowViewModel vm, ushort wheelFlag, double delta, double dipX, double dipY)

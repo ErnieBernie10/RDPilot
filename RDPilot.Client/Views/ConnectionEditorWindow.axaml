@@ -20,7 +20,10 @@
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
                         <TextBlock Text="Remote PC" FontWeight="SemiBold"/>
                         <TextBox Grid.Column="1" Text="{Binding Name}" PlaceholderText="Connection name"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Host}" PlaceholderText="Host or IP address"/>
+                        <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,96" ColumnSpacing="10">
+                            <TextBox Text="{Binding Host}" PlaceholderText="Host or IP address"/>
+                            <TextBox Grid.Column="1" Text="{Binding Port}" PlaceholderText="Port"/>
+                        </Grid>
                         <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Domain}" PlaceholderText="Domain optional"/>
                     </Grid>
                 </Border>

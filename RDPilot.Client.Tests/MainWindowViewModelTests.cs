@@ -170,6 +170,7 @@ public sealed class MainWindowViewModelTests
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
         var connection = CreateConnection("Persist Test");
+        connection.Port = 3390;
 
         await store.SaveAsync(connection, "top-secret", true, "gateway-secret", true);
 
@@ -177,8 +178,42 @@ public sealed class MainWindowViewModelTests
 
         Assert.DoesNotContain("top-secret", json, StringComparison.Ordinal);
         Assert.DoesNotContain("gateway-secret", json, StringComparison.Ordinal);
+        Assert.Contains("\"Port\": 3390", json, StringComparison.Ordinal);
+        var loaded = Assert.Single(await store.LoadAsync());
+        Assert.Equal((ushort)3390, loaded.Port);
         Assert.Equal("top-secret", await secretStore.GetSecretAsync(SecretStore.PasswordKey(connection.Id)));
         Assert.Equal("gateway-secret", await secretStore.GetSecretAsync(SecretStore.GatewayPasswordKey(connection.Id)));
+    }
+
+    [Fact]
+    public async Task ImportLocalConnection_PreservesCustomPort()
+    {
+        using var env = new TestConfigHome();
+        var localConnectionPath = Path.Combine(AppContext.BaseDirectory, "connection.local.json");
+        var originalFile = File.Exists(localConnectionPath) ? await File.ReadAllTextAsync(localConnectionPath) : null;
+
+        try
+        {
+            await File.WriteAllTextAsync(localConnectionPath, "{\"Host\":\"rdp.example.local\",\"Port\":3390}");
+            var store = new ConnectionStore(new FakeSecretStore());
+            var method = typeof(ConnectionStore).GetMethod("TryImportLocalConnectionAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            var imported = await Assert.IsAssignableFrom<Task<List<SavedConnection>>>(method.Invoke(store, null));
+
+            Assert.Equal((ushort)3390, Assert.Single(imported).Port);
+        }
+        finally
+        {
+            if (originalFile == null)
+            {
+                File.Delete(localConnectionPath);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(localConnectionPath, originalFile);
+            }
+        }
     }
 
     [Fact]

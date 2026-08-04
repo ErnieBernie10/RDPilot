@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Avalonia;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using RDPilot.Client;
 using RDPilot.Client.Models;
 using RDPilot.Client.ViewModels;
@@ -197,6 +200,63 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
+    public void CertificateDecisionCallback_DuringNativeInitialization_AcceptsFirstSessionCallback()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Certificate Startup"), RdpSessionStatus.Connecting);
+        SetField(session, "_initializingNativeSession", 1);
+
+        SetField(
+            session,
+            "_certificateTrustDecision",
+            (Func<RdpCertificatePrompt, CertificateTrustDecision>)(_ => CertificateTrustDecision.TrustOnce));
+
+        using var commonName = Utf8String.Alloc("127.0.0.1");
+        using var subject = Utf8String.Alloc("CN=127.0.0.1");
+        using var issuer = Utf8String.Alloc("CN=Lab CA");
+        using var fingerprint = Utf8String.Alloc("AB:CD:EF");
+
+        var decision = InvokePrivate<int>(
+            session,
+            "OnCertificateDecisionRequested",
+            [typeof(IntPtr), typeof(IntPtr), typeof(ushort), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr), typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr)],
+            new IntPtr(0x2345),
+            IntPtr.Zero,
+            (ushort)3390,
+            commonName.Pointer,
+            subject.Pointer,
+            issuer.Pointer,
+            fingerprint.Pointer,
+            0,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            IntPtr.Zero);
+
+        Assert.Equal((int)CertificateTrustDecision.TrustOnce, decision);
+    }
+
+    [Fact]
+    public void NativeStatusCallback_DuringNativeInitialization_AcceptsFirstSessionCallback()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Status Startup"), RdpSessionStatus.Connecting);
+        SetField(session, "_initializingNativeSession", 1);
+
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+            InvokePrivate(
+                session,
+                "OnStatusChanged",
+                [typeof(IntPtr), typeof(int), typeof(uint), typeof(IntPtr), typeof(IntPtr)],
+                new IntPtr(0x2345),
+                1,
+                0u,
+                IntPtr.Zero,
+                IntPtr.Zero));
+
+        Assert.Equal(RdpSessionStatus.Connected, session.Status);
+    }
+
+    [Fact]
     public void NativeStatusCallback_DisposedBeforeDispatcherDrain_DropsPendingStateChange()
     {
         AvaloniaTestEnvironment.EnsureInitialized();
@@ -319,6 +379,34 @@ public sealed class RdpSessionViewModelTests
 
         Assert.Equal((1600, 900, 100u), Assert.Single(nativeSession.ResolutionUpdates));
         Assert.Equal(1.4, Assert.IsType<double>(GetField(session, "_renderScaling")));
+    }
+
+    [Fact]
+    public void UpdateResolution_RenderScalingChanges_RefreshesDisplayDimensions()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            using var session = new RdpSessionViewModel(CreateConnection("Scale Test"), RdpSessionStatus.Connected);
+            var nativeSession = new FakeNativeSession(new IntPtr(0x6790));
+            AttachNativeSession(session, nativeSession);
+            using var bitmap = new WriteableBitmap(
+                new PixelSize(1000, 500),
+                new Vector(96, 96),
+                PixelFormat.Bgra8888,
+                AlphaFormat.Premul);
+            session.Screen = bitmap;
+            var changedProperties = new List<string?>();
+            session.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+            session.UpdateResolution(2000, 1000, renderScaling: 2.0);
+
+            Assert.Equal(500, session.DisplayWidth);
+            Assert.Equal(250, session.DisplayHeight);
+            Assert.Contains(nameof(session.DisplayWidth), changedProperties);
+            Assert.Contains(nameof(session.DisplayHeight), changedProperties);
+        });
     }
 
     [Fact]

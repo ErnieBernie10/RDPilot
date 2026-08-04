@@ -235,8 +235,6 @@ static BOOL resize_local_framebuffer(rdpContext* context, UINT32 width, UINT32 h
 
     if (context->gdi->width == (INT32)width && context->gdi->height == (INT32)height) return TRUE;
 
-    printf("[DEBUG] Local framebuffer resize: %ux%u\n", width, height);
-
     // Hold frame_lock across gdi_resize so the UI/present thread cannot be mid-copy when the
     // primary buffer is freed/reallocated. The RDP decode loop's surface blits run outside this
     // lock (tearing is benign); only the buffer lifetime is protected here.
@@ -279,7 +277,6 @@ static void init_graphics_pipeline(rdpContext* context)
         return;
     }
 
-    printf("[DEBUG] RDPGFX GDI pipeline initialized\n");
 }
 
 static UINT32 clamp_uint32(UINT32 value, UINT32 min, UINT32 max)
@@ -378,12 +375,6 @@ static rendering_mode get_configured_rendering_mode(void)
     }
 
     return RENDERING_MODE_GFX_GDI;
-}
-
-static const char* rendering_mode_name(rendering_mode mode)
-{
-    if (mode == RENDERING_MODE_GFX_GDI) return "gfx-gdi";
-    return "classic-gdi";
 }
 
 static bool is_graphics_pipeline_mode(rendering_mode mode)
@@ -500,18 +491,6 @@ static void configure_graphics_pipeline_settings(rdpSettings* settings, renderin
     freerdp_settings_set_bool(settings, FreeRDP_GfxCodecAV1, FALSE);
 }
 
-static void log_keyboard_settings(const char* phase, rdpSettings* settings)
-{
-    if (!settings) return;
-
-    printf("[KEYBOARD] phase=%s layout=0x%08X type=%u subtype=%u functionKeys=%u\n",
-           phase,
-           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardLayout),
-           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardType),
-           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardSubType),
-           freerdp_settings_get_uint32(settings, FreeRDP_KeyboardFunctionKey));
-}
-
 static UINT32 get_gdi_pixel_format(rendering_mode mode)
 {
     (void)mode;
@@ -585,8 +564,6 @@ static BOOL on_desktop_resize(rdpContext* context)
 
     UINT32 width = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopWidth);
     UINT32 height = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopHeight);
-    printf("[DEBUG] Desktop Resize: %ux%u\n", width, height);
-
     if (!resize_local_framebuffer(context, width, height))
     {
         return FALSE;
@@ -600,26 +577,14 @@ static UINT on_display_control_caps(DispClientContext* context, UINT32 maxNumMon
 {
     rdp_session* session = context ? (rdp_session*)context->custom : NULL;
     if (session) session->disp_ready = true;
-    printf("[DEBUG] Display Control caps: maxMonitors=%u areaFactor=%ux%u\n",
-           maxNumMonitors, maxMonitorAreaFactorA, maxMonitorAreaFactorB);
-    return CHANNEL_RC_OK;
-}
-
-static UINT on_gfx_caps_confirm_log(RdpgfxClientContext* context, const RDPGFX_CAPS_CONFIRM_PDU* caps)
-{
-    (void)context;
-    if (caps && caps->capsSet)
-    {
-        printf("[RDPGFX] capsConfirm version=0x%08X flags=0x%08X\n",
-               caps->capsSet->version,
-               caps->capsSet->flags);
-    }
+    (void)maxNumMonitors;
+    (void)maxMonitorAreaFactorA;
+    (void)maxMonitorAreaFactorB;
     return CHANNEL_RC_OK;
 }
 
 static void on_channel_connected(void* context, const ChannelConnectedEventArgs* e)
 {
-    printf("[DEBUG] Channel connected: %s\n", e->name);
     if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
     {
         rdp_session* session = session_from_context((rdpContext*)context);
@@ -630,11 +595,6 @@ static void on_channel_connected(void* context, const ChannelConnectedEventArgs*
             session->disp->custom = session;
             session->disp->DisplayControlCaps = on_display_control_caps;
         }
-        printf("Display Control channel connected\n");
-    }
-    else if (strcmp(e->name, "drdynvc") == 0)
-    {
-        printf("DVC manager connected\n");
     }
     else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
     {
@@ -651,7 +611,6 @@ static void on_channel_connected(void* context, const ChannelConnectedEventArgs*
             session->cliprdr->ServerFormatDataResponse = on_cliprdr_server_format_data_response;
             session->cliprdr->ServerFileContentsResponse = on_cliprdr_server_file_contents_response;
         }
-        printf("[CLIPRDR] channel connected\n");
     }
     else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0)
     {
@@ -659,20 +618,11 @@ static void on_channel_connected(void* context, const ChannelConnectedEventArgs*
         if (session) session->gfx = (RdpgfxClientContext*)e->pInterface;
         if (session && session->gfx) session->gfx->custom = session;
         init_graphics_pipeline((rdpContext*)context);
-        if (session && session->gfx)
-        {
-            // Observe-only CapsConfirm hook (no chained handler; the default FreeRDP behavior is
-            // a no-op and we never overrode it with the surface-renderer path). Restores
-            // visibility into the negotiated RDPGFX capset so we can confirm which codec family
-            // the server picked (e.g. ClearCodec vs AVC).
-            session->gfx->CapsConfirm = on_gfx_caps_confirm_log;
-        }
     }
 }
 
 static void on_channel_disconnected(void* context, const ChannelDisconnectedEventArgs* e)
 {
-    printf("[DEBUG] Channel disconnected: %s\n", e->name);
     rdp_session* session = session_from_context((rdpContext*)context);
     if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
     {
@@ -694,7 +644,6 @@ static void on_channel_disconnected(void* context, const ChannelDisconnectedEven
     else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
     {
         if (session) session->cliprdr = NULL;
-        printf("[CLIPRDR] channel disconnected\n");
     }
 }
 
@@ -704,8 +653,6 @@ static void on_graphics_reset(void* context, const GraphicsResetEventArgs* e)
     rdp_session* session = session_from_context(rdp_context);
     UINT32 width = e && e->width != 0 ? e->width : freerdp_settings_get_uint32(rdp_context->settings, FreeRDP_DesktopWidth);
     UINT32 height = e && e->height != 0 ? e->height : freerdp_settings_get_uint32(rdp_context->settings, FreeRDP_DesktopHeight);
-    printf("[DEBUG] Graphics Reset: %ux%u\n", width, height);
-
     if (session && is_graphics_pipeline_mode(session->render_mode))
     {
         if (rdp_context->gdi)
@@ -799,7 +746,6 @@ static bool process_pending_resize(rdp_session* session)
     if (session->target_width == width && session->target_height == height) session->resize_pending = false;
     LeaveCriticalSection(&session->resize_lock);
 
-    printf("Sent monitor layout update: %ux%u\n", width, height);
     return true;
 }
 
@@ -980,16 +926,10 @@ static bool setup_instance(rdp_session* session, const connection_params* params
 
     rdpSettings* settings = session->instance->context->settings;
     const char* server_hostname = use_gateway ? params->host : params->connect_host;
-    printf("[DEBUG] Target host='%s' connectHost='%s' serverHostname='%s' port=%u gateway=%s\n",
-           params->host,
-           params->connect_host,
-           server_hostname,
-           DEFAULT_RDP_PORT,
-           use_gateway ? "true" : "false");
     freerdp_settings_set_string(settings, FreeRDP_ServerHostname, server_hostname);
     freerdp_settings_set_string(settings, FreeRDP_UserSpecifiedServerName, params->host);
     freerdp_settings_set_string(settings, FreeRDP_CertificateName, params->host);
-    freerdp_settings_set_uint32(settings, FreeRDP_ServerPort, DEFAULT_RDP_PORT);
+    freerdp_settings_set_uint32(settings, FreeRDP_ServerPort, params->port);
     freerdp_settings_set_string(settings, FreeRDP_Domain, params->domain);
     freerdp_settings_set_string(settings, FreeRDP_Username, params->user);
     freerdp_settings_set_string(settings, FreeRDP_Password, params->password);
@@ -1025,7 +965,7 @@ static bool setup_instance(rdp_session* session, const connection_params* params
 
     freerdp_settings_set_bool(settings, FreeRDP_SupportDynamicChannels, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportDisplayControl, TRUE);
-    freerdp_settings_set_bool(settings, FreeRDP_SupportMonitorLayoutPdu, TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_SupportMonitorLayoutPdu, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportGraphicsPipeline,
                               is_graphics_pipeline_mode(session->render_mode) ? TRUE : FALSE);
     configure_graphics_pipeline_settings(settings, session->render_mode);
@@ -1050,12 +990,10 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_MstscCookieMode, TRUE);
-    printf("[KEYBOARD] phase=requested layout=0x%08X\n", params->keyboard_layout);
     if (params->keyboard_layout != 0) freerdp_settings_set_uint32(settings, FreeRDP_KeyboardLayout, params->keyboard_layout);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardType, WINPR_KBD_TYPE_IBM_ENHANCED);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardSubType, 0);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardFunctionKey, 12);
-    log_keyboard_settings("configured", settings);
     freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, params->compression ? TRUE : FALSE);
@@ -1070,43 +1008,10 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, params->font_smoothing ? TRUE : FALSE);
     freerdp_performance_flags_make(settings);
 
-    printf("[RENDER] mode=%s supportGraphicsPipeline=%s\n",
-           rendering_mode_name(session->render_mode),
-           is_graphics_pipeline_mode(session->render_mode) ? "true" : "false");
-    if (is_graphics_pipeline_mode(session->render_mode))
-    {
-        printf("[RENDER] gfxCodecPolicy=%s\n", get_gfx_codec_policy());
-        printf("[RENDER] gfxFrameAck=%s gfxQoeAck=%s\n",
-               get_gfx_frame_ack_enabled(session->render_mode) ? "on" : "off",
-               get_gfx_qoe_ack_enabled(session->render_mode) ? "on" : "off");
-        printf("[RENDER] gfxCapsFilter=0x%08X\n",
-               freerdp_settings_get_uint32(settings, FreeRDP_GfxCapsFilter));
-    }
-    printf("[RENDER] connectionType=%u performanceFlags=0x%08X\n",
-           freerdp_settings_get_uint32(settings, FreeRDP_ConnectionType),
-           freerdp_settings_get_uint32(settings, FreeRDP_PerformanceFlags));
-    printf("[DEBUG] Channels set up, connecting...\n");
     freerdp_settings_set_string(settings, FreeRDP_ClientHostname, "RDPilot");
 
     UINT32 color_depth = (UINT32)params->color_depth;
     freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, color_depth);
-    fprintf(stderr,
-            "[QUALITY] colorDepth=%u connectionType=%u networkAutoDetect=%s compression=%s bitmapCache=%s "
-            "fontSmoothing=%s wallpaper=%s themes=%s menuAnimations=%s fullWindowDrag=%s "
-            "performanceFlags=0x%08X\n",
-            freerdp_settings_get_uint32(settings, FreeRDP_ColorDepth),
-            freerdp_settings_get_uint32(settings, FreeRDP_ConnectionType),
-            freerdp_settings_get_bool(settings, FreeRDP_NetworkAutoDetect) ? "on" : "off",
-            freerdp_settings_get_bool(settings, FreeRDP_CompressionEnabled) ? "on" : "off",
-            freerdp_settings_get_bool(settings, FreeRDP_BitmapCacheEnabled) ? "on" : "off",
-            freerdp_settings_get_bool(settings, FreeRDP_AllowFontSmoothing) ? "on" : "off",
-            freerdp_settings_get_bool(settings, FreeRDP_DisableWallpaper) ? "off" : "on",
-            freerdp_settings_get_bool(settings, FreeRDP_DisableThemes) ? "off" : "on",
-            freerdp_settings_get_bool(settings, FreeRDP_DisableMenuAnims) ? "off" : "on",
-            freerdp_settings_get_bool(settings, FreeRDP_DisableFullWindowDrag) ? "off" : "on",
-            freerdp_settings_get_uint32(settings, FreeRDP_PerformanceFlags));
-    fflush(stderr);
-
     UINT32 desktop_width = (UINT32)params->width;
     UINT32 desktop_height = (UINT32)params->height;
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth, desktop_width);
@@ -1115,7 +1020,7 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     session->last_sent_height = desktop_height;
 
     freerdp_settings_set_uint32(settings, FreeRDP_MonitorCount, 1);
-    freerdp_settings_set_bool(settings, FreeRDP_UseMultimon, TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_UseMultimon, FALSE);
 
     rdpMonitor* monitors = calloc(1, sizeof(rdpMonitor));
     monitors[0].x = 0;
@@ -1140,8 +1045,6 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     PubSub_SubscribeChannelConnected(session->instance->context->pubSub, on_channel_connected);
     PubSub_SubscribeChannelDisconnected(session->instance->context->pubSub, on_channel_disconnected);
     PubSub_SubscribeGraphicsReset(session->instance->context->pubSub, on_graphics_reset);
-    printf("[DEBUG] Subscribed to Channel events\n");
-
     return true;
 }
 
@@ -1159,8 +1062,6 @@ static bool connect_attempt(rdp_session* session, const connection_params* param
         return false;
     }
 
-    printf("[DEBUG] Connecting %s gateway...\n", use_gateway ? "with" : "without");
-
     if (!freerdp_connect(session->instance)) {
         fprintf(stderr, "Failed to connect %s gateway\n", use_gateway ? "with" : "without");
         capture_last_error(session->instance->context, error);
@@ -1170,10 +1071,6 @@ static bool connect_attempt(rdp_session* session, const connection_params* param
     }
 
     session->connect_succeeded = true;
-    if (session->instance && session->instance->context)
-    {
-        log_keyboard_settings("connected", session->instance->context->settings);
-    }
     return true;
 }
 
@@ -1322,7 +1219,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
     return 0;
 }
 
-rdp_session* rdp_session_connect(const char* host, const char* connect_host, const char* domain, const char* user, const char* password,
+rdp_session* rdp_session_connect(const char* host, const char* connect_host, uint16_t port, const char* domain, const char* user, const char* password,
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
@@ -1373,6 +1270,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     params->session = session;
     copy_string_field(params->host, sizeof(params->host), host);
     copy_string_field(params->connect_host, sizeof(params->connect_host), connect_host && connect_host[0] != '\0' ? connect_host : host);
+    params->port = port;
     copy_string_field(params->domain, sizeof(params->domain), domain);
     copy_string_field(params->user, sizeof(params->user), user);
     copy_string_field(params->password, sizeof(params->password), password);
@@ -1393,6 +1291,19 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, con
     params->connection_type = (int)connection_type;
     params->network_auto_detect = network_auto_detect;
     params->keyboard_layout = keyboard_layout;
+
+#if defined(_WIN32)
+    WSADATA wsa_data;
+    const int wsa_status = WSAStartup(MAKEWORD(2, 2), &wsa_data);
+    if (wsa_status != 0)
+    {
+        fprintf(stderr, "Failed to initialize Winsock: %d\n", wsa_status);
+        free(params);
+        rdp_session_free(session);
+        return NULL;
+    }
+    session->winsock_initialized = true;
+#endif
 
     session->running = true;
     session->thread = CreateThread(NULL, 0, rdp_thread_func, params, 0, NULL);
@@ -1437,6 +1348,10 @@ void rdp_session_free(rdp_session* session) {
     if (session->file_clipboard)
         ClipboardDestroy(session->file_clipboard);
     free_clipboard_data(session);
+#if defined(_WIN32)
+    if (session->winsock_initialized)
+        WSACleanup();
+#endif
     free(session);
 }
 

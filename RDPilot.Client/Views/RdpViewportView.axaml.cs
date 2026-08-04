@@ -82,7 +82,6 @@ public partial class RdpViewportView : UserControl
         _hostWindow.LayoutUpdated += OnHostWindowLayoutUpdated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
-        _hostWindow.AddHandler(InputElement.TextInputEvent, OnTextInput, RoutingStrategies.Bubble, true);
         _clipboardPollTimer.Start();
         QueueViewportResolutionUpdate();
     }
@@ -103,7 +102,6 @@ public partial class RdpViewportView : UserControl
         _hostWindow.LayoutUpdated -= OnHostWindowLayoutUpdated;
         _hostWindow.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _hostWindow.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
-        _hostWindow.RemoveHandler(InputElement.TextInputEvent, OnTextInput);
         _hostWindow = null;
     }
 
@@ -244,8 +242,4 @@ public partial class RdpViewportView : UserControl
         return e.Handled && (e.Key == Key.F11 || e.Key == Key.Escape);
     }
 
-    private void OnTextInput(object? sender, TextInputEventArgs e)
-    {
-        _presenter.HandleTextInput(e.Source, RdpImage, e.Text);
-    }
 }

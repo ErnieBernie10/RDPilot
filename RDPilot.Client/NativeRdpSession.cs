@@ -40,6 +40,7 @@ internal sealed class NativeRdpSession : INativeRdpSession
     public static INativeRdpSession Connect(
         string host,
         string connectHost,
+        ushort port,
         string domain,
         string user,
         string password,
@@ -70,6 +71,7 @@ internal sealed class NativeRdpSession : INativeRdpSession
         var handle = NativeWrapper.rdp_session_connect(
             host,
             connectHost,
+            port,
             domain,
             user,
             password,

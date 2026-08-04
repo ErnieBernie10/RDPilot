@@ -27,6 +27,9 @@
 #include <winpr/user.h>
 #include <winpr/wtypes.h>
 #include <winpr/thread.h>
+#if defined(_WIN32)
+#include <winpr/winsock.h>
+#endif
 #include <stdbool.h>
 #include <ctype.h>
 #include <inttypes.h>
@@ -42,7 +45,6 @@
 #endif
 
 #define CONNECT_TIMEOUT_MS 3000
-#define DEFAULT_RDP_PORT 3389
 #define INPUT_QUEUE_CAPACITY 256
 #define INPUT_LOOP_TIMEOUT_MS 10
 
@@ -76,6 +78,7 @@ struct rdp_session {
     RdpgfxClientContext* gfx;
     HANDLE thread;
     bool running;
+    bool winsock_initialized;
     bool connect_succeeded;
     rendering_mode render_mode;
     bool disp_ready;
@@ -102,7 +105,6 @@ struct rdp_session {
     CRITICAL_SECTION input_lock;
     input_event input_queue[INPUT_QUEUE_CAPACITY];
     UINT32 input_queue_count;
-    UINT32 input_keyboard_log_count;
     UINT32 input_dropped;
     UINT32 dpi_scale_percent;
     CRITICAL_SECTION clipboard_lock;
@@ -159,6 +161,7 @@ typedef struct {
     rdp_session* session;
     char host[256];
     char connect_host[256];
+    UINT16 port;
     char domain[256];
     char user[256];
     char password[256];

@@ -31,7 +31,6 @@ internal static class NativeWrapper
         var nativeDllDirectory = GetWindowsNativeDllDirectory();
         if (Directory.Exists(nativeDllDirectory))
         {
-            Console.WriteLine($"[DEBUG] Native DLL directory: '{nativeDllDirectory}'");
             SetDllDirectory(nativeDllDirectory);
         }
     }
@@ -66,9 +65,8 @@ internal static class NativeWrapper
                 ?? addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetworkV6)?.ToString()
                 ?? host;
         }
-        catch (SocketException ex)
+        catch (SocketException)
         {
-            Console.WriteLine($"[DEBUG] Windows DNS pre-resolution failed for '{host}': {ex.Message}");
             return host;
         }
     }
@@ -77,7 +75,6 @@ internal static class NativeWrapper
     {
         if (!OperatingSystem.IsWindows())
         {
-            Console.WriteLine("[KEYBOARD] platform=non-windows layout=0x00000000 source=default");
             return 0;
         }
 
@@ -85,14 +82,12 @@ internal static class NativeWrapper
         if (GetKeyboardLayoutName(layoutName) &&
             uint.TryParse(layoutName.ToString(), System.Globalization.NumberStyles.HexNumber, null, out var parsedLayout))
         {
-            Console.WriteLine($"[KEYBOARD] platform=windows layout=0x{parsedLayout:X8} source=GetKeyboardLayoutName name={layoutName}");
             return parsedLayout;
         }
 
         var keyboardLayout = GetKeyboardLayout(0);
         var rawLayout = (ulong)keyboardLayout.ToInt64();
         var lowWordLayout = (uint)(rawLayout & 0xFFFF);
-        Console.WriteLine($"[KEYBOARD] platform=windows layout=0x{lowWordLayout:X8} rawHkl=0x{rawLayout:X16} source=GetKeyboardLayout fallbackLastWin32Error={Marshal.GetLastWin32Error()}");
         return lowWordLayout;
     }
 
@@ -126,6 +121,7 @@ internal static class NativeWrapper
     internal static extern IntPtr rdp_session_connect(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string host,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string connectHost,
+            ushort port,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string domain,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string user,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string password,

@@ -49,6 +49,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private readonly ManagedFramePresenter _framePresenter;
     private INativeRdpSession? _nativeSession;
     private IntPtr _handle;
+    private int _initializingNativeSession;
     private int _disposeStarted;
     private int _disposed;
     private int _requestedWidth;
@@ -99,9 +100,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
             var keyboardLayout = NativeWrapper.GetCurrentKeyboardLayout();
             var networkSettings = RdpSessionOptions.NormalizeNetworkSettings(connectionType);
+            Volatile.Write(ref _initializingNativeSession, 1);
             _nativeSession = NativeRdpSession.Connect(
                 connection.Host,
                 connectHost,
+                RdpSessionOptions.NormalizePort(connection.Port),
                 connection.Domain,
                 connection.Username,
                 password,
@@ -135,6 +138,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             LastError = new RdpSessionError(0, "WRAPPER_NATIVE_LOAD_FAILED", ex.Message, RdpSessionErrorKind.Unknown);
             Status = RdpSessionStatus.Failed;
             return;
+        }
+        finally
+        {
+            Volatile.Write(ref _initializingNativeSession, 0);
         }
 
         if (_handle == IntPtr.Zero)
@@ -268,6 +275,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         {
             _renderScaling = renderScaling;
             _framePresenter.UpdateRenderScaling(renderScaling);
+            OnPropertyChanged(nameof(DisplayWidth));
+            OnPropertyChanged(nameof(DisplayHeight));
         }
 
         (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
@@ -355,7 +364,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private void OnStatusChanged(IntPtr session, int status, uint errorCode, IntPtr errorNamePtr, IntPtr errorMessagePtr)
     {
-        if (!IsActiveCallbackSession(session)) return;
+        if (!IsCurrentOrInitializingCallbackSession(session)) return;
 
         var statusValue = status switch
         {
@@ -372,7 +381,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            if (!IsActiveCallbackSession(session)) return;
+            if (!IsCurrentOrInitializingCallbackSession(session)) return;
             LastError = error;
             Status = statusValue;
         });
@@ -409,7 +418,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         IntPtr previousIssuerPtr,
         IntPtr previousFingerprintPtr)
     {
-        if (!IsActiveCallbackSession(session)) return (int)CertificateTrustDecision.Reject;
+        if (!IsCurrentOrInitializingCallbackSession(session))
+        {
+            return (int)CertificateTrustDecision.Reject;
+        }
 
         var prompt = new RdpCertificatePrompt(
             Marshal.PtrToStringUTF8(hostPtr) ?? Connection.Host,
@@ -455,6 +467,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     {
         var handle = _handle;
         return !IsDisposeStarted && handle != IntPtr.Zero && session == handle;
+    }
+
+    private bool IsCurrentOrInitializingCallbackSession(IntPtr session)
+    {
+        return IsActiveCallbackSession(session) ||
+            (!IsDisposeStarted && session != IntPtr.Zero && Volatile.Read(ref _initializingNativeSession) != 0);
     }
 
     private bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
