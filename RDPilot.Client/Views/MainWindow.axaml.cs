@@ -12,6 +12,10 @@ namespace RDPilot.Client.Views;
 
 public partial class MainWindow : Window
 {
+    /// <summary>Windowed inset around the content area; dropped in fullscreen. Mirrors the
+    /// <c>Margin</c> on <c>ContentGrid</c> in MainWindow.axaml.</summary>
+    private static readonly Thickness ContentMargin = new(2);
+
     private readonly SessionTabsView _sessionToolbar;
     private readonly DispatcherTimer _toolbarHideTimer;
     private readonly HashSet<Key> _locallyHandledFullscreenKeys = [];
@@ -257,6 +261,10 @@ public partial class MainWindow : Window
         StatusBar.IsVisible = !_isFullscreen;
         ShellGrid.ColumnDefinitions[0].Width = new GridLength(_isFullscreen ? 0 : 32);
         RootLayout.RowDefinitions[1].Height = _isFullscreen ? new GridLength(0) : GridLength.Auto;
+        // The reveal zone is pinned to the top of ContentGrid, so any margin here becomes a dead
+        // strip above it - and the top edge of the screen is exactly where the pointer lands when
+        // you throw it upwards to summon the toolbar.
+        ContentGrid.Margin = _isFullscreen ? new Thickness(0) : ContentMargin;
         Grid.SetRowSpan(SessionToolbarHost, _isFullscreen ? 2 : 1);
         FullscreenRevealZone.IsVisible = _isFullscreen;
 
