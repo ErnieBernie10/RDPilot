@@ -184,6 +184,60 @@ public sealed class MainWindowFullscreenTests
     }
 
     [Fact]
+    public void FullscreenRevealZone_ReachesTheVeryTopEdge()
+    {
+        // Any inset above the reveal zone is a strip the pointer can rest in without triggering it,
+        // and the screen edge stops the pointer at exactly y=0.
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.Show();
+                var revealZone = window.FindControl<Border>("FullscreenRevealZone")!;
+
+                window.WindowState = WindowState.FullScreen;
+                window.UpdateLayout();
+
+                var top = revealZone.TranslatePoint(new Point(0, 0), window);
+                Assert.NotNull(top);
+                Assert.Equal(0, top!.Value.Y);
+                Assert.True(revealZone.Bounds.Height > 0);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void FullscreenExit_RestoresTheWindowedContentInset()
+    {
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                window.Show();
+                var contentGrid = window.FindControl<Grid>("ContentGrid")!;
+                var windowedMargin = contentGrid.Margin;
+                Assert.NotEqual(default, windowedMargin);
+
+                window.WindowState = WindowState.FullScreen;
+                Assert.Equal(default, contentGrid.Margin);
+
+                window.WindowState = WindowState.Normal;
+                Assert.Equal(windowedMargin, contentGrid.Margin);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void FullscreenToolbarButton_FocusedEntry_HidesToolbarAndMovesFocusOutsideIt()
     {
         AvaloniaTestEnvironment.RunOnUiThread(() =>

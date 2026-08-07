@@ -25,7 +25,7 @@ public partial class RdpViewportView : UserControl
             () => DataContext as MainWindowViewModel,
             () => TopLevel.GetTopLevel(this)?.Clipboard,
             paths => CreateStorageItems(paths),
-            () => RdpScrollViewer.Bounds.Size,
+            () => ViewportHost.Bounds.Size,
             () => RdpImage.InvalidateVisual(),
             ConvertBitmapToDib,
             new ViewportResolutionService(),

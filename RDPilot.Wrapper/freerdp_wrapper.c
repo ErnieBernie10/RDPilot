@@ -286,19 +286,13 @@ static UINT32 clamp_uint32(UINT32 value, UINT32 min, UINT32 max)
     return value;
 }
 
-// Windows RDP server only accepts three values for desktopScaleFactor/deviceScaleFactor:
-// 100 (96 DPI), 140 (134 DPI), 180 (173 DPI). Clamp the host's reported percentage to the
-// nearest valid step so the server honours it. Sending 200 or 125 silently falls back to 100.
-static UINT32 rdp_clamp_scale_percent(uint32_t pct)
-{
-    if (pct >= 150) return 180;
-    if (pct >= 125) return 140;
-    return 100;
-}
-
+// Both scale factors arrive pre-normalized from C# (RdpSessionOptions), which owns the mapping
+// from the host's render scaling onto the ranges the server accepts. Nothing here reinterprets
+// them; the desktop factor is the true percentage and drives the physical-size calculation.
 static UINT32 dpi_from_scale_percent(uint32_t pct)
 {
-    return 96u * rdp_clamp_scale_percent(pct) / 100u;
+    if (pct == 0) pct = 100;
+    return 96u * pct / 100u;
 }
 
 static UINT32 physical_size_mm_with_dpi(UINT32 pixels, UINT32 dpi)
@@ -725,8 +719,8 @@ static bool process_pending_resize(rdp_session* session)
     layout.PhysicalWidth = physical_size_mm_with_dpi(width, effective_dpi);
     layout.PhysicalHeight = physical_size_mm_with_dpi(height, effective_dpi);
     layout.Orientation = ORIENTATION_LANDSCAPE;
-    layout.DesktopScaleFactor = rdp_clamp_scale_percent(session->dpi_scale_percent);
-    layout.DeviceScaleFactor = rdp_clamp_scale_percent(session->dpi_scale_percent);
+    layout.DesktopScaleFactor = session->dpi_scale_percent;
+    layout.DeviceScaleFactor = session->device_scale_percent;
 
     UINT rc = session->disp->SendMonitorLayout(session->disp, 1, &layout);
     if (rc != CHANNEL_RC_OK)
@@ -987,9 +981,8 @@ static bool setup_instance(rdp_session* session, const connection_params* params
         freerdp_settings_set_bool(settings, FreeRDP_GfxSuspendFrameAck, frame_ack ? FALSE : TRUE);
     }
     freerdp_settings_set_bool(settings, FreeRDP_DynamicResolutionUpdate, TRUE);
-    UINT32 clamped_scale = rdp_clamp_scale_percent(session->dpi_scale_percent);
-    freerdp_settings_set_uint32(settings, FreeRDP_DesktopScaleFactor, clamped_scale);
-    freerdp_settings_set_uint32(settings, FreeRDP_DeviceScaleFactor, clamped_scale);
+    freerdp_settings_set_uint32(settings, FreeRDP_DesktopScaleFactor, session->dpi_scale_percent);
+    freerdp_settings_set_uint32(settings, FreeRDP_DeviceScaleFactor, session->device_scale_percent);
     freerdp_settings_set_bool(settings, FreeRDP_RedirectClipboard, TRUE);
     freerdp_settings_set_uint32(settings, FreeRDP_ClipboardFeatureMask,
                                 CLIPRDR_FLAG_LOCAL_TO_REMOTE |
@@ -1037,13 +1030,12 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     monitors[0].y = 0;
     monitors[0].width = desktop_width;
     monitors[0].height = desktop_height;
-    UINT32 monitor_scale = rdp_clamp_scale_percent(session->dpi_scale_percent);
     UINT32 effective_dpi = dpi_from_scale_percent(session->dpi_scale_percent);
     monitors[0].attributes.physicalWidth = physical_size_mm_with_dpi(desktop_width, effective_dpi);
     monitors[0].attributes.physicalHeight = physical_size_mm_with_dpi(desktop_height, effective_dpi);
     monitors[0].attributes.orientation = ORIENTATION_LANDSCAPE;
-    monitors[0].attributes.desktopScaleFactor = monitor_scale;
-    monitors[0].attributes.deviceScaleFactor = monitor_scale;
+    monitors[0].attributes.desktopScaleFactor = session->dpi_scale_percent;
+    monitors[0].attributes.deviceScaleFactor = session->device_scale_percent;
     monitors[0].is_primary = TRUE;
 
     freerdp_settings_set_pointer_len(settings, FreeRDP_MonitorDefArray, monitors, 1);
@@ -1234,13 +1226,14 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, uin
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
-                                 uint32_t keyboard_layout, uint32_t dpi_scale_percent,
+                                 uint32_t keyboard_layout, uint32_t dpi_scale_percent, uint32_t device_scale_percent,
                                  FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
                                  CursorCallback cursor_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
     if (!session) return NULL;
 
     session->dpi_scale_percent = dpi_scale_percent == 0 ? 100 : dpi_scale_percent;
+    session->device_scale_percent = device_scale_percent == 0 ? 100 : device_scale_percent;
     session->callback = frame_callback;
     session->clipboard_text_callback = clipboard_text_callback;
     session->clipboard_files_callback = clipboard_files_callback;

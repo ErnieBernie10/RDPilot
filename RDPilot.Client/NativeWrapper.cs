@@ -145,6 +145,7 @@ internal static class NativeWrapper
             [MarshalAs(UnmanagedType.I1)] bool networkAutoDetect,
             uint keyboardLayout,
             uint dpiScalePercent,
+            uint deviceScalePercent,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
             ClipboardFilesCallback clipboardFilesCallback,

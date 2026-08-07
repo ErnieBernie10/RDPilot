@@ -417,6 +417,17 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SelectedSession?.UpdateResolution(width, height, _renderScaling);
     }
 
+    /// <summary>
+    /// Records the host's render scaling on its own, without a viewport size. The remote DPI is
+    /// locked at connect time, so the scale has to be known before the first session is created -
+    /// and <see cref="UpdateResolution"/> cannot deliver it, because it needs a measured viewport
+    /// that only exists once a session is live.
+    /// </summary>
+    public void UpdateRenderScaling(double renderScaling)
+    {
+        if (renderScaling > 0) _renderScaling = renderScaling;
+    }
+
     public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
     {
         SelectedSession?.SendMouseEventScaled(flags, dipX, dipY);

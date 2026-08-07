@@ -129,7 +129,10 @@ struct rdp_session {
     input_event input_queue[INPUT_QUEUE_CAPACITY];
     UINT32 input_queue_count;
     UINT32 input_dropped;
+    /* Both pre-normalized by C#: dpi_scale_percent is the true desktop scale (100-500),
+     * device_scale_percent is one of 100/140/180. See RdpSessionOptions. */
     UINT32 dpi_scale_percent;
+    UINT32 device_scale_percent;
     CRITICAL_SECTION clipboard_lock;
     char* local_clipboard_text;
     bool clipboard_format_pending;

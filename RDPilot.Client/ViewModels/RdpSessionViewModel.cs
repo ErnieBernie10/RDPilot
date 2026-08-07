@@ -75,6 +75,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private int _requestedHeight;
     private double _renderScaling = 1.0;
     private uint _dpiScalePercent = 100;
+    private uint _deviceScalePercent = 100;
 
     public RdpSessionViewModel(
         SavedConnection connection,
@@ -100,6 +101,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Title = connection.Name;
         _renderScaling = renderScaling > 0 ? renderScaling : 1.0;
         _dpiScalePercent = RdpSessionOptions.ClampDpiScalePercent((uint)Math.Max(100, Math.Round(_renderScaling * 100)));
+        _deviceScalePercent = RdpSessionOptions.ToDeviceScalePercent(_dpiScalePercent);
         (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
         colorDepth = RdpSessionOptions.NormalizeColorDepth(colorDepth);
         _requestedWidth = width;
@@ -147,6 +149,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 networkSettings.NetworkAutoDetect,
                 keyboardLayout,
                 _dpiScalePercent,
+                _deviceScalePercent,
                 _frameCallback,
                 _clipboardCallback,
                 _clipboardFilesCallback,
