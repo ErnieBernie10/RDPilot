@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RDPilot.Client.Models;
@@ -44,15 +45,27 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     /// </summary>
     [ObservableProperty] private bool _isKeyboardGrabbed;
 
+    /// <summary>
+    /// The cursor the remote session wants shown over the viewport. FreeRDP never draws the pointer
+    /// into the desktop framebuffer, so this is the only thing that makes the remote cursor visible.
+    /// Null means "no opinion" and the viewport falls back to its inherited cursor.
+    /// </summary>
+    [ObservableProperty] private Cursor? _remoteCursor;
+
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardCallback;
     private readonly NativeWrapper.ClipboardFilesCallback _clipboardFilesCallback;
     private readonly NativeWrapper.StatusCallback _statusCallback;
     private readonly NativeWrapper.CertificateDecisionCallback _certificateDecisionCallback;
+    private readonly NativeWrapper.CursorCallback _cursorCallback;
     private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
     private readonly Action<RdpSessionViewModel, string[]> _remoteClipboardFilesReceived;
     private readonly Func<RdpCertificatePrompt, CertificateTrustDecision> _certificateTrustDecision;
     private readonly ManagedFramePresenter _framePresenter;
+    private readonly RemoteCursorCache _cursorCache;
+    private readonly object _cursorLock = new();
+    private RemoteCursorDescriptor? _pendingCursor;
+    private int _cursorApplyQueued;
     private INativeRdpSession? _nativeSession;
     private IntPtr _handle;
     private int _initializingNativeSession;
@@ -98,8 +111,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _clipboardFilesCallback = OnRemoteClipboardFilesReceived;
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
+        _cursorCallback = OnCursorChanged;
         _certificateTrustDecision = certificateTrustDecision;
         _framePresenter = new ManagedFramePresenter(Title, width, height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, _renderScaling);
+        _cursorCache = new RemoteCursorCache(CopyCursorImage);
 
         try
         {
@@ -136,7 +151,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 _clipboardCallback,
                 _clipboardFilesCallback,
                 _statusCallback,
-                _certificateDecisionCallback);
+                _certificateDecisionCallback,
+                _cursorCallback);
             _handle = _nativeSession.Handle;
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
@@ -175,8 +191,10 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _clipboardFilesCallback = OnRemoteClipboardFilesReceived;
         _statusCallback = OnStatusChanged;
         _certificateDecisionCallback = OnCertificateDecisionRequested;
+        _cursorCallback = OnCursorChanged;
         _certificateTrustDecision = static _ => CertificateTrustDecision.Reject;
         _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, initializeBitmap: false);
+        _cursorCache = new RemoteCursorCache(CopyCursorImage);
         LastError = error;
         Status = status;
     }
@@ -436,6 +454,60 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         return nativeSession.Present(dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
     }
 
+    /// <summary>
+    /// Native cursor descriptor, kept as a record so the RDP thread can publish it atomically.
+    /// </summary>
+    private readonly record struct RemoteCursorDescriptor(RemoteCursorKind Kind, uint CursorId, int Width, int Height, int HotX, int HotY);
+
+    /// <summary>
+    /// Runs on the RDP thread. Records the newest descriptor and posts at most one UI-thread apply,
+    /// mirroring how <see cref="ManagedFramePresenter.EnqueueFrame"/> coalesces frames: moving the
+    /// pointer across a toolbar can fire this many times per frame, and one Post per event would
+    /// flood the dispatcher for cursors that are already obsolete by the time they are applied.
+    /// </summary>
+    private void OnCursorChanged(IntPtr session, int kind, uint cursorId, int width, int height, int hotX, int hotY)
+    {
+        if (!IsActiveCallbackSession(session)) return;
+
+        lock (_cursorLock)
+        {
+            _pendingCursor = new RemoteCursorDescriptor((RemoteCursorKind)kind, cursorId, width, height, hotX, hotY);
+        }
+
+        if (Interlocked.Exchange(ref _cursorApplyQueued, 1) == 0)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(ApplyPendingCursor);
+        }
+    }
+
+    private void ApplyPendingCursor()
+    {
+        Interlocked.Exchange(ref _cursorApplyQueued, 0);
+
+        RemoteCursorDescriptor? descriptor;
+        lock (_cursorLock)
+        {
+            descriptor = _pendingCursor;
+            _pendingCursor = null;
+        }
+
+        if (descriptor is not { } cursor || IsDisposeStarted) return;
+
+        // A null resolve means the shape could not be produced; keep showing the current cursor
+        // rather than flashing back to the default arrow.
+        var resolved = _cursorCache.Resolve(cursor.Kind, cursor.CursorId, cursor.Width, cursor.Height, cursor.HotX, cursor.HotY);
+        if (resolved != null)
+        {
+            RemoteCursor = resolved;
+        }
+    }
+
+    private bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight)
+    {
+        return TryGetActiveSession(out var nativeSession) &&
+            nativeSession.CopyCursorImage(cursorId, dest, destStride, destWidth, destHeight);
+    }
+
     private int OnCertificateDecisionRequested(
         IntPtr session,
         IntPtr hostPtr,
@@ -477,6 +549,15 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         }
 
         _framePresenter.Dispose();
+
+        // Clear the binding before disposing the cache: the viewport may still be showing one of
+        // these cursors, and disposing a Cursor releases its platform handle.
+        RemoteCursor = null;
+        lock (_cursorLock)
+        {
+            _pendingCursor = null;
+        }
+        _cursorCache.Dispose();
 
         var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
         var nativeSession = Interlocked.Exchange(ref _nativeSession, null);

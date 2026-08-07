@@ -184,6 +184,8 @@ public sealed class RdpViewportPresenterKeyboardGrabTests
             dirtyX = dirtyY = dirtyWidth = dirtyHeight = fbWidth = fbHeight = 0;
             return false;
         }
+
+        public bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight) => false;
     }
 
     private sealed class NoSessionFactory : IRdpSessionFactory

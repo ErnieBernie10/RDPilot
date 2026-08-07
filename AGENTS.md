@@ -113,6 +113,20 @@ Perf logs:
 - `[PERF_LOOP]` reports RDP loop phase timings; under drag the `checkFdsMax` phase should no longer carry a per-frame memcpy.
 - `[PERF_INPUT]` appears only when input drops or large mouse-move coalescing batches happen.
 
+## Cursor Notes
+
+FreeRDP does **not** composite the pointer into the framebuffer, so the remote cursor never arrives
+through the frame path. It comes from the `rdpPointer` class in `freerdp_wrapper_pointer.c` and is
+applied as a real OS cursor on `RdpImage`.
+
+- `register_pointer_class` must run before connect **and** after every `gdi_init` (startup and
+  `on_graphics_reset`), next to the update re-hooks. Unregistered, every shape is silently dropped.
+- Threading mirrors the frame path: `Pointer_Set` fires a metadata-only `CursorCallback` on the RDP
+  thread; the UI thread pulls pixels with `rdp_session_copy_cursor_image` under `cursor_lock`.
+- **Cursor bitmaps are `AlphaFormat.Unpremul`** (the framebuffer is `Premul`) — FreeRDP produces
+  straight alpha. Wrong here means haloed cursors, not a crash.
+- `Pointer_SetPosition` is an intentional no-op; honouring it would warp the physical mouse.
+
 ## Clipboard Notes
 
 Clipboard redirection currently supports text and local-to-remote file copy/paste:

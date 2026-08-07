@@ -52,6 +52,7 @@ add_library(freerdp_wrapper SHARED
     freerdp_wrapper.c
     freerdp_wrapper_input.c
     freerdp_wrapper_clipboard.c
+    freerdp_wrapper_pointer.c
 )
 
 target_compile_definitions(freerdp_wrapper PRIVATE FREERDP_WRAPPER_EXPORTS)
