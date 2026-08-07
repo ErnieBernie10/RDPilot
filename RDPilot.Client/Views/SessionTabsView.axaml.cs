@@ -23,7 +23,7 @@ public partial class SessionTabsView : UserControl
             return;
         }
 
-        var shouldClose = await ConfirmCloseSessionAsync(session);
+        var shouldClose = !session.CanDisconnect || await ConfirmCloseSessionAsync(session);
         if (shouldClose && vm.CloseSessionCommand.CanExecute(session))
         {
             await vm.CloseSessionCommand.ExecuteAsync(session);
@@ -54,7 +54,7 @@ public partial class SessionTabsView : UserControl
 
         var message = new TextBlock
         {
-            Text = $"Close connection \"{session.Title}\"?",
+            Text = $"Close connection \"{session.Title}\"? This will also disconnect from the session.",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
         };
 
