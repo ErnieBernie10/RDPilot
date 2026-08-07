@@ -39,17 +39,43 @@
             </TabControl.ContentTemplate>
         </TabControl>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
-            <Button Classes="TopBarButton" MinWidth="84" Command="{Binding DisconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanDisconnect}">
-                <StackPanel Orientation="Horizontal" Spacing="6"><icons:FluentIcon Icon="PlugDisconnected" IconSize="Size16" FontSize="16"/><TextBlock Text="Disconnect"/></StackPanel>
+            <Button x:Name="SendCtrlAltDelButton"
+                    Classes="IconButton FullscreenToolbarButton"
+                    ToolTip.Tip="Send Ctrl+Alt+Del to the remote session"
+                    IsVisible="{Binding SelectedSessionCanDisconnect}"
+                    Command="{Binding SendCtrlAltDelCommand}">
+                <icons:FluentIcon Icon="LockClosedKey" IconSize="Size16" FontSize="16"/>
             </Button>
-            <Button Classes="TopBarButton" MinWidth="84" Command="{Binding ReconnectSessionCommand}" CommandParameter="{Binding SelectedSession}" IsVisible="{Binding SelectedSessionCanReconnect}">
-                <StackPanel Orientation="Horizontal" Spacing="6"><icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/><TextBlock Text="Reconnect"/></StackPanel>
+            <Button x:Name="KeyboardGrabToggleButton"
+                    Classes="IconButton FullscreenToolbarButton"
+                    Classes.KeyboardGrabActive="{Binding IsKeyboardGrabActive}"
+                    ToolTip.Tip="{Binding KeyboardGrabTooltip}"
+                    IsVisible="{Binding HasSelectedSession}"
+                    IsEnabled="{Binding IsKeyboardGrabSupported}"
+                    Command="{Binding ToggleKeyboardGrabCommand}">
+                <icons:FluentIcon Icon="Keyboard" IconSize="Size16" FontSize="16"/>
             </Button>
             <Button x:Name="FullscreenToggleButton"
                     Classes="IconButton FullscreenToolbarButton"
                     ToolTip.Tip="Enter fullscreen"
                     Click="OnFullscreenToggleClicked">
                 <icons:FluentIcon Icon="FullScreenMaximize" IconSize="Size16" FontSize="16"/>
+            </Button>
+            <Button x:Name="ReconnectSessionButton"
+                    Classes="IconButton FullscreenToolbarButton"
+                    ToolTip.Tip="Reconnect"
+                    IsVisible="{Binding SelectedSessionCanReconnect}"
+                    Command="{Binding ReconnectSessionCommand}"
+                    CommandParameter="{Binding SelectedSession}">
+                <icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/>
+            </Button>
+            <Button x:Name="DisconnectSessionButton"
+                    Classes="IconButton FullscreenToolbarButton"
+                    ToolTip.Tip="Disconnect"
+                    IsVisible="{Binding SelectedSessionCanDisconnect}"
+                    Command="{Binding DisconnectSessionCommand}"
+                    CommandParameter="{Binding SelectedSession}">
+                <icons:FluentIcon Icon="PlugDisconnected" IconSize="Size16" FontSize="16"/>
             </Button>
         </StackPanel>
     </Grid>

@@ -24,7 +24,9 @@ internal sealed class RdpViewportPresenter
     private readonly PointerMoveScheduler _pointerMoveScheduler;
     private readonly ClipboardSyncService _clipboardSyncService;
     private readonly HashSet<Key> _pressedRdpKeys = new();
+    private readonly HashSet<ushort> _pressedGrabbedScancodes = new();
     private bool _rdpKeyboardActive;
+    private bool _keyboardGrabActive;
     private double _lastObservedScale = 1.0;
 
     public RdpViewportPresenter(
@@ -358,8 +360,79 @@ internal sealed class RdpViewportPresenter
         _rdpKeyboardActive = false;
     }
 
+    /// <summary>
+    /// Engages or releases keyboard grab. While grabbed the platform hook is the sole keyboard
+    /// source, so the Avalonia path is shut off and each path flushes its own held keys on the
+    /// transition to avoid stuck modifiers on the remote host.
+    /// </summary>
+    public void SetKeyboardGrabActive(bool active)
+    {
+        if (_keyboardGrabActive == active)
+        {
+            return;
+        }
+
+        if (active)
+        {
+            ReleasePressedRdpKeys();
+            _keyboardGrabActive = true;
+        }
+        else
+        {
+            _keyboardGrabActive = false;
+            ReleaseGrabbedKeys();
+        }
+    }
+
+    public bool HandleGrabbedKey(ushort scancode, bool extended, bool isUp)
+    {
+        var vm = _getViewModel();
+        if (vm == null || scancode == 0)
+        {
+            return false;
+        }
+
+        var trackedScancode = (ushort)(scancode | (extended ? RdpKeyboardInputMapper.ExtendedScancodeBit : 0));
+        var flags = RdpKeyboardInputMapper.BuildKeyFlags(trackedScancode, isUp, out var normalizedScancode);
+        vm.SendKeyboardEvent(flags, normalizedScancode);
+
+        if (isUp)
+        {
+            _pressedGrabbedScancodes.Remove(trackedScancode);
+        }
+        else
+        {
+            _pressedGrabbedScancodes.Add(trackedScancode);
+        }
+
+        return true;
+    }
+
+    public void ReleaseGrabbedKeys()
+    {
+        var vm = _getViewModel();
+        if (_pressedGrabbedScancodes.Count == 0 || vm == null)
+        {
+            _pressedGrabbedScancodes.Clear();
+            return;
+        }
+
+        foreach (var trackedScancode in _pressedGrabbedScancodes)
+        {
+            var flags = RdpKeyboardInputMapper.BuildKeyFlags(trackedScancode, isRelease: true, out var normalizedScancode);
+            vm.SendKeyboardEvent(flags, normalizedScancode);
+        }
+
+        _pressedGrabbedScancodes.Clear();
+    }
+
     private bool ShouldHandleKeyboardEvent(object? source, object rdpImage)
     {
+        if (_keyboardGrabActive)
+        {
+            return false;
+        }
+
         return ReferenceEquals(source, rdpImage) || _rdpKeyboardActive;
     }
 

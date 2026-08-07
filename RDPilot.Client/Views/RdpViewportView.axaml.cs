@@ -45,6 +45,16 @@ public partial class RdpViewportView : UserControl
         RdpImage.LostFocus += (_, _) => _presenter.ReleasePressedRdpKeys();
     }
 
+    internal void SetKeyboardGrabActive(bool active)
+    {
+        _presenter.SetKeyboardGrabActive(active);
+    }
+
+    internal void HandleGrabbedKey(ushort scancode, bool extended, bool isUp)
+    {
+        _presenter.HandleGrabbedKey(scancode, extended, isUp);
+    }
+
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_subscribedViewModel != null)
@@ -90,6 +100,7 @@ public partial class RdpViewportView : UserControl
     {
         _clipboardPollTimer.Stop();
         _presenter.ReleasePressedRdpKeys();
+        _presenter.ReleaseGrabbedKeys();
         _presenter.CancelViewportResolutionUpdates();
 
         if (_hostWindow == null)
@@ -175,6 +186,7 @@ public partial class RdpViewportView : UserControl
     private void OnHostWindowDeactivated(object? sender, EventArgs e)
     {
         _presenter.ReleasePressedRdpKeys();
+        _presenter.ReleaseGrabbedKeys();
     }
 
     private void OnHostWindowLayoutUpdated(object? sender, EventArgs e)

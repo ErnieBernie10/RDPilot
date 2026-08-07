@@ -423,6 +423,40 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
+    public void SendCtrlAltDel_ActiveNativeSession_SendsBalancedDownUpSequence()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Ctrl Alt Del Test"), RdpSessionStatus.Connected);
+        var nativeSession = new FakeNativeSession(new IntPtr(0x789B));
+        AttachNativeSession(session, nativeSession);
+
+        session.SendCtrlAltDel();
+
+        Assert.Equal(
+            [
+                ((ushort)0x0000, (ushort)0x1D),
+                ((ushort)0x0000, (ushort)0x38),
+                ((ushort)0x0100, (ushort)0x53),
+                ((ushort)0x8100, (ushort)0x53),
+                ((ushort)0x8000, (ushort)0x38),
+                ((ushort)0x8000, (ushort)0x1D)
+            ],
+            nativeSession.KeyboardEvents);
+    }
+
+    [Fact]
+    public void Status_LeavingConnected_ClearsKeyboardGrab()
+    {
+        var session = new RdpSessionViewModel(CreateConnection("Grab Status Test"), RdpSessionStatus.Connected)
+        {
+            IsKeyboardGrabbed = true
+        };
+
+        session.SetTestStatus(RdpSessionStatus.Disconnected);
+
+        Assert.False(session.IsKeyboardGrabbed);
+    }
+
+    [Fact]
     public void SetLocalClipboardFiles_ActiveNativeSession_ForwardsFileList()
     {
         var session = new RdpSessionViewModel(CreateConnection("Files Test"), RdpSessionStatus.Connected);
@@ -582,6 +616,7 @@ public sealed class RdpSessionViewModelTests
         public int FreeCallCount { get; private set; }
         public List<(int Width, int Height, uint DpiScalePercent)> ResolutionUpdates { get; } = [];
         public List<(ushort Flags, ushort X, ushort Y)> MouseEvents { get; } = [];
+        public List<(ushort Flags, ushort Code)> KeyboardEvents { get; } = [];
         public List<string> LocalClipboardFiles { get; } = [];
         public int RequestFullFrameCallCount { get; private set; }
 
@@ -607,6 +642,7 @@ public sealed class RdpSessionViewModelTests
 
         public void SendKeyboardEvent(ushort flags, ushort code)
         {
+            KeyboardEvents.Add((flags, code));
         }
 
         public void SetLocalClipboardText(string? text)
