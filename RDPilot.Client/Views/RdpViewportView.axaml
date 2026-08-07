@@ -5,12 +5,16 @@
              x:Class="RDPilot.Client.Views.RdpViewportView"
              x:DataType="vm:MainWindowViewModel">
     <Border Classes="ViewportCard">
-        <Grid>
+        <!-- The remote resolution is measured from this Grid rather than from the ScrollViewer
+             below it. The ScrollViewer is collapsed until a session is live, so measuring it would
+             report 0x0 right up until the moment we connect - too late, because the remote DPI is
+             locked at connect time. The ScrollViewer stretches to fill this Grid, so the two report
+             the same size once the session is up. -->
+        <Grid Name="ViewportHost" SizeChanged="OnRdpViewportSizeChanged">
             <ScrollViewer Name="RdpScrollViewer"
                           Background="#0F1115"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
-                          SizeChanged="OnRdpViewportSizeChanged"
                           IsVisible="{Binding IsViewportLive}">
                 <!-- Cursor is driven by the remote session: FreeRDP never draws the pointer into
                      the desktop framebuffer, so the shape arrives out-of-band. Null falls back to

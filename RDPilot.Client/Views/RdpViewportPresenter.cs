@@ -195,13 +195,24 @@ internal sealed class RdpViewportPresenter
         }
 
         _lastObservedScale = scale;
-        if (_viewportResolutionService.TryCompute(
-                _getViewportSize(),
-                scale,
-                isMinimized,
-                out var physWidth,
-                out var physHeight,
-                out var normalizedScale))
+        var hasUsableSize = _viewportResolutionService.TryCompute(
+            _getViewportSize(),
+            scale,
+            isMinimized,
+            out var physWidth,
+            out var physHeight,
+            out var normalizedScale);
+
+        // The scale is reported separately from the size because the two become available at
+        // different times. A minimized window has no meaningful scale to report, but a restored
+        // one whose viewport is still too small to drive a resolution update does - and the remote
+        // DPI is locked at connect time, so missing it there is permanent for that session.
+        if (!isMinimized)
+        {
+            vm.UpdateRenderScaling(normalizedScale);
+        }
+
+        if (hasUsableSize)
         {
             _viewportResolutionUpdateScheduler.Schedule(physWidth, physHeight, normalizedScale, vm.UpdateResolution);
             return;
