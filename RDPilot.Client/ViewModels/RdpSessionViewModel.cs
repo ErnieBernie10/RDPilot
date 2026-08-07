@@ -38,6 +38,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private RdpSessionStatus _status = RdpSessionStatus.Connecting;
     [ObservableProperty] private RdpSessionError? _lastError;
 
+    /// <summary>
+    /// Transient per-session keyboard grab state. Deliberately not persisted: every connect
+    /// starts ungrabbed.
+    /// </summary>
+    [ObservableProperty] private bool _isKeyboardGrabbed;
+
     private readonly NativeWrapper.FrameCallback _frameCallback;
     private readonly NativeWrapper.ClipboardTextCallback _clipboardCallback;
     private readonly NativeWrapper.ClipboardFilesCallback _clipboardFilesCallback;
@@ -229,6 +235,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsDisconnected));
         OnPropertyChanged(nameof(CanDisconnect));
         OnPropertyChanged(nameof(CanReconnect));
+
+        if (value != RdpSessionStatus.Connected)
+        {
+            IsKeyboardGrabbed = false;
+        }
     }
 
     partial void OnLastErrorChanged(RdpSessionError? value)
@@ -306,6 +317,26 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         if (!TryGetActiveSession(out var nativeSession)) return;
         _framePresenter.MarkInputSent();
         nativeSession.SendKeyboardEvent(flags, code);
+    }
+
+    /// <summary>
+    /// Sends Ctrl+Alt+Del to the remote host. The secure attention sequence can never be
+    /// intercepted locally, so this explicit action is the only way to deliver it.
+    /// </summary>
+    public void SendCtrlAltDel()
+    {
+        const ushort leftCtrl = 0x1D;
+        const ushort leftAlt = 0x38;
+        const ushort delete = 0x53;
+        const ushort release = 0x8000;
+        const ushort extended = 0x0100;
+
+        SendKeyboardEvent(0, leftCtrl);
+        SendKeyboardEvent(0, leftAlt);
+        SendKeyboardEvent(extended, delete);
+        SendKeyboardEvent(release | extended, delete);
+        SendKeyboardEvent(release, leftAlt);
+        SendKeyboardEvent(release, leftCtrl);
     }
 
     public void SetLocalClipboardText(string text)

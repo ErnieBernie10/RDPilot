@@ -16,6 +16,7 @@ RDPilot currently supports Windows and Linux.
 
 - Dynamic resolution when the client window changes size.
 - Low-latency keyboard and mouse input with mouse-move coalescing.
+- Keyboard grab (Windows only) so `Win`, `Alt+Tab`, `Ctrl+Esc` and other shell chords go to the remote session instead of the local desktop, plus a toolbar action to send `Ctrl+Alt+Del`.
 - Multiple simultaneous RDP sessions through tabs.
 - Saved connection profiles with passwords stored in the OS credential vault.
 - Text clipboard sync between local and remote sessions.
@@ -59,6 +60,14 @@ Linux is supported, but the package has not been published to the AUR yet.
 
 Each `Connect` action opens a separate tab. Switching tabs keeps background sessions connected and routes input, resize, and clipboard updates only to the active session.
 
+### Keyboard grab
+
+The keyboard button in the session toolbar routes the whole physical keyboard to the active session, so `Win`, `Alt+Tab`, `Ctrl+Esc` and `Alt+Esc` act on the remote desktop instead of the local one. While grabbed, RDPilot's own UI is not reachable by keyboard — that is what grabbing means. There is no release hotkey; click the toolbar button again, or click any other window, which releases the grab automatically.
+
+Grab is per-session and never persisted: every new connection starts ungrabbed, switching tabs releases it, and disconnecting releases it.
+
+`Ctrl+Alt+Del` cannot be intercepted by any application, so use the toolbar button beside the grab toggle to send it to the remote session. `Win+L` likewise always locks the local machine.
+
 ## Data Storage
 
 Saved connection metadata is stored per user:
@@ -75,6 +84,7 @@ Passwords are stored separately:
 
 ## Notes
 
+- Keyboard grab is **not available on Linux**; the toolbar button is shown disabled there. Wayland forbids clients from grabbing the keyboard (the sanctioned `zwp_keyboard_shortcuts_inhibit_manager_v1` protocol is not exposed by the current Avalonia Wayland backend), and the X11 `XGrabKeyboard` path is not implemented yet. Sending `Ctrl+Alt+Del` works on every platform.
 - Clipboard redirection is currently text-focused.
 - Audio playback and device redirection are disabled.
 - The default rendering mode is `gfx-gdi`.

@@ -7,6 +7,9 @@ internal static class RdpKeyboardInputMapper
     private const ushort KeyboardFlagsRelease = 0x8000;
     private const ushort KeyboardFlagsExtended = 0x0100;
 
+    /// <summary>Marks a scancode in this table as an extended (0xE0-prefixed) key.</summary>
+    public const ushort ExtendedScancodeBit = 0x100;
+
     public static bool TryMapKey(Key key, out ushort scancode)
     {
         scancode = key switch
@@ -120,7 +123,7 @@ internal static class RdpKeyboardInputMapper
     {
         ushort flags = isRelease ? KeyboardFlagsRelease : (ushort)0;
         normalizedScancode = scancode;
-        if ((normalizedScancode & 0x100) != 0)
+        if ((normalizedScancode & ExtendedScancodeBit) != 0)
         {
             flags |= KeyboardFlagsExtended;
             normalizedScancode &= 0xFF;

@@ -151,7 +151,25 @@ The initial RDP size comes from the measured `ScrollViewer` viewport (in DIPs) m
 
 The startup window is intentionally large (`1440x900`) with `MinWidth="900"` and `MinHeight="600"` so the first connection gets a usable initial desktop size.
 
-Keyboard handling is scoped to the RDP image but registered on the window's tunnel route with handled events included. This keeps chords such as `Ctrl+Tab` from losing key-up events while still allowing connection text boxes to receive normal typing when focused.
+Keyboard handling is scoped to the RDP image but registered on the window's tunnel route with handled events included. This keeps chords such as `Ctrl+Tab` from losing key-up events while still allowing connection text boxes to receive normal typing when focused. This is the ungrabbed path; see "Keyboard Grab" below for the other one.
+
+## Keyboard Grab
+
+There are two mutually exclusive keyboard input paths and they must never both be live:
+
+- **Ungrabbed (default, all platforms):** Avalonia tunnel handlers → `RdpViewportPresenter.HandleKeyDown/Up` → `RdpKeyboardInputMapper.TryMapKey` (Avalonia `Key` → PC/XT set-1 scancode).
+- **Grabbed (Windows only):** a `WH_KEYBOARD_LL` hook in `Services/WindowsKeyboardGrab.cs` suppresses every key locally (returns `1`) and raises `KeyIntercepted` → `RdpViewportPresenter.HandleGrabbedKey`. Scancodes come straight from `KBDLLHOOKSTRUCT` via `Services/KeyboardGrabScanCodeMapper.cs`, so this path is layout-independent and does not use `RdpKeyboardInputMapper.TryMapKey`.
+
+`RdpViewportPresenter.SetKeyboardGrabActive` switches between them and flushes the outgoing path's held keys, otherwise modifiers stick on the remote host. `ShouldHandleKeyboardEvent` returns `false` while grabbed so the two paths can never double-send.
+
+Rules:
+
+- The hook callback runs on the Avalonia UI thread. Keep it fast, lock-free and log-free — exceeding `LowLevelHooksTimeout` (~300 ms) makes Windows silently drop the hook. `MainWindow.OnWindowActivated` re-arms it.
+- Never leave the hook installed while disengaged; it is global and sees every keystroke on the machine.
+- Interception is scoped to `GetForegroundWindow() == our HWND`, and `MainWindow.OnWindowDeactivated` force-releases the grab. With no release hotkey, that is the user's only escape route.
+- Grab state is transient per session (`RdpSessionViewModel.IsKeyboardGrabbed`), mirrored to `MainWindowViewModel.IsKeyboardGrabActive` for the toolbar. Do not persist it to `connections.json` or `settings.json`.
+- `IKeyboardGrab.IsSupported` is false on Linux (`NullKeyboardGrab`); the toolbar toggle binds `IsEnabled` to it. X11 `XGrabKeyboard` would be a *different* design — it redirects rather than suppresses, so it keeps the Avalonia path as the transport and would need `LWin`/`RWin` added to `RdpKeyboardInputMapper`. Wayland cannot grab at all without `zwp_keyboard_shortcuts_inhibit_manager_v1`.
+- `Ctrl+Alt+Del` is unhookable; `RdpSessionViewModel.SendCtrlAltDel` emits the scancode sequence explicitly.
 
 ## Test Notes
 

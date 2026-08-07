@@ -20,6 +20,19 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _selectedSessionCanReconnect;
     [ObservableProperty] private ShellPanel _activeShellPanel;
 
+    /// <summary>
+    /// Mirrors the selected session's grab state so the toolbar can bind to it. The view layer
+    /// owns the actual platform grab and watches this property.
+    /// </summary>
+    [ObservableProperty] private bool _isKeyboardGrabActive;
+
+    /// <summary>
+    /// Set by the view once it knows which grab implementation the platform provides.
+    /// Defaults to unsupported so headless tests never assume a grab exists.
+    /// </summary>
+    [ObservableProperty] private bool _isKeyboardGrabSupported;
+    [ObservableProperty] private string _keyboardGrabTooltip = "Keyboard grab is unavailable.";
+
     private readonly ConnectionStore _connectionStore;
     private readonly AppSettingsStore _settingsStore;
     private readonly IRdpSessionFactory _sessionFactory;
@@ -222,6 +235,12 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedSessionChanged(RdpSessionViewModel? oldValue, RdpSessionViewModel? newValue)
     {
+        if (oldValue != null)
+        {
+            // Grab never follows a tab switch; the user re-arms it explicitly per session.
+            oldValue.IsKeyboardGrabbed = false;
+        }
+
         oldValue?.SuspendPresentation();
         newValue?.ResumePresentation();
         UpdateSelectedSessionState();
@@ -265,6 +284,34 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SelectedSession = session;
         ActiveShellPanel = ShellPanel.None;
         StatusMessage = $"Connecting to {connection.Name}...";
+    }
+
+    [RelayCommand]
+    private void ToggleKeyboardGrab()
+    {
+        if (!IsKeyboardGrabSupported || SelectedSession is not { IsConnected: true } session)
+        {
+            return;
+        }
+
+        session.IsKeyboardGrabbed = !session.IsKeyboardGrabbed;
+    }
+
+    [RelayCommand]
+    private void SendCtrlAltDel()
+    {
+        SelectedSession?.SendCtrlAltDel();
+    }
+
+    /// <summary>Called by the view when the platform grab releases outside of a user toggle.</summary>
+    public void ReleaseKeyboardGrab()
+    {
+        if (SelectedSession != null)
+        {
+            SelectedSession.IsKeyboardGrabbed = false;
+        }
+
+        IsKeyboardGrabActive = false;
     }
 
     [RelayCommand]
@@ -475,7 +522,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(RdpSessionViewModel.Status) or nameof(RdpSessionViewModel.StatusText) or nameof(RdpSessionViewModel.LastError) or nameof(RdpSessionViewModel.ErrorText) or nameof(RdpSessionViewModel.IsConnected) or nameof(RdpSessionViewModel.CanDisconnect) or nameof(RdpSessionViewModel.CanReconnect)
+        if (e.PropertyName is nameof(RdpSessionViewModel.Status) or nameof(RdpSessionViewModel.StatusText) or nameof(RdpSessionViewModel.LastError) or nameof(RdpSessionViewModel.ErrorText) or nameof(RdpSessionViewModel.IsConnected) or nameof(RdpSessionViewModel.CanDisconnect) or nameof(RdpSessionViewModel.CanReconnect) or nameof(RdpSessionViewModel.IsKeyboardGrabbed)
             && ReferenceEquals(sender, SelectedSession))
         {
             UpdateSelectedSessionState();
@@ -488,6 +535,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsConnected = SelectedSession?.IsConnected == true;
         SelectedSessionCanDisconnect = SelectedSession?.CanDisconnect == true;
         SelectedSessionCanReconnect = SelectedSession?.CanReconnect == true;
+        IsKeyboardGrabActive = SelectedSession?.IsKeyboardGrabbed == true;
         DisconnectSessionCommand.NotifyCanExecuteChanged();
         ReconnectSessionCommand.NotifyCanExecuteChanged();
         CloseSessionCommand.NotifyCanExecuteChanged();

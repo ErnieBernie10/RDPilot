@@ -64,6 +64,89 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task IsKeyboardGrabActive_MirrorsTheSelectedSessionGrabState()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Grabbable"), RdpSessionStatus.Connected)]);
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+        await ConnectAsync(vm, CreateConnection("Grabbable"), secretStore);
+
+        Assert.False(vm.IsKeyboardGrabActive);
+
+        vm.SelectedSession!.IsKeyboardGrabbed = true;
+        Assert.True(vm.IsKeyboardGrabActive);
+
+        vm.ReleaseKeyboardGrab();
+        Assert.False(vm.IsKeyboardGrabActive);
+        Assert.False(vm.SelectedSession.IsKeyboardGrabbed);
+    }
+
+    [Fact]
+    public async Task ToggleKeyboardGrab_WithoutPlatformSupport_DoesNothing()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Ungrabbable"), RdpSessionStatus.Connected)]);
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+        await ConnectAsync(vm, CreateConnection("Ungrabbable"), secretStore);
+        vm.IsKeyboardGrabSupported = false;
+
+        vm.ToggleKeyboardGrabCommand.Execute(null);
+
+        Assert.False(vm.IsKeyboardGrabActive);
+        Assert.False(vm.SelectedSession!.IsKeyboardGrabbed);
+    }
+
+    [Fact]
+    public async Task ToggleKeyboardGrab_WithPlatformSupport_FlipsTheSelectedSession()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Toggleable"), RdpSessionStatus.Connected)]);
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+        await ConnectAsync(vm, CreateConnection("Toggleable"), secretStore);
+        vm.IsKeyboardGrabSupported = true;
+        MarkSessionNativeHandleLive(vm.SelectedSession!);
+
+        vm.ToggleKeyboardGrabCommand.Execute(null);
+        Assert.True(vm.IsKeyboardGrabActive);
+
+        vm.ToggleKeyboardGrabCommand.Execute(null);
+        Assert.False(vm.IsKeyboardGrabActive);
+    }
+
+    [Fact]
+    public async Task ToggleKeyboardGrab_SessionWithoutLiveHandle_DoesNothing()
+    {
+        using var env = new TestConfigHome();
+        var secretStore = new FakeSecretStore();
+        var store = new ConnectionStore(secretStore);
+        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Not Live"), RdpSessionStatus.Connected)]);
+        var vm = new MainWindowViewModel(store, factory);
+        await vm.LoadConnectionsAsync();
+        await ConnectAsync(vm, CreateConnection("Not Live"), secretStore);
+        vm.IsKeyboardGrabSupported = true;
+
+        vm.ToggleKeyboardGrabCommand.Execute(null);
+
+        Assert.False(vm.IsKeyboardGrabActive);
+    }
+
+    private static void MarkSessionNativeHandleLive(RdpSessionViewModel session)
+    {
+        var field = typeof(RdpSessionViewModel).GetField("_handle", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(session, new IntPtr(0xC0DE));
+    }
+
+    [Fact]
     public async Task CloseSelectedSession_SelectsNeighbor()
     {
         using var env = new TestConfigHome();
