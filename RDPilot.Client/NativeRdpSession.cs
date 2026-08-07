@@ -26,6 +26,8 @@ internal interface INativeRdpSession
         out int dirtyHeight,
         out int fbWidth,
         out int fbHeight);
+
+    bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight);
 }
 
 internal sealed class NativeRdpSession : INativeRdpSession
@@ -66,7 +68,8 @@ internal sealed class NativeRdpSession : INativeRdpSession
         NativeWrapper.ClipboardTextCallback clipboardCallback,
         NativeWrapper.ClipboardFilesCallback clipboardFilesCallback,
         NativeWrapper.StatusCallback statusCallback,
-        NativeWrapper.CertificateDecisionCallback certificateDecisionCallback)
+        NativeWrapper.CertificateDecisionCallback certificateDecisionCallback,
+        NativeWrapper.CursorCallback cursorCallback)
     {
         var handle = NativeWrapper.rdp_session_connect(
             host,
@@ -97,7 +100,8 @@ internal sealed class NativeRdpSession : INativeRdpSession
             clipboardCallback,
             clipboardFilesCallback,
             statusCallback,
-            certificateDecisionCallback);
+            certificateDecisionCallback,
+            cursorCallback);
 
         return new NativeRdpSession(handle);
     }
@@ -149,4 +153,7 @@ internal sealed class NativeRdpSession : INativeRdpSession
         out int fbWidth,
         out int fbHeight) =>
         NativeWrapper.rdp_session_present(Handle, dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
+
+    public bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight) =>
+        NativeWrapper.rdp_session_copy_cursor_image(Handle, cursorId, dest, destStride, destWidth, destHeight);
 }

@@ -24,6 +24,23 @@ typedef struct rdp_session rdp_session;
  * would stall the decode loop and (since the buffer lifetime is unrelated to FreeRDP's decode
  * thread) race gdi_resize. See wfreerdp's wf_end_paint for the reference single-threaded model. */
 typedef void (*FrameCallback)(rdp_session* session, uint8_t* data, int width, int height, int dirty_x, int dirty_y, int dirty_width, int dirty_height, int source_stride);
+
+/* Which cursor the remote session currently wants shown over the desktop. */
+typedef enum {
+    RDP_CURSOR_HIDDEN = 0,  /* server asked for no pointer at all */
+    RDP_CURSOR_DEFAULT = 1, /* server asked for the platform default arrow */
+    RDP_CURSOR_BITMAP = 2   /* server supplied a shape; pull it with rdp_session_copy_cursor_image */
+} rdp_cursor_kind;
+
+/* CursorCallback is invoked on the RDP thread whenever the active pointer changes. Unlike
+ * FrameCallback it carries no pixel pointer, so there is no aliasing hazard, but it is subject to
+ * the same latency constraint: it runs inside the FreeRDP event loop and must not block. The host
+ * should record the descriptor, coalesce, and post to its UI thread; the UI thread then pulls the
+ * pixels for `cursor_id` with rdp_session_copy_cursor_image. `cursor_id` is unique for the lifetime
+ * of the session, so a host-side cache keyed on it never needs invalidating; ids for shapes the
+ * server has evicted from its pointer cache simply stop resolving. For RDP_CURSOR_HIDDEN and
+ * RDP_CURSOR_DEFAULT every field after `kind` is zero. */
+typedef void (*CursorCallback)(rdp_session* session, int kind, uint32_t cursor_id, int width, int height, int hot_x, int hot_y);
 typedef void (*ClipboardTextCallback)(rdp_session* session, const char* text);
 typedef void (*ClipboardFilesCallback)(rdp_session* session, const char** file_paths, size_t file_count);
 typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
@@ -34,7 +51,8 @@ FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const cha
                                                      int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                                      bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
                                                      uint32_t keyboard_layout, uint32_t dpi_scale_percent,
-                                                     FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback);
+                                                     FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
+                                                     CursorCallback cursor_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent);
@@ -66,3 +84,18 @@ FREERDP_WRAPPER_API void rdp_session_request_full_frame(rdp_session* session);
  * the UI present thread run independently (unlike wfreerdp, which serializes both on a single
  * message loop). */
 FREERDP_WRAPPER_API bool rdp_session_present(rdp_session* session, uint8_t* dest, int dest_stride, int dest_width, int dest_height, int* out_dx, int* out_dy, int* out_dw, int* out_dh, int* out_width, int* out_height);
+
+/* Copies the decoded BGRA32 image for `cursor_id` (as reported by CursorCallback) into the
+ * caller-provided destination buffer. Intended to be called from the UI thread with a locked
+ * bitmap backing buffer, mirroring rdp_session_present.
+ *
+ * The pixels are straight (non-premultiplied) alpha, matching what FreeRDP's
+ * freerdp_image_copy_from_pointer_data produces from the AND/XOR masks. Note this differs from
+ * the desktop framebuffer, which is opaque BGRX.
+ *
+ * Returns false when the id is unknown - the RDP thread frees pointers when the server evicts
+ * them from its cache, so a shape can disappear between the callback and this call - or when
+ * `dest_width`/`dest_height` do not match the reported size. In both cases the caller should keep
+ * whatever cursor it is already showing. The lookup and copy happen under the same lock the RDP
+ * thread holds while adding/removing pointers, so the source buffer cannot be freed mid-copy. */
+FREERDP_WRAPPER_API bool rdp_session_copy_cursor_image(rdp_session* session, uint32_t cursor_id, uint8_t* dest, int dest_stride, int dest_width, int dest_height);

@@ -12,9 +12,13 @@
                           VerticalScrollBarVisibility="Auto"
                           SizeChanged="OnRdpViewportSizeChanged"
                           IsVisible="{Binding IsViewportLive}">
+                <!-- Cursor is driven by the remote session: FreeRDP never draws the pointer into
+                     the desktop framebuffer, so the shape arrives out-of-band. Null falls back to
+                     the inherited cursor. -->
                 <Image Source="{Binding SelectedSession.Screen}" Stretch="Fill"
                        Width="{Binding SelectedSession.DisplayWidth}"
                        Height="{Binding SelectedSession.DisplayHeight}"
+                       Cursor="{Binding SelectedSession.RemoteCursor}"
                        HorizontalAlignment="Left" VerticalAlignment="Top"
                        PointerMoved="OnPointerMoved"
                        PointerPressed="OnPointerPressed"

@@ -680,6 +680,7 @@ static void on_graphics_reset(void* context, const GraphicsResetEventArgs* e)
     rdp_context->update->SurfaceBits = on_surface_bits;
     rdp_context->update->EndPaint = on_end_paint;
     rdp_context->update->DesktopResize = on_desktop_resize;
+    register_pointer_class(rdp_context);
     init_graphics_pipeline(rdp_context);
     resize_local_framebuffer(rdp_context, width, height);
 }
@@ -924,6 +925,11 @@ static bool setup_instance(rdp_session* session, const connection_params* params
 
     ((wrapper_context*)session->instance->context)->session = session;
 
+    // Register the pointer class before connecting so any pointer update processed during the
+    // activation sequence already has somewhere to go. It is registered again after each gdi_init
+    // for the same defensive reason the update hooks are.
+    register_pointer_class(session->instance->context);
+
     rdpSettings* settings = session->instance->context->settings;
     const char* server_hostname = use_gateway ? params->host : params->connect_host;
     freerdp_settings_set_string(settings, FreeRDP_ServerHostname, server_hostname);
@@ -966,6 +972,10 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_bool(settings, FreeRDP_SupportDynamicChannels, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportDisplayControl, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportMonitorLayoutPdu, FALSE);
+    // Accept the large pointer shapes Windows sends on scaled displays; without this the server
+    // silently degrades them and hi-dpi cursors arrive clipped to 96x96.
+    freerdp_settings_set_uint32(settings, FreeRDP_LargePointerFlag,
+                                LARGE_POINTER_FLAG_96x96 | LARGE_POINTER_FLAG_384x384);
     freerdp_settings_set_bool(settings, FreeRDP_SupportGraphicsPipeline,
                               is_graphics_pipeline_mode(session->render_mode) ? TRUE : FALSE);
     configure_graphics_pipeline_settings(settings, session->render_mode);
@@ -1135,6 +1145,7 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
     session->instance->context->update->SurfaceBits = on_surface_bits;
     session->instance->context->update->EndPaint = on_end_paint;
     session->instance->context->update->DesktopResize = on_desktop_resize;
+    register_pointer_class(session->instance->context);
     init_graphics_pipeline(session->instance->context);
 
     free(params);
@@ -1224,7 +1235,8 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, uin
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
                                  uint32_t keyboard_layout, uint32_t dpi_scale_percent,
-                                 FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback) {
+                                 FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
+                                 CursorCallback cursor_callback) {
     rdp_session* session = calloc(1, sizeof(rdp_session));
     if (!session) return NULL;
 
@@ -1234,11 +1246,13 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, uin
     session->clipboard_files_callback = clipboard_files_callback;
     session->status_callback = status_callback;
     session->certificate_decision_callback = certificate_decision_callback;
+    session->cursor_callback = cursor_callback;
     session->render_mode = get_configured_rendering_mode();
     InitializeCriticalSection(&session->resize_lock);
     InitializeCriticalSection(&session->input_lock);
     InitializeCriticalSection(&session->clipboard_lock);
     InitializeCriticalSection(&session->frame_lock);
+    InitializeCriticalSection(&session->cursor_lock);
 
 #if defined(_WIN32)
     /* On Windows, use the actual Win32 registered clipboard format IDs.
@@ -1341,10 +1355,14 @@ void rdp_session_free(rdp_session* session) {
     session->clipboard_text_callback = NULL;
     session->clipboard_files_callback = NULL;
     session->status_callback = NULL;
+    session->certificate_decision_callback = NULL;
+    session->cursor_callback = NULL;
+    free_cursor_cache(session);
     DeleteCriticalSection(&session->resize_lock);
     DeleteCriticalSection(&session->input_lock);
     DeleteCriticalSection(&session->clipboard_lock);
     DeleteCriticalSection(&session->frame_lock);
+    DeleteCriticalSection(&session->cursor_lock);
     if (session->file_clipboard)
         ClipboardDestroy(session->file_clipboard);
     free_clipboard_data(session);

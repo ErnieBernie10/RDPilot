@@ -104,6 +104,9 @@ internal static class NativeWrapper
     internal delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void CursorCallback(IntPtr session, int kind, uint cursorId, int width, int height, int hotX, int hotY);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int CertificateDecisionCallback(
         IntPtr session,
         IntPtr host,
@@ -146,7 +149,8 @@ internal static class NativeWrapper
             ClipboardTextCallback clipboardCallback,
             ClipboardFilesCallback clipboardFilesCallback,
             StatusCallback statusCallback,
-            CertificateDecisionCallback certificateDecisionCallback);
+            CertificateDecisionCallback certificateDecisionCallback,
+            CursorCallback cursorCallback);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_disconnect(IntPtr session);
@@ -195,6 +199,16 @@ internal static class NativeWrapper
         out int dirtyHeight,
         out int fbWidth,
         out int fbHeight);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool rdp_session_copy_cursor_image(
+        IntPtr session,
+        uint cursorId,
+        IntPtr dest,
+        int destStride,
+        int destWidth,
+        int destHeight);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetDllDirectory(string lpPathName);

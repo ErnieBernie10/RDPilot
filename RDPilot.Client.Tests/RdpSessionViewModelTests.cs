@@ -512,6 +512,97 @@ public sealed class RdpSessionViewModelTests
         AvaloniaTestEnvironment.RunOnUiThread(session.Dispose);
     }
 
+    [Fact]
+    public void NativeCursorCallback_MatchingHandle_AppliesHiddenCursorOnUiThread()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Cursor Hidden"), RdpSessionStatus.Connected);
+        var handle = new IntPtr(0x1234);
+        SetField(session, "_handle", handle);
+
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+            InvokeCursorCallback(session, handle, kind: 0, cursorId: 0, width: 0, height: 0, hotX: 0, hotY: 0));
+
+        Assert.NotNull(session.RemoteCursor);
+    }
+
+    [Fact]
+    public void NativeCursorCallback_StaleHandle_IsIgnored()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Cursor Stale"), RdpSessionStatus.Connected);
+        SetField(session, "_handle", new IntPtr(0x1234));
+
+        InvokeCursorCallback(session, new IntPtr(0x9999), kind: 0, cursorId: 0, width: 0, height: 0, hotX: 0, hotY: 0);
+        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+
+        Assert.Null(session.RemoteCursor);
+    }
+
+    [Fact]
+    public void NativeCursorCallback_DisposedBeforeDispatcherDrain_DropsPendingCursor()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Cursor Dispose Race"), RdpSessionStatus.Connected);
+        var handle = new IntPtr(0x1234);
+        SetField(session, "_handle", handle);
+        var nativeSession = new FakeNativeSession(handle);
+        AttachNativeSession(session, nativeSession);
+
+        // Queue the apply, then dispose before the dispatcher gets to run it.
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            InvokeCursorCallback(session, handle, kind: 2, cursorId: 5, width: 32, height: 32, hotX: 0, hotY: 0);
+            DisposeWithoutNativeFree(session);
+        });
+        AvaloniaTestEnvironment.RunPendingDispatcherJobs();
+
+        Assert.Empty(nativeSession.CursorImageRequests);
+        Assert.Null(session.RemoteCursor);
+    }
+
+    [Fact]
+    public void NativeCursorCallback_BurstOfChanges_AppliesOnlyTheLatest()
+    {
+        AvaloniaTestEnvironment.EnsureInitialized();
+
+        var session = new RdpSessionViewModel(CreateConnection("Cursor Coalesce"), RdpSessionStatus.Connected);
+        var handle = new IntPtr(0x1234);
+        SetField(session, "_handle", handle);
+        var nativeSession = new FakeNativeSession(handle);
+        AttachNativeSession(session, nativeSession);
+
+        // Three bitmap shapes arrive before the dispatcher drains; only the last should be pulled.
+        AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            InvokeCursorCallback(session, handle, kind: 2, cursorId: 11, width: 32, height: 32, hotX: 0, hotY: 0);
+            InvokeCursorCallback(session, handle, kind: 2, cursorId: 12, width: 32, height: 32, hotX: 0, hotY: 0);
+            InvokeCursorCallback(session, handle, kind: 2, cursorId: 13, width: 32, height: 32, hotX: 0, hotY: 0);
+        });
+
+        Assert.Equal([13u], nativeSession.CursorImageRequests);
+        // FakeNativeSession reports the copy as failed, so the viewport keeps its current cursor.
+        Assert.Null(session.RemoteCursor);
+    }
+
+    private static void InvokeCursorCallback(RdpSessionViewModel session, IntPtr handle, int kind, uint cursorId, int width, int height, int hotX, int hotY)
+    {
+        InvokePrivate(
+            session,
+            "OnCursorChanged",
+            [typeof(IntPtr), typeof(int), typeof(uint), typeof(int), typeof(int), typeof(int), typeof(int)],
+            handle,
+            kind,
+            cursorId,
+            width,
+            height,
+            hotX,
+            hotY);
+    }
+
     private static void DisposeWithoutNativeFree(RdpSessionViewModel session)
     {
         SetField(session, "_handle", IntPtr.Zero);
@@ -619,6 +710,7 @@ public sealed class RdpSessionViewModelTests
         public List<(ushort Flags, ushort Code)> KeyboardEvents { get; } = [];
         public List<string> LocalClipboardFiles { get; } = [];
         public int RequestFullFrameCallCount { get; private set; }
+        public List<uint> CursorImageRequests { get; } = [];
 
         public void Disconnect()
         {
@@ -668,6 +760,12 @@ public sealed class RdpSessionViewModelTests
         {
             dirtyX = dirtyY = dirtyWidth = dirtyHeight = 0;
             fbWidth = fbHeight = 0;
+            return false;
+        }
+
+        public bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight)
+        {
+            CursorImageRequests.Add(cursorId);
             return false;
         }
     }

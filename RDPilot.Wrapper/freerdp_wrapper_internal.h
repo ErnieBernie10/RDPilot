@@ -13,8 +13,11 @@
 #include <freerdp/channels/channels.h>
 #include <freerdp/channels/rdpgfx.h>
 #include <freerdp/utils/cliprdr_utils.h>
+#include <freerdp/codec/color.h>
 #include <freerdp/gdi/gdi.h>
 #include <freerdp/gdi/gfx.h>
+#include <freerdp/graphics.h>
+#include <freerdp/pointer.h>
 #include <freerdp/settings.h>
 #include <freerdp/update.h>
 #include <freerdp/utils/gfx.h>
@@ -66,12 +69,32 @@ typedef enum {
     RENDERING_MODE_GFX_GDI
 } rendering_mode;
 
+/* Host-side cap on how many decoded pointer shapes we keep alive at once. FreeRDP's own pointer
+ * cache is bounded by FreeRDP_PointerCacheSize, so this is only a backstop against a server that
+ * streams non-cached shapes; 384x384 pointers are ~590 KB each. */
+#define CURSOR_CACHE_CAPACITY 64
+
+/* Our rdpPointer subclass. `pointer` MUST stay first: FreeRDP allocates `pointer.size` bytes and
+ * hands back the address as an rdpPointer*. Instances live from Pointer_New until Pointer_Free and
+ * are reachable from the session's cursor_list so the UI thread can pull pixels by id. */
+typedef struct wrapper_pointer {
+    rdpPointer pointer;
+    UINT32 id;
+    UINT32 width;
+    UINT32 height;
+    UINT32 hot_x;
+    UINT32 hot_y;
+    BYTE* bgra; /* width*height*4 PIXEL_FORMAT_BGRA32, straight alpha; NULL if conversion failed */
+    struct wrapper_pointer* next;
+} wrapper_pointer;
+
 struct rdp_session {
     FrameCallback callback;
     ClipboardTextCallback clipboard_text_callback;
     ClipboardFilesCallback clipboard_files_callback;
     StatusCallback status_callback;
     CertificateDecisionCallback certificate_decision_callback;
+    CursorCallback cursor_callback;
     freerdp* instance;
     DispClientContext* disp;
     CliprdrClientContext* cliprdr;
@@ -150,6 +173,13 @@ struct rdp_session {
     INT32 pending_dirty_y;
     INT32 pending_dirty_w;
     INT32 pending_dirty_h;
+
+    // Remote cursor support. The RDP thread owns cursor_list; the UI thread only reads it through
+    // rdp_session_copy_cursor_image. Both take cursor_lock.
+    CRITICAL_SECTION cursor_lock;
+    wrapper_pointer* cursor_list;
+    UINT32 cursor_list_count;
+    UINT32 next_cursor_id;
 };
 
 typedef struct {
@@ -195,6 +225,9 @@ void log_channel_rc(const char* operation, UINT rc);
 
 void queue_input_event(rdp_session* session, input_event event);
 void process_pending_input(rdp_session* session);
+
+void register_pointer_class(rdpContext* context);
+void free_cursor_cache(rdp_session* session);
 
 void free_local_clipboard_text(rdp_session* session);
 void free_clipboard_data(rdp_session* session);
