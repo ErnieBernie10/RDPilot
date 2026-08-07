@@ -49,17 +49,44 @@ public sealed class RdpSessionOptionsTests
     }
 
     [Theory]
-    [InlineData(100u, 100u)]
-    [InlineData(125u, 140u)]
-    [InlineData(150u, 180u)]
-    [InlineData(200u, 180u)]
     [InlineData(0u, 100u)]
     [InlineData(99u, 100u)]
-    [InlineData(140u, 140u)]
-    [InlineData(180u, 180u)]
-    public void ClampDpiScalePercent_SnapToRdpValidSteps(uint input, uint expected)
+    [InlineData(100u, 100u)]
+    [InlineData(125u, 125u)]
+    [InlineData(150u, 150u)]
+    [InlineData(200u, 200u)]
+    [InlineData(500u, 500u)]
+    [InlineData(600u, 500u)]
+    public void ClampDpiScalePercent_KeepsTheRealPercentageWithinTheDesktopRange(uint input, uint expected)
     {
         Assert.Equal(expected, RdpSessionOptions.ClampDpiScalePercent(input));
+    }
+
+    [Theory]
+    [InlineData(100u, 100u)]
+    [InlineData(119u, 100u)]
+    [InlineData(120u, 140u)]
+    [InlineData(125u, 140u)]
+    [InlineData(150u, 140u)]
+    [InlineData(159u, 140u)]
+    [InlineData(160u, 180u)]
+    [InlineData(200u, 180u)]
+    [InlineData(500u, 180u)]
+    public void ToDeviceScalePercent_SnapsToTheNearestLegalStep(uint input, uint expected)
+    {
+        Assert.Equal(expected, RdpSessionOptions.ToDeviceScalePercent(input));
+    }
+
+    [Theory]
+    [InlineData(100u)]
+    [InlineData(125u)]
+    [InlineData(150u)]
+    [InlineData(500u)]
+    public void ToDeviceScalePercent_OnlyEverProducesValuesTheServerAccepts(uint input)
+    {
+        // MS-RDPBCGR 2.2.1.3.2: an out-of-range deviceScaleFactor makes the server discard the
+        // desktop factor as well, so this is the constraint that protects both values.
+        Assert.Contains(RdpSessionOptions.ToDeviceScalePercent(input), new uint[] { 100, 140, 180 });
     }
 
     [Fact]

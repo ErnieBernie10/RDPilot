@@ -42,14 +42,28 @@ internal static class RdpSessionOptions
             : (normalized, false);
     }
 
-    // Windows RDP server only accepts three values for desktopScaleFactor/deviceScaleFactor:
-    // 100 (96 DPI), 140 (134 DPI), 180 (173 DPI). Clamp the host's reported percentage to the
-    // nearest valid step so the server honours it. Sending 200 or 125 silently falls back to 100.
+    public const uint MinDpiScalePercent = 100;
+    public const uint MaxDpiScalePercent = 500;
+
+    // desktopScaleFactor and deviceScaleFactor have different valid ranges (MS-RDPBCGR 2.2.1.3.2,
+    // MS-RDPEDISP 2.2.2.2.1): the desktop factor is any percentage from 100 to 500, while the
+    // device factor must be exactly 100, 140, or 180. The server ignores *both* if *either* is out
+    // of range, so they are normalized separately and the real percentage is preserved for the
+    // desktop factor - snapping 150% up to 180% there renders the remote ~20% too large.
     public static uint ClampDpiScalePercent(uint percent)
     {
-        if (percent >= 150) return 180;
-        if (percent >= 125) return 140;
-        return 100;
+        if (percent < MinDpiScalePercent) return MinDpiScalePercent;
+        if (percent > MaxDpiScalePercent) return MaxDpiScalePercent;
+        return percent;
+    }
+
+    // Snapped to the nearest legal step rather than rounded up. The midpoints are 120 and 160, so
+    // the common Windows setting of 150% lands on 140 instead of overshooting to 180.
+    public static uint ToDeviceScalePercent(uint percent)
+    {
+        if (percent < 120) return 100;
+        if (percent < 160) return 140;
+        return 180;
     }
 
     public static (int Width, int Height) NormalizeResolution(int width, int height)
