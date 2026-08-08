@@ -79,12 +79,19 @@ flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
 flatpak run --command=flatpak-builder-lint org.flatpak.Builder builddir build-dir
 ```
 
-Do **not** expect `flatpak-builder-lint repo repo` to pass outside Flathub. It additionally
-requires screenshots and icons to be mirrored to `https://dl.flathub.org/media`, which only
-happens once the app is published there. The two resulting errors —
-`appstream-external-screenshot-url` and `appstream-remote-icon-not-mirrored` — are documented
-as never-granted exceptions, so they cannot be waived either. Flathub's own buildbot runs
-that check with `--compose-url-policy=full` against its own CDN.
+Two errors are expected outside Flathub and can be ignored locally:
+
+- `appstream-external-screenshot-url`
+- `appstream-remote-icon-not-mirrored`
+
+Both assert that the URLs in the composed AppStream catalogue start with
+`https://dl.flathub.org/media` — a **prefix** check, not a reachability one. Flathub satisfies
+it by running flatpak-builder with `--compose-url-policy=full`, which makes `appstreamcli
+compose` rewrite the URLs. Without that flag the original remote URLs survive and both checks
+fire. They are documented as never-granted exceptions, so `--exceptions` will not waive them.
+
+CI filters exactly those two and fails on anything else. Note that an unreachable screenshot
+URL surfaces as `appstream-missing-screenshots`, which is *not* filtered.
 
 ### Building your working tree instead of a pinned commit
 

@@ -40,14 +40,33 @@ jobs:
         run: |
           flatpak-builder-lint manifest packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
 
-      # builddir, not repo. The repo check additionally requires screenshots and icons to be
-      # mirrored to https://dl.flathub.org/media, which only happens once the app is actually
-      # published there — and appstream-external-screenshot-url /
-      # appstream-remote-icon-not-mirrored are documented as never-granted exceptions, so
-      # they cannot be waived. builddir still validates the metainfo, desktop file and icons.
+      # Two checks cannot pass outside Flathub's own pipeline. They assert that screenshot
+      # and icon URLs in the composed catalogue start with https://dl.flathub.org/media --
+      # a prefix check, not a reachability one. Flathub gets that by running flatpak-builder
+      # with --compose-url-policy=full, which makes appstreamcli rewrite the URLs; the
+      # GitHub Action exposes no input for that flag. They are also documented as
+      # never-granted exceptions, so they cannot be waived with --exceptions either.
+      #
+      # Filter exactly those two and fail on anything else, so the rest of the lint (metainfo
+      # validation, icon presence, desktop file, finish-args) still gates the build. A broken
+      # screenshot URL surfaces as appstream-missing-screenshots, which is not filtered.
       - name: Lint build directory
         run: |
-          flatpak-builder-lint builddir flatpak_app
+          flatpak-builder-lint builddir flatpak_app > lint.json || true
+          cat lint.json
+          python3 -c "
+          import json, sys
+          infra_only = {
+              'appstream-external-screenshot-url',
+              'appstream-remote-icon-not-mirrored',
+          }
+          errors = set(json.load(open('lint.json')).get('errors', []))
+          remaining = sorted(errors - infra_only)
+          if remaining:
+              print('Actionable lint errors: ' + ', '.join(remaining))
+              sys.exit(1)
+          print('No actionable lint errors.')
+          "
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
