@@ -83,6 +83,10 @@ modules:
       - -DCMAKE_INSTALL_LIBDIR=lib
       - -DENABLE_CJSON_TEST=OFF
       - -DBUILD_SHARED_AND_STATIC_LIBS=OFF
+      # cJSON still declares cmake_minimum_required(VERSION 3.0) and the SDK ships CMake 4,
+      # which removed compatibility below 3.5. FreeRDP (3.13) and RDPilot.Wrapper (3.15) are
+      # unaffected.
+      - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     sources:
       - type: git
         url: https://github.com/DaveGamble/cJSON.git
