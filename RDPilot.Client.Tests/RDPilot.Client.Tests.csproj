@@ -15,7 +15,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Avalonia.Headless" Version="12.1.999-cibuild0066948-alpha" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.1" />
   </ItemGroup>
 
   <ItemGroup>

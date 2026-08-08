@@ -155,7 +155,7 @@ public partial class RdpViewportView : UserControl
         try
         {
             using var stream = new MemoryStream();
-            bitmap.Save(stream);
+            bitmap.Save(stream, PngBitmapEncoderOptions.Default);
             var bytes = stream.ToArray();
             if (bytes.Length <= 14)
             {

@@ -66,16 +66,11 @@
               ContinueOnError="false" />
     </Target>
     <ItemGroup>
-        <PackageReference Include="Avalonia" Version="12.1.999-cibuild0066948-alpha"/>
-        <PackageReference Include="Avalonia.Desktop" Version="12.1.999-cibuild0066948-alpha"/>
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.999-cibuild0066948-alpha"/>
-        <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.999-cibuild0066948-alpha"/>
-        <PackageReference Include="Avalonia.Wayland" Version="12.1.999-cibuild0066948-alpha"/>
-        <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Include="Avalonia.Diagnostics" Version="11.3.17">
-            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-        </PackageReference>
+        <PackageReference Include="Avalonia" Version="12.1.1"/>
+        <PackageReference Include="Avalonia.Desktop" Version="12.1.1"/>
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1"/>
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1"/>
+        <PackageReference Include="Avalonia.Wayland" Version="12.1.1"/>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
         <PackageReference Include="FluentIcons.Avalonia" Version="2.1.331"/>
     </ItemGroup>
