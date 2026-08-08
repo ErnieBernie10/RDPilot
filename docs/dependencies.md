@@ -24,7 +24,8 @@ scripts/build-windows.ps1
 
 - Runtime: `org.freedesktop.Platform` 25.08
 - Build: `org.freedesktop.Sdk.Extension.dotnet10`
-- Runtime extension: `org.freedesktop.Platform.ffmpeg-full` (H.264 RDPGFX decoding)
+- Runtime extension: `org.freedesktop.Platform.codecs-extra//25.08-extra` (H.264 RDPGFX
+  decoding; renamed from `ffmpeg-full` in freedesktop-sdk 25.08)
 - Built from source in the manifest: `libsecret` (for `secret-tool`), `cJSON`, FreeRDP 3
 - NuGet packages are restored offline from `packaging/flatpak/nuget-sources.json`
 

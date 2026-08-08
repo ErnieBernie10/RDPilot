@@ -51,6 +51,17 @@ Extra packages are harmless — they are just downloaded and ignored. Run
 4. `rdpilot` — `dotnet publish`, which also drives the CMake build of
    `libfreerdp_wrapper.so` via the `BuildNativeWrapper` target in `RDPilot.Client.csproj`.
 
+### H.264 and the codecs extension
+
+The base runtime builds ffmpeg with `--disable-decoder="h264,hevc,vc1,vvc"`, so H.264 RDPGFX
+needs `org.freedesktop.Platform.codecs-extra//25.08-extra`. The manifest declares **no**
+`add-extensions` block for it — the Platform already declares that extension point
+(`directory: %{lib}/codecs-extra`, `add-ld-path: lib`), so installing the extension is enough.
+
+Two things that trip people up: the branch is `25.08-extra`, not `25.08`; and the extension
+was called `org.freedesktop.Platform.ffmpeg-full` in freedesktop-sdk 24.08 and earlier, so
+older manifests and guides use a name that no longer resolves.
+
 Config and secrets land in `~/.var/app/io.github.ErnieBernie10.RDPilot/config/RDPilot.Client/`
 because Flatpak redirects `XDG_CONFIG_HOME`. `AppDataPaths.AppName` stays `RDPilot.Client`;
 changing it would orphan saved passwords.
@@ -61,7 +72,7 @@ changing it would orphan saved passwords.
 flatpak install -y flathub org.flatpak.Builder \
   org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08 \
   org.freedesktop.Sdk.Extension.dotnet10//25.08 \
-  org.freedesktop.Platform.ffmpeg-full//25.08
+  org.freedesktop.Platform.codecs-extra//25.08-extra
 
 cd packaging/flatpak
 flatpak run org.flatpak.Builder --force-clean --user --install \
@@ -121,7 +132,7 @@ sandboxing.
 5. On a fractionally scaled monitor, confirm the remote desktop is not ~20% oversized.
 6. Copy text in both directions.
 7. Watch `[PERF_NATIVE]` / `[PERF_UI]` during a window drag. A large regression against a
-   native build usually means the `ffmpeg-full` extension is not mounted.
+   native build usually means the `codecs-extra` extension is not installed.
 
 ## Releasing
 

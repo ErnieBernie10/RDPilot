@@ -238,8 +238,12 @@ laid out flat so the directory can be copied straight into the Flathub repo.
   Service D-Bus API directly, that module can be dropped.
 - Keep `finish-args` minimal. No `--filesystem` is currently justified; if remote-to-local
   clipboard file paste lands, route it through the file-chooser portal instead.
-- H.264 RDPGFX only decodes when `org.freedesktop.Platform.ffmpeg-full` is mounted at
-  `/app/lib/ffmpeg` — the base runtime ships ffmpeg without the patented decoders.
+- H.264 RDPGFX only decodes when `org.freedesktop.Platform.codecs-extra//25.08-extra` is
+  installed — the base runtime builds ffmpeg with `--disable-decoder="h264,hevc,vc1,vvc"`.
+  The manifest deliberately has **no** `add-extensions` block for it: the Platform declares
+  that extension point itself (`directory: %{lib}/codecs-extra`, `add-ld-path: lib`). Note
+  the branch is `25.08-extra`, not `25.08`. This extension was called
+  `org.freedesktop.Platform.ffmpeg-full` in freedesktop-sdk 24.08 and earlier.
 - App icon for packaging is `RDPilot.Client/Assets/rdpilot-app-icon.svg` (plus a 256x256
   PNG). The older `screen-alt-2-red-corner-line.svg` has no background fill and must not be
   used as an app icon.

@@ -30,14 +30,22 @@ finish-args:
   # Framework-dependent publish; the runtime is installed by the dotnet module below.
   - --env=DOTNET_ROOT=/app/lib/dotnet
 
-# org.freedesktop.Platform ships ffmpeg without the patent-encumbered decoders, so H.264
-# RDPGFX streams only decode when the full build is mounted here.
-add-extensions:
-  org.freedesktop.Platform.ffmpeg-full:
-    directory: lib/ffmpeg
-    version: '25.08'
-    add-ld-path: .
-    autodelete: false
+# No add-extensions block for codecs here on purpose. org.freedesktop.Platform ships ffmpeg
+# built with --disable-decoder="h264,hevc,vc1,vvc", so H.264 RDPGFX only decodes when the
+# extra codec extension is installed -- but the Platform already declares that extension
+# point itself:
+#
+#   Extension org.freedesktop.Platform.codecs-extra:
+#     directory: '%{lib}/codecs-extra'
+#     version: "%{branch-extra}"
+#     add-ld-path: lib
+#
+# so the app does not declare one. Users install it with:
+#
+#   flatpak install flathub org.freedesktop.Platform.codecs-extra//25.08-extra
+#
+# Note the branch is 25.08-extra, not 25.08. In freedesktop-sdk 24.08 and earlier this
+# extension was called org.freedesktop.Platform.ffmpeg-full; it was renamed in 25.08.
 
 cleanup:
   - /include
@@ -121,7 +129,7 @@ modules:
       - -DWITH_PROXY=OFF
       - -DWITH_MANPAGES=OFF
       - -DWITH_WINPR_TOOLS=OFF
-      # Enables WITH_GFX_H264; the decoder itself comes from the ffmpeg-full extension.
+      # Enables WITH_GFX_H264; the decoder itself comes from the codecs-extra extension.
       - -DWITH_FFMPEG=ON
       - -DWITH_SWSCALE=ON
       - -DWITH_PULSE=OFF
@@ -186,9 +194,6 @@ modules:
       - install -Dm644 RDPilot.Client/Assets/rdpilot-app-icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
       - install -Dm644 RDPilot.Client/Assets/rdpilot-app-icon-256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/${FLATPAK_ID}.png
       - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/LICENSE
-
-      # Mount point for the ffmpeg-full extension declared above.
-      - install -d ${FLATPAK_DEST}/lib/ffmpeg
     sources:
       # Before submitting to Flathub, tag this commit and add the matching `tag:` line. The
       # version passed to dotnet publish and the newest <release> in the metainfo must agree.
