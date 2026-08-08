@@ -57,13 +57,15 @@ modules:
   # fall back to plaintext, so the binary has to exist inside the sandbox.
   - name: libsecret
     buildsystem: meson
+    # Option names are from libsecret 0.21.7 meson.options. There is no `tests` option, and
+    # the crypto backend option is `crypto` (default libgcrypt, which the SDK provides), not
+    # `gcrypt`. `gtk_doc` and `manpage` are off to avoid needing gi-docgen and xsltproc.
     config-opts:
       - -Dintrospection=false
+      - -Dvapi=false
       - -Dgtk_doc=false
       - -Dmanpage=false
-      - -Dgcrypt=false
       - -Dbash_completion=disabled
-      - -Dtests=false
     sources:
       - type: git
         url: https://gitlab.gnome.org/GNOME/libsecret.git
