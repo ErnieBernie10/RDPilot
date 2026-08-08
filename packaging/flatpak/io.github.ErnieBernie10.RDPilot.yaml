@@ -78,6 +78,8 @@ modules:
   # ---------------------------------------------------------------- FreeRDP 3
   - name: cjson
     buildsystem: cmake-ninja
+    # flatpak-builder configures cmake modules in-source unless this is set.
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_LIBDIR=lib
@@ -97,6 +99,8 @@ modules:
   # libwinpr3. No SDL/X11 client, no server, no smartcard/kerberos stack.
   - name: freerdp
     buildsystem: cmake-ninja
+    # FreeRDP's cmake/PreventInSourceBuilds.cmake aborts without this.
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_LIBDIR=lib
