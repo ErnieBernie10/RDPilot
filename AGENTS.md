@@ -244,6 +244,27 @@ laid out flat so the directory can be copied straight into the Flathub repo.
   PNG). The older `screen-alt-2-red-corner-line.svg` has no background fill and must not be
   used as an app icon.
 
+Traps that cost a CI round-trip each; do not undo these:
+
+- `build-options` must use **`prepend-path`**, not `append-path` (which the dotnet10 README
+  suggests). The `dotnet` module's `install.sh` creates `/app/bin/dotnet`, a runtime-only
+  copy, and `/app/bin` precedes an appended SDK path — `dotnet publish` then fails with
+  "No .NET SDKs were found".
+- cmake modules need **`builddir: true`**. flatpak-builder configures in-source otherwise,
+  and FreeRDP's `cmake/PreventInSourceBuilds.cmake` aborts.
+- FreeRDP options whose default is a computed variable rather than a literal switch
+  themselves on and then hard-require a dependency. `WITH_FUSE` is the live example
+  (`pkg_check_modules(FUSE3 REQUIRED ...)`); it only powers remote-to-local clipboard file
+  paste. Pin them all explicitly.
+- The SDK ships CMake 4, which dropped `cmake_minimum_required` below 3.5. cJSON still
+  declares 3.0, hence `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` on that module.
+- Only files under `packaging/flatpak/` come from the manifest directory. Icons and `LICENSE`
+  are read from the **pinned git checkout**, so the pin must be at or after the commit that
+  introduced them.
+- `appstream-external-screenshot-url` and `appstream-remote-icon-not-mirrored` cannot pass
+  outside Flathub's pipeline; the workflow filters exactly those two. See
+  `packaging/flatpak/README.md`.
+
 ## Current Verification
 
 At the time these notes were written:
