@@ -34,10 +34,10 @@ public sealed class RdpSessionOptionsTests
 
     [Theory]
     [InlineData(RdpConnectionType.Autodetect, 0, true)]
-    [InlineData(RdpConnectionType.Wan, (int)RdpConnectionType.Wan, false)]
-    [InlineData(RdpConnectionType.Lan, (int)RdpConnectionType.Lan, false)]
-    [InlineData((RdpConnectionType)99, (int)RdpConnectionType.Wan, false)]
-    public void NormalizeNetworkSettings_SeparatesDetectionFromServerQualityHint(
+    [InlineData(RdpConnectionType.Wan, (int)RdpConnectionType.Wan, true)]
+    [InlineData(RdpConnectionType.Lan, (int)RdpConnectionType.Lan, true)]
+    [InlineData((RdpConnectionType)99, (int)RdpConnectionType.Wan, true)]
+    public void NormalizeNetworkSettings_EnablesProtocolSupportIndependentlyOfQualityHint(
         RdpConnectionType input,
         int expectedConnectionType,
         bool expectedNetworkAutoDetect)

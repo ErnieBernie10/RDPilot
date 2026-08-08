@@ -37,9 +37,9 @@ internal static class RdpSessionOptions
     public static (int ConnectionType, bool NetworkAutoDetect) NormalizeNetworkSettings(RdpConnectionType connectionType)
     {
         var normalized = NormalizeConnectionType(connectionType);
-        return normalized == (int)RdpConnectionType.Autodetect
-            ? (0, true)
-            : (normalized, false);
+        // FreeRDP also uses this flag to accept server-initiated RTT probes. Keep protocol
+        // support enabled independently of whether the user selected a fixed quality hint.
+        return (normalized == (int)RdpConnectionType.Autodetect ? 0 : normalized, true);
     }
 
     public const uint MinDpiScalePercent = 100;
