@@ -129,6 +129,17 @@ modules:
       - -DWITH_AAD=OFF
       - -DWITH_WEBVIEW=OFF
       - -DWITH_URIPARSER=OFF
+      # Options below default to a computed variable rather than a literal, so they switch
+      # themselves on and then hard-require a dependency. WITH_FUSE is the one that matters:
+      # it defaults ON everywhere except Apple/Windows/Android and does
+      # `pkg_check_modules(FUSE3 REQUIRED ... fuse3)`. It only powers remote-to-local
+      # clipboard file paste, which RDPilot does not implement.
+      - -DWITH_FUSE=OFF
+      - -DWITH_OPUS=OFF
+      - -DWITH_PKCS11=OFF
+      - -DWITH_FDK_AAC=OFF
+      - -DWITH_CAIRO=OFF
+      - -DWITH_OPENCL=OFF
     sources:
       - type: git
         url: https://github.com/FreeRDP/FreeRDP.git
