@@ -195,11 +195,12 @@ modules:
       - install -Dm644 RDPilot.Client/Assets/rdpilot-app-icon-256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/${FLATPAK_ID}.png
       - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/LICENSE
     sources:
-      # Before submitting to Flathub, tag this commit and add the matching `tag:` line. The
-      # version passed to dotnet publish and the newest <release> in the metainfo must agree.
+      # Keep tag, commit, the -p:Version above, and the newest <release> in the metainfo in
+      # sync. See "Releasing" in packaging/flatpak/README.md.
       - type: git
         url: https://github.com/ErnieBernie10/RDPilot.git
-        commit: 9d3ad63029ccf51ccdab23a0a0a8af1ab16dc94f
+        tag: v1.3.0
+        commit: 4f751c41a681488dc1a44c8589d62bad08f25573
       - type: file
         path: rdpilot.sh
       - type: file
