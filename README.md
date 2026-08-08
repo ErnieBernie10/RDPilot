@@ -49,7 +49,14 @@ curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v0.2.0/rdpil
 sudo pacman -U rdpilot-0.2.0-1-x86_64.pkg.tar.zst
 ```
 
-Linux is supported, but the package has not been published to the AUR yet.
+A Flatpak manifest lives in `packaging/flatpak/`. Build and install it locally with:
+
+```sh
+flatpak run org.flatpak.Builder --force-clean --user --install --install-deps-from=flathub \
+  --repo=repo build-dir packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
+```
+
+Linux is supported, but the package has not been published to the AUR or Flathub yet.
 
 ## Usage
 
@@ -219,6 +226,14 @@ PKGBUILD
 ```
 
 The generated `PKGBUILD` and `.SRCINFO` are release artifacts for now. The package has not been published to the AUR yet.
+
+The Flatpak workflow publishes:
+
+```text
+RDPilot.flatpak
+```
+
+Flatpak releases additionally need the version bumped in `packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml`, a matching `<release>` entry in the metainfo, and the module's git source repointed at the tag. See `packaging/flatpak/README.md`.
 
 Submit or update winget manually with `wingetcreate` after testing the release installer.
 

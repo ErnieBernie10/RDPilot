@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>RDPilot</title>
+
+  <defs>
+    <linearGradient id="rdpilot-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#273449"/>
+      <stop offset="1" stop-color="#0F1725"/>
+    </linearGradient>
+    <linearGradient id="rdpilot-screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Opaque rounded-square backdrop so the glyph reads on light and dark shells -->
+  <rect x="16" y="16" width="480" height="480" rx="108" ry="108" fill="url(#rdpilot-bg)"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="107.5" ry="107.5"
+        fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+
+  <!-- Monitor glyph: the original 15x15 line art, scaled into the icon safe area -->
+  <g transform="translate(121 121) scale(18)"
+     stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none">
+
+    <!-- Screen fill -->
+    <rect x="0.5" y="0.5" width="14" height="10" rx="1" ry="1"
+          fill="url(#rdpilot-screen)" stroke="none"/>
+
+    <!-- Screen outline -->
+    <path d="M0.5 1.5L0.5 9.5C0.5 10.0523 0.947716 10.5 1.5 10.5L13.5 10.5C14.0523 10.5 14.5 10.0523 14.5 9.5V1.5C14.5 0.947716 14.0523 0.500001 13.5 0.500001L1.5 0.5C0.947716 0.5 0.5 0.947716 0.5 1.5Z"
+          stroke="#F5F7FA"/>
+
+    <!-- Red corner accent following the inner screen -->
+    <path d="M7.2 1.65H1.65V5.35" stroke="#F04438" stroke-width="0.9"/>
+
+    <!-- Stand -->
+    <path d="M5.5 10.5V14.05M9.5 10.5V14.05" stroke="#F5F7FA"/>
+
+    <!-- Base -->
+    <rect x="2" y="13.65" width="11" height="0.85" rx="0.425" ry="0.425" stroke="#F5F7FA"/>
+  </g>
+</svg>

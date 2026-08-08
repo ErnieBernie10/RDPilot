@@ -1,0 +1,51 @@
+name: Flatpak
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packaging/flatpak/**"
+      - ".github/workflows/flatpak.yml"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-flatpak:
+    name: Build Flatpak bundle
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build bundle
+        uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: RDPilot.flatpak
+          manifest-path: packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
+          cache-key: flatpak-builder-${{ github.sha }}
+          mirror-screenshots-url: https://dl.flathub.org/media/
+          verbose: true
+
+      # Flathub treats linter warnings as fatal, so mirror that here rather than finding out
+      # during review.
+      - name: Lint manifest
+        run: |
+          flatpak-builder-lint manifest packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
+
+      - name: Lint repo
+        run: |
+          flatpak-builder-lint repo repo
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: RDPilot.flatpak

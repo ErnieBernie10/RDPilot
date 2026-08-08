@@ -20,6 +20,16 @@ scripts/build-windows.ps1
 
 - System packages: `freerdp3`, `freerdp-client3`, `winpr3`
 
+### Linux (Flatpak)
+
+- Runtime: `org.freedesktop.Platform` 25.08
+- Build: `org.freedesktop.Sdk.Extension.dotnet10`
+- Runtime extension: `org.freedesktop.Platform.ffmpeg-full` (H.264 RDPGFX decoding)
+- Built from source in the manifest: `libsecret` (for `secret-tool`), `cJSON`, FreeRDP 3
+- NuGet packages are restored offline from `packaging/flatpak/nuget-sources.json`
+
+Manifest and regeneration instructions: `packaging/flatpak/`.
+
 ## Current native dependencies
 
 Required at runtime/build time:
