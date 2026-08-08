@@ -18,35 +18,38 @@ public sealed class WindowsSingleInstanceCoordinator : IDisposable
     private readonly Mutex? _mutex;
     private readonly string? _pipeName;
     private readonly CancellationTokenSource? _cancellationTokenSource;
+    private readonly bool _isPrimaryInstance;
 
     private WindowsSingleInstanceCoordinator(Mutex mutex, string pipeName, Func<string, Task> onConnectionRequested)
     {
         _mutex = mutex;
         _pipeName = pipeName;
         _cancellationTokenSource = new CancellationTokenSource();
+        _isPrimaryInstance = true;
         if (OperatingSystem.IsWindows())
         {
             _ = ListenAsync(onConnectionRequested, _cancellationTokenSource.Token);
         }
     }
 
-    private WindowsSingleInstanceCoordinator()
+    private WindowsSingleInstanceCoordinator(bool isPrimaryInstance)
     {
+        _isPrimaryInstance = isPrimaryInstance;
     }
 
-    public bool IsPrimaryInstance => _mutex != null;
+    public bool IsPrimaryInstance => _isPrimaryInstance;
 
     public static async Task<WindowsSingleInstanceCoordinator> CreateAsync(LaunchOptions options, Func<string, Task> onConnectionRequested)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return new WindowsSingleInstanceCoordinator();
+            return new WindowsSingleInstanceCoordinator(true);
         }
 
         var userId = WindowsIdentity.GetCurrent().User?.Value;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            return new WindowsSingleInstanceCoordinator();
+            return new WindowsSingleInstanceCoordinator(true);
         }
         var instanceName = InstanceNamePrefix + userId;
         var pipeName = PipeNamePrefix + userId;
@@ -73,7 +76,7 @@ public sealed class WindowsSingleInstanceCoordinator : IDisposable
             }
         }
 
-        return new WindowsSingleInstanceCoordinator();
+        return new WindowsSingleInstanceCoordinator(false);
     }
 
     private static async Task SendConnectionRequestAsync(string pipeName, string connectionId)
