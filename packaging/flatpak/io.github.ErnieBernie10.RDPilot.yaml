@@ -194,7 +194,7 @@ modules:
       # version passed to dotnet publish and the newest <release> in the metainfo must agree.
       - type: git
         url: https://github.com/ErnieBernie10/RDPilot.git
-        commit: 33517737969afd1f37914a36d05ee8d3a1acb053
+        commit: 9d3ad63029ccf51ccdab23a0a0a8af1ab16dc94f
       - type: file
         path: rdpilot.sh
       - type: file
