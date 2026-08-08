@@ -40,9 +40,14 @@ jobs:
         run: |
           flatpak-builder-lint manifest packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
 
-      - name: Lint repo
+      # builddir, not repo. The repo check additionally requires screenshots and icons to be
+      # mirrored to https://dl.flathub.org/media, which only happens once the app is actually
+      # published there — and appstream-external-screenshot-url /
+      # appstream-remote-icon-not-mirrored are documented as never-granted exceptions, so
+      # they cannot be waived. builddir still validates the metainfo, desktop file and icons.
+      - name: Lint build directory
         run: |
-          flatpak-builder-lint repo repo
+          flatpak-builder-lint builddir flatpak_app
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')

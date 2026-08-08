@@ -76,8 +76,15 @@ Lint exactly the way Flathub does — warnings are fatal there:
 ```sh
 flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
   manifest io.github.ErnieBernie10.RDPilot.yaml
-flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+flatpak run --command=flatpak-builder-lint org.flatpak.Builder builddir build-dir
 ```
+
+Do **not** expect `flatpak-builder-lint repo repo` to pass outside Flathub. It additionally
+requires screenshots and icons to be mirrored to `https://dl.flathub.org/media`, which only
+happens once the app is published there. The two resulting errors —
+`appstream-external-screenshot-url` and `appstream-remote-icon-not-mirrored` — are documented
+as never-granted exceptions, so they cannot be waived either. Flathub's own buildbot runs
+that check with `--compose-url-policy=full` against its own CDN.
 
 ### Building your working tree instead of a pinned commit
 
