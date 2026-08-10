@@ -25,7 +25,18 @@ finish-args:
   - --socket=fallback-x11
   # RDP sessions and optional RDP gateway.
   - --share=network
-  # SecretStore stores connection passwords through secret-tool.
+  # Fallback leg only; the portal is the live path. Inside a sandbox libsecret's
+  # backend_get_impl_type() selects its `file` backend whenever /.flatpak-info exists and
+  # org.freedesktop.portal.Secret answers a version query -- it then takes a per-app master
+  # key from that portal and encrypts its own $XDG_DATA_HOME/keyrings/default.keyring, never
+  # contacting org.freedesktop.secrets. secret-tool's store/lookup/clear all route through
+  # secret_backend_get(), so all three of SecretStore.cs's calls follow that path.
+  #
+  # Where no org.freedesktop.impl.portal.Secret backend exists (Plasma older than the
+  # KWallet ksecretd portal bridge, KeePassXC as the Secret Service provider, bare WMs) the
+  # version check fails and libsecret falls back to the D-Bus Secret Service, which this
+  # permission gates. SecretStore.cs deliberately does not degrade to plaintext, so without
+  # it password storage hard-fails on those desktops.
   - --talk-name=org.freedesktop.secrets
   # Framework-dependent publish; the runtime is installed by the dotnet module below.
   - --env=DOTNET_ROOT=/app/lib/dotnet
@@ -167,40 +178,19 @@ modules:
         DOTNET_CLI_TELEMETRY_OPTOUT: '1'
         DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
         DOTNET_NOLOGO: '1'
+    # Publish, then install the payload, launcher, desktop entry, metainfo, icons and
+    # LICENSE. Invoked with `sh` so the step does not depend on the source file's mode bit.
     build-commands:
-      # The checked-in NuGet.config points at nuget.org and the Avalonia feed; neither is
-      # reachable during a Flatpak build. Everything is restored from ./nuget-sources.
-      - rm -f NuGet.config
-      - |
-        dotnet publish RDPilot.Client/RDPilot.Client.csproj \
-          -c Release \
-          -r linux-x64 \
-          --self-contained false \
-          --source ./nuget-sources \
-          --source /usr/lib/sdk/dotnet10/nuget/packages \
-          -p:Version=1.3.0 \
-          -p:AssemblyVersion=1.3.0.0 \
-          -p:FileVersion=1.3.0.0 \
-          -p:InformationalVersion=1.3.0 \
-          -p:NativeWrapperUseVcpkg=false
-      # RDPilot.Client.csproj (CopyNativeWrapperToPublish) already dropped
-      # libfreerdp_wrapper.so into the publish directory next to the managed assembly.
-      - install -d ${FLATPAK_DEST}/lib/rdpilot
-      - cp -a RDPilot.Client/bin/Release/net10.0/linux-x64/publish/. ${FLATPAK_DEST}/lib/rdpilot/
-      - install -Dm755 rdpilot.sh ${FLATPAK_DEST}/bin/rdpilot
-
-      - install -Dm644 ${FLATPAK_ID}.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
-      - install -Dm644 ${FLATPAK_ID}.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
-      - install -Dm644 RDPilot.Client/Assets/rdpilot-app-icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
-      - install -Dm644 RDPilot.Client/Assets/rdpilot-app-icon-256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/${FLATPAK_ID}.png
-      - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/LICENSE
+      - sh build.sh
     sources:
-      # Keep tag, commit, the -p:Version above, and the newest <release> in the metainfo in
+      # Keep tag, commit, VERSION in build.sh, and the newest <release> in the metainfo in
       # sync. See "Releasing" in packaging/flatpak/README.md.
       - type: git
         url: https://github.com/ErnieBernie10/RDPilot.git
         tag: v1.3.0
         commit: 4f751c41a681488dc1a44c8589d62bad08f25573
+      - type: file
+        path: build.sh
       - type: file
         path: rdpilot.sh
       - type: file

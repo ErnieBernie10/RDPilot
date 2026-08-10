@@ -98,6 +98,14 @@ Passwords are stored separately:
 - macOS: Keychain
 - Linux: Secret Service via `secret-tool`
 
+Under Flatpak, libsecret prefers its sandboxed `file` backend: it takes a per-app key from
+the `org.freedesktop.portal.Secret` portal and encrypts its own keyring inside
+`~/.var/app/io.github.ErnieBernie10.RDPilot/data/keyrings/`. Those passwords are therefore
+app-private — they do not appear in `seahorse`/`kwalletmanager`, they are **not shared with
+the native package**, and `flatpak uninstall --delete-data` removes them. On desktops with
+no Secret portal backend, libsecret falls back to the ordinary Secret Service and passwords
+land in the system keyring as usual.
+
 ## Notes
 
 - Keyboard grab is **not available on Linux**; the toolbar button is shown disabled there. Wayland forbids clients from grabbing the keyboard (the sanctioned `zwp_keyboard_shortcuts_inhibit_manager_v1` protocol is not exposed by the current Avalonia Wayland backend), and the X11 `XGrabKeyboard` path is not implemented yet. Sending `Ctrl+Alt+Del` works on every platform.

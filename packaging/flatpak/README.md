@@ -10,6 +10,7 @@ repository (Flathub expects the manifest at the repo root).
 | `io.github.ErnieBernie10.RDPilot.metainfo.xml` | AppStream metadata (store page) |
 | `io.github.ErnieBernie10.RDPilot.desktop` | Desktop entry |
 | `nuget-sources.json` | Offline NuGet sources (generated) |
+| `build.sh` | Publish + install steps for the `rdpilot` module |
 | `rdpilot.sh` | `/app/bin/rdpilot` launcher |
 | `generate-nuget-sources.sh` | Regenerates `nuget-sources.json` |
 | `flathub.json` | Restricts Flathub builds to `x86_64` |
@@ -44,12 +45,58 @@ Extra packages are harmless — they are just downloaded and ignored. Run
    The app is published framework-dependent, same as the Arch package.
 2. `libsecret` — `RDPilot.Client/Services/SecretStore.cs` shells out to `secret-tool` and
    deliberately does not fall back to plaintext, so the binary must exist in the sandbox.
-   Paired with `--talk-name=org.freedesktop.secrets`.
+   See "Where passwords actually go" below.
 3. `cjson`, `freerdp` — FreeRDP 3 is not in the freedesktop runtime. Only `libfreerdp3`,
    `libfreerdp-client3` and `libwinpr3` are built; `RDPilot.Wrapper/CMakeLists.txt` picks
    them up from `/app` through pkg-config with no code changes.
-4. `rdpilot` — `dotnet publish`, which also drives the CMake build of
-   `libfreerdp_wrapper.so` via the `BuildNativeWrapper` target in `RDPilot.Client.csproj`.
+4. `rdpilot` — runs `build.sh`: `dotnet publish` (which also drives the CMake build of
+   `libfreerdp_wrapper.so` via the `BuildNativeWrapper` target in `RDPilot.Client.csproj`)
+   followed by the install steps. It is invoked as `sh build.sh` so the step does not depend
+   on the source file's mode bit surviving the copy.
+
+### Where passwords actually go
+
+Not the system keyring, on most desktops. libsecret's `backend_get_impl_type()`
+(`libsecret/secret-backend.c`) selects its `file` backend whenever `/.flatpak-info` exists
+**and** `org.freedesktop.portal.Secret` answers a version query. That backend fetches a
+per-app master key via the portal's `RetrieveSecret` and encrypts its own
+`$XDG_DATA_HOME/keyrings/default.keyring` — i.e.
+`~/.var/app/io.github.ErnieBernie10.RDPilot/data/keyrings/`. The file starts with the legacy
+`GnomeKeyring\n\r\0\n` magic, which is just libsecret's on-disk format and implies nothing
+about gnome-keyring being involved.
+
+`secret_password_{storev_binary,lookupv_binary,clearv}_sync` all go through
+`secret_backend_get()`, so `secret-tool store`, `lookup` and `clear` — the only three verbs
+`LinuxSecretServiceStore` uses — follow that path. `secret-tool search` and `lock` call
+`secret_service_*` directly and would not.
+
+So the secrets are app-private: absent from `seahorse`/`kwalletmanager`, not shared with the
+native Arch package, and removed by `flatpak uninstall --delete-data`.
+
+`--talk-name=org.freedesktop.secrets` is kept for the **other** branch. Without an
+`org.freedesktop.impl.portal.Secret` backend — Plasma predating KWallet's ksecretd bridge
+(added 2024-11), KeePassXC providing the Secret Service, bare WMs — the version check fails
+and libsecret falls back to D-Bus. Since `SecretStore` will not write plaintext, dropping
+the permission makes password storage hard-fail there rather than degrade.
+
+Reproduce that branch on a machine that has the portal (`SECRET_BACKEND` is read in the same
+`else` clause):
+
+```sh
+# forced fallback, permission granted -> saves into the system keyring
+flatpak run --env=SECRET_BACKEND=service io.github.ErnieBernie10.RDPilot
+
+# forced fallback, permission revoked -> saving fails
+flatpak run --env=SECRET_BACKEND=service \
+  --no-talk-name=org.freedesktop.secrets io.github.ErnieBernie10.RDPilot
+```
+
+Confirm the portal exists at all with:
+
+```sh
+busctl --user get-property org.freedesktop.portal.Desktop \
+  /org/freedesktop/portal/desktop org.freedesktop.portal.Secret version
+```
 
 ### H.264 and the codecs extension
 
@@ -136,9 +183,8 @@ sandboxing.
 
 ## Releasing
 
-1. Bump `-p:Version` / `-p:AssemblyVersion` / `-p:FileVersion` / `-p:InformationalVersion` in
-   the `rdpilot` module and add a matching `<release>` to the metainfo. The newest release
-   version and the built version must agree or the linter complains.
+1. Bump `VERSION` in `build.sh` and add a matching `<release>` to the metainfo. The newest
+   release version and the built version must agree or the linter complains.
 2. Re-run `./generate-nuget-sources.sh` if any `PackageReference` changed.
 3. Tag the release, then point the `rdpilot` module's git source at the tag and its commit.
 4. Copy this directory into the Flathub repo and open a PR.

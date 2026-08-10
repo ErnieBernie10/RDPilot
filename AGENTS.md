@@ -233,9 +233,25 @@ laid out flat so the directory can be copied straight into the Flathub repo.
 - FreeRDP 3 is **not** in the freedesktop runtime, so the manifest builds it. Keep the
   pkg-config discovery path in `RDPilot.Wrapper/CMakeLists.txt` working — that is what lets
   the wrapper find it in `/app` with no code changes.
-- `secret-tool` is not in the runtime either; `libsecret` is built as a module and the app
-  gets `--talk-name=org.freedesktop.secrets`. If `SecretStore` ever moves to the Secret
-  Service D-Bus API directly, that module can be dropped.
+- `secret-tool` is not in the runtime either; `libsecret` is built as a module purely to
+  supply that binary, which `SecretStore` shells out to. Dropping the module needs
+  `SecretStore` to stop shelling out — it is not a permissions question.
+- **Inside the sandbox libsecret does not use the Secret Service.**
+  `backend_get_impl_type()` selects its `file` backend whenever `/.flatpak-info` exists and
+  `org.freedesktop.portal.Secret` answers a version query; it takes a per-app master key
+  from that portal and encrypts its own `$XDG_DATA_HOME/keyrings/default.keyring` (whose
+  header is the legacy `GnomeKeyring\n\r\0\n` magic — that says nothing about
+  gnome-keyring). `secret-tool store/lookup/clear` route through `secret_backend_get()`, so
+  all three of `SecretStore`'s calls take that path; only its `search`/`lock` verbs would
+  hit D-Bus. Consequence: saved passwords are app-private, invisible to
+  seahorse/kwalletmanager, **not shared with the native Arch package**, and destroyed by
+  `flatpak uninstall --delete-data`.
+- `--talk-name=org.freedesktop.secrets` is kept as the **fallback leg**, not for the portal
+  path. With no `org.freedesktop.impl.portal.Secret` backend (Plasma older than the KWallet
+  ksecretd bridge, KeePassXC as the Secret Service provider, bare WMs) the version check
+  fails and libsecret falls back to D-Bus. `SecretStore` refuses to degrade to plaintext, so
+  removing the permission turns that into a hard failure. Reproduce the fallback branch with
+  `flatpak run --env=SECRET_BACKEND=service [--no-talk-name=org.freedesktop.secrets] …`.
 - Keep `finish-args` minimal. No `--filesystem` is currently justified; if remote-to-local
   clipboard file paste lands, route it through the file-chooser portal instead.
 - H.264 RDPGFX only decodes when `org.freedesktop.Platform.codecs-extra//25.08-extra` is
