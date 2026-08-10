@@ -1,20 +1,8 @@
 #!/bin/sh
-# Build and install RDPilot inside the Flatpak sandbox.
-#
-# Invoked by the `rdpilot` module in io.github.ErnieBernie10.RDPilot.yaml. flatpak-builder
-# exports FLATPAK_DEST and FLATPAK_ID into the build environment. The working directory
-# holds the pinned git checkout plus the manifest-directory siblings copied in as
-# `type: file` sources (this script, rdpilot.sh, the desktop and metainfo files) and the
-# ./nuget-sources tree restored from nuget-sources.json.
-#
-# Keep VERSION below in sync with the git tag/commit pinned in the manifest and with the
-# newest <release> in the metainfo. See "Releasing" in README.md.
 set -eu
 
 VERSION=1.3.0
 
-# The checked-in NuGet.config points at nuget.org and the Avalonia feed; neither is
-# reachable during a Flatpak build. Everything is restored from ./nuget-sources.
 rm -f NuGet.config
 
 dotnet publish RDPilot.Client/RDPilot.Client.csproj \
@@ -29,8 +17,6 @@ dotnet publish RDPilot.Client/RDPilot.Client.csproj \
     -p:InformationalVersion="${VERSION}" \
     -p:NativeWrapperUseVcpkg=false
 
-# RDPilot.Client.csproj (CopyNativeWrapperToPublish) already dropped libfreerdp_wrapper.so
-# into the publish directory next to the managed assembly.
 install -d "${FLATPAK_DEST}/lib/rdpilot"
 cp -a RDPilot.Client/bin/Release/net10.0/linux-x64/publish/. "${FLATPAK_DEST}/lib/rdpilot/"
 install -Dm755 rdpilot.sh "${FLATPAK_DEST}/bin/rdpilot"
