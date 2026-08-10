@@ -49,14 +49,23 @@ curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v0.2.0/rdpil
 sudo pacman -U rdpilot-0.2.0-1-x86_64.pkg.tar.zst
 ```
 
-A Flatpak manifest lives in `packaging/flatpak/`. Build and install it locally with:
+A prebuilt Flatpak is published on the GitHub Releases page. Download `RDPilot.flatpak` and install it with:
+
+```sh
+curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v1.3.0/RDPilot.flatpak
+flatpak install --user RDPilot.flatpak
+```
+
+Flathub submission is in progress; once it lands you'll be able to `flatpak install flathub io.github.ErnieBernie10.RDPilot` instead.
+
+Alternatively, the Flatpak manifest lives in `packaging/flatpak/` and can be built and installed locally with:
 
 ```sh
 flatpak run org.flatpak.Builder --force-clean --user --install --install-deps-from=flathub \
   --repo=repo build-dir packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
 ```
 
-Linux is supported, but the package has not been published to the AUR or Flathub yet.
+Linux is supported, but the package has not been published to the AUR yet.
 
 ## Usage
 
