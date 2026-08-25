@@ -989,7 +989,7 @@ static bool setup_instance(rdp_session* session, const connection_params* params
                                     CLIPRDR_FLAG_REMOTE_TO_LOCAL |
                                     CLIPRDR_FLAG_LOCAL_TO_REMOTE_FILES |
                                     CLIPRDR_FLAG_REMOTE_TO_LOCAL_FILES);
-    freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, params->use_network_level_authentication ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_MstscCookieMode, TRUE);
@@ -1226,6 +1226,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, uin
                                  const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
                                  int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
                                  bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
+                                 bool use_network_level_authentication,
                                  uint32_t keyboard_layout, uint32_t dpi_scale_percent, uint32_t device_scale_percent,
                                  FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
                                  CursorCallback cursor_callback) {
@@ -1297,6 +1298,7 @@ rdp_session* rdp_session_connect(const char* host, const char* connect_host, uin
     params->full_window_drag = full_window_drag;
     params->connection_type = (int)connection_type;
     params->network_auto_detect = network_auto_detect;
+    params->use_network_level_authentication = use_network_level_authentication;
     params->keyboard_layout = keyboard_layout;
 
 #if defined(_WIN32)

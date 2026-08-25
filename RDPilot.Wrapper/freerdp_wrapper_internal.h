@@ -214,6 +214,7 @@ typedef struct {
     bool full_window_drag;
     int connection_type;
     bool network_auto_detect;
+    bool use_network_level_authentication;
     UINT32 keyboard_layout;
 } connection_params;
 

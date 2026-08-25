@@ -123,6 +123,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             var connectHost = NativeWrapper.ResolveDirectConnectHost(connection.Host);
             var keyboardLayout = NativeWrapper.GetCurrentKeyboardLayout();
             var networkSettings = RdpSessionOptions.NormalizeNetworkSettings(connectionType);
+            var useNetworkLevelAuthentication = RdpSessionOptions.ShouldUseNetworkLevelAuthentication(connection.Username, password);
             Volatile.Write(ref _initializingNativeSession, 1);
             _nativeSession = NativeRdpSession.Connect(
                 connection.Host,
@@ -147,6 +148,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
                 fullWindowDrag,
                 networkSettings.ConnectionType,
                 networkSettings.NetworkAutoDetect,
+                useNetworkLevelAuthentication,
                 keyboardLayout,
                 _dpiScalePercent,
                 _deviceScalePercent,

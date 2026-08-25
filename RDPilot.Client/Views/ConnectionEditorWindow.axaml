@@ -31,7 +31,7 @@
                 <Border Classes="Section">
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="16">
                         <TextBlock Text="Credentials" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding Username}" PlaceholderText="Username"/>
+                        <TextBox Grid.Column="1" Text="{Binding Username}" PlaceholderText="Username optional"/>
                         <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Password}" PlaceholderText="{Binding PasswordWatermark}" PasswordChar="*"/>
                     </Grid>
                 </Border>

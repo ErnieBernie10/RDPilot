@@ -49,6 +49,16 @@ public sealed class RdpSessionOptionsTests
     }
 
     [Theory]
+    [InlineData("", "", false)]
+    [InlineData("user", "", false)]
+    [InlineData("", "password", false)]
+    [InlineData("user", "password", true)]
+    public void ShouldUseNetworkLevelAuthentication_RequiresSavedCredentials(string username, string password, bool expected)
+    {
+        Assert.Equal(expected, RdpSessionOptions.ShouldUseNetworkLevelAuthentication(username, password));
+    }
+
+    [Theory]
     [InlineData(0u, 100u)]
     [InlineData(99u, 100u)]
     [InlineData(100u, 100u)]

@@ -38,7 +38,7 @@ public partial class ConnectionEditorViewModel : ViewModelBase
         QualityEditor = new RdpQualitySettingsEditorViewModel(_original.QualityOverrides, allowInherit: true, globalQualitySettings);
     }
 
-    public string PasswordWatermark => _isEdit ? "Leave blank to keep existing password" : "Password";
+    public string PasswordWatermark => _isEdit ? "Leave blank to keep existing password" : "Password optional";
     public string GatewayPasswordWatermark => _isEdit ? "Leave blank to keep existing gateway password" : "Gateway password";
     public RdpQualitySettingsEditorViewModel QualityEditor { get; }
 

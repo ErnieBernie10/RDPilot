@@ -143,6 +143,7 @@ internal static class NativeWrapper
             [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
             int connectionType,
             [MarshalAs(UnmanagedType.I1)] bool networkAutoDetect,
+            [MarshalAs(UnmanagedType.I1)] bool useNetworkLevelAuthentication,
             uint keyboardLayout,
             uint dpiScalePercent,
             uint deviceScalePercent,

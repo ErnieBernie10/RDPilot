@@ -42,6 +42,11 @@ internal static class RdpSessionOptions
         return (normalized == (int)RdpConnectionType.Autodetect ? 0 : normalized, true);
     }
 
+    public static bool ShouldUseNetworkLevelAuthentication(string username, string password)
+    {
+        return !string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password);
+    }
+
     public const uint MinDpiScalePercent = 100;
     public const uint MaxDpiScalePercent = 500;
 
