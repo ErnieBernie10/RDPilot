@@ -294,3 +294,7 @@ dotnet build RDPilot.slnx
 ```
 
 passes with zero errors. The C# layer has no `unsafe` blocks (`AllowUnsafeBlocks` is removed from `RDPilot.Client.csproj`). All option normalization, resize debounce, and input coalescing policy is tested via focused managed tests.
+
+## Project Status
+
+Current phase, priorities, and decision log live in `PROJECT.md`. Read it before planning work; update it after meaningful changes.
