@@ -8,9 +8,9 @@
 
 Fast, open-source RDP client for Windows and Linux (Avalonia + FreeRDP 3): responsive sessions, dynamic resolution, secure saved profiles, clean tabbed UI.
 
-## Board
+## Work ledger
 
-Managed on the Hermes kanban board `rdpilot` (cross-project portfolio view lives with Arne's Hermes assistant).
+Open work items live as GitHub issues labeled `agent-inbox` in this repo; the issue list is the work ledger. PROJECT.md keeps goal, outcome, priorities, and decisions.
 
 ## Current Phase
 
