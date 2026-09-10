@@ -297,4 +297,4 @@ passes with zero errors. The C# layer has no `unsafe` blocks (`AllowUnsafeBlocks
 
 ## Project Status
 
-Current phase, priorities, and decision log live in `PROJECT.md`. Read it before planning work; update it after meaningful changes.
+Open work items are this repo's GitHub issues labeled `agent-inbox`; the issue list is the work ledger and the only project-management store. Read the open issues before planning work. Standing architecture rules stay in this file.
