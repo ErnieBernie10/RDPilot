@@ -1,0 +1,49 @@
+name: Dependency Hash Probe
+
+on:
+  push:
+    branches:
+      - automation/dependency-hash-probe
+
+jobs:
+  hashes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute dependency hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -fsSL -o freerdp-3.31.1.tar.gz https://github.com/FreeRDP/FreeRDP/archive/refs/tags/3.31.1.tar.gz
+          echo "FREERDP_GITHUB_SHA512=$(sha512sum freerdp-3.31.1.tar.gz | cut -d' ' -f1)"
+
+          hash_nuget() {
+            local id="$1"
+            local version="$2"
+            local lower
+            lower=$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')
+            local file="${lower}.${version}.nupkg"
+            curl -fsSL -o "$file" "https://api.nuget.org/v3-flatcontainer/${lower}/${version}/${file}"
+            printf '%s %s %s\n' "$id" "$version" "$(sha512sum "$file" | cut -d' ' -f1)"
+          }
+
+          hash_nuget FluentIcons.Avalonia 2.1.339.1
+          hash_nuget FluentIcons.Common 2.1.339.1
+          hash_nuget FluentIcons.Resources.Avalonia 2.1.339.1
+
+          for id in \
+            Avalonia \
+            Avalonia.Desktop \
+            Avalonia.Fonts.Inter \
+            Avalonia.FreeDesktop \
+            Avalonia.FreeDesktop.Atspi \
+            Avalonia.HarfBuzz \
+            Avalonia.Native \
+            Avalonia.Remote.Protocol \
+            Avalonia.Skia \
+            Avalonia.Themes.Fluent \
+            Avalonia.Wayland \
+            Avalonia.Win32 \
+            Avalonia.X11; do
+            hash_nuget "$id" 12.1.2
+          done
