@@ -109,8 +109,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/FreeRDP/FreeRDP.git
-        tag: '3.30.0'
-        commit: cc741756e3a07fe1e5f4661a59b2e4e85f1a148f
+        tag: '3.31.1'
+        commit: 63b948ca5cb94307fd5444ee6e73927a41ccdab4
     cleanup:
       - /bin
 
