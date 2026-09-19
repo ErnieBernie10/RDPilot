@@ -113,24 +113,24 @@
     },
     {
         "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.avalonia/2.1.331/fluenticons.avalonia.2.1.331.nupkg",
-        "sha512": "c29a9e0ab80e550f50a6e38c44a9af37ffa9f5c82f655640e3b690c3d48fbf732343a35e1999b735df6fb043749257581251e45ff2802c4182d7029b93faec7f",
+        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.avalonia/2.1.341/fluenticons.avalonia.2.1.341.nupkg",
+        "sha512": "12e329e653355436877196d2c90e111e0f850d093e1834d54f203b54e1f11ee5abe7cf26a4adf607bc889e345337f153e21c50eef2f11b5b971a1cda51c88d66",
         "dest": "nuget-sources",
-        "dest-filename": "fluenticons.avalonia.2.1.331.nupkg"
+        "dest-filename": "fluenticons.avalonia.2.1.341.nupkg"
     },
     {
         "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.common/2.1.331/fluenticons.common.2.1.331.nupkg",
-        "sha512": "88ca40b24c390c3f74a8317dfcfc674a18606899c0ebbbf9c5af9ae2d4410b87196bd1b0c6950e71e63da9ce35f48210d39231954d753886f1f7d4d0c507367f",
+        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.common/2.1.341/fluenticons.common.2.1.341.nupkg",
+        "sha512": "9e28226eb0b618bc09a4af77f71c732a2f7c02db42439635014b0bd84f9df0e5aacf001a1e8f73e646ca27805365f1b69971e16d730d0c174e085a2aac8218b2",
         "dest": "nuget-sources",
-        "dest-filename": "fluenticons.common.2.1.331.nupkg"
+        "dest-filename": "fluenticons.common.2.1.341.nupkg"
     },
     {
         "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.resources.avalonia/2.1.331/fluenticons.resources.avalonia.2.1.331.nupkg",
-        "sha512": "ddf12af6a26ff97c89256c9045efdd9e6479a2aee7ad4707d39617677ecd4e9aa32ad5c6c2acd655f61690ef15bb35afe7875df5abc13fbf87035a268d32797b",
+        "url": "https://api.nuget.org/v3-flatcontainer/fluenticons.resources.avalonia/2.1.341/fluenticons.resources.avalonia.2.1.341.nupkg",
+        "sha512": "620b6271862d0a56412d841780dac943ce005c1a120a99b15473487cf53ee0eb9accc72d102c3acccc6419ed7f32175c6de706d12ba10280a7782bdcdaea3b13",
         "dest": "nuget-sources",
-        "dest-filename": "fluenticons.resources.avalonia.2.1.331.nupkg"
+        "dest-filename": "fluenticons.resources.avalonia.2.1.341.nupkg"
     },
     {
         "type": "file",
@@ -176,38 +176,10 @@
     },
     {
         "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.app.runtime.linux-x64/10.0.10/microsoft.aspnetcore.app.runtime.linux-x64.10.0.10.nupkg",
-        "sha512": "59e6bbffd05eaa2a5569dcd79f9e315a552f328bc2eeb655b92aac972b619ed1b3c251057062f09744cb9b486897b7bba84d93c23b5cef1c0070871179980fa1",
-        "dest": "nuget-sources",
-        "dest-filename": "microsoft.aspnetcore.app.runtime.linux-x64.10.0.10.nupkg"
-    },
-    {
-        "type": "file",
         "url": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.app.runtime.linux-x64/10.0.8/microsoft.aspnetcore.app.runtime.linux-x64.10.0.8.nupkg",
         "sha512": "a781e31a112160fdc0ec19b861661459baccb19209c2be4cce9acd911898b36de7308dc054da164a4bcf03a1db54572360b1d135c7d54f590fc1fad0c9ef01bc",
         "dest": "nuget-sources",
         "dest-filename": "microsoft.aspnetcore.app.runtime.linux-x64.10.0.8.nupkg"
-    },
-    {
-        "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.host.linux-x64/10.0.10/microsoft.netcore.app.host.linux-x64.10.0.10.nupkg",
-        "sha512": "07136cc7fc868cf43958c1fcf913739536c3212a2e7c044dce01e5bbb4c3bbee49b7e5542656bbba6a6c6f264ec638948452f473088e418ee002931a5c6d6d40",
-        "dest": "nuget-sources",
-        "dest-filename": "microsoft.netcore.app.host.linux-x64.10.0.10.nupkg"
-    },
-    {
-        "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.host.linux-x64/10.0.8/microsoft.netcore.app.host.linux-x64.10.0.8.nupkg",
-        "sha512": "4cdbdce6489db1923bddf1cfe5d072248f04b38ff1148c63520492d58ba2ef91f7ab641a049836ee9bbb618c021e89b7a3b2341522b05b037c1cb1fafa4ba616",
-        "dest": "nuget-sources",
-        "dest-filename": "microsoft.netcore.app.host.linux-x64.10.0.8.nupkg"
-    },
-    {
-        "type": "file",
-        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.linux-x64/10.0.10/microsoft.netcore.app.runtime.linux-x64.10.0.10.nupkg",
-        "sha512": "c52730cbd32ea2210c63061077c8c6f6fefac73f0720942dc531ba927c3e209a32e6676d74a76304ee5bf33fed712217634254b8c6717db07d957ed1ee003cb8",
-        "dest": "nuget-sources",
-        "dest-filename": "microsoft.netcore.app.runtime.linux-x64.10.0.10.nupkg"
     },
     {
         "type": "file",
