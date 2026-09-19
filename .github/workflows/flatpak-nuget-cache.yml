@@ -1,0 +1,65 @@
+name: Flatpak NuGet cache
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'RDPilot.Client/*.csproj'
+      - 'RDPilot.Client/**/*.csproj'
+      - 'Directory.Packages.props'
+      - 'packaging/flatpak/generate-nuget-sources.sh'
+      - '.github/workflows/flatpak-nuget-cache.yml'
+  pull_request:
+    paths:
+      - 'RDPilot.Client/*.csproj'
+      - 'RDPilot.Client/**/*.csproj'
+      - 'Directory.Packages.props'
+      - 'packaging/flatpak/generate-nuget-sources.sh'
+      - '.github/workflows/flatpak-nuget-cache.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Regenerate Flatpak NuGet cache
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub             org.freedesktop.Sdk//25.08             org.freedesktop.Sdk.Extension.dotnet10//25.08
+
+      - name: Regenerate NuGet sources
+        run: |
+          chmod +x packaging/flatpak/generate-nuget-sources.sh
+          packaging/flatpak/generate-nuget-sources.sh
+
+      - name: Verify pull request includes generated cache
+        if: github.event_name == 'pull_request'
+        run: |
+          if ! git diff --exit-code -- packaging/flatpak/nuget-sources.json; then
+            echo "::error::packaging/flatpak/nuget-sources.json is stale. Run packaging/flatpak/generate-nuget-sources.sh and commit the result."
+            exit 1
+          fi
+
+      - name: Commit regenerated cache
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- packaging/flatpak/nuget-sources.json; then
+            echo "Flatpak NuGet cache is already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/flatpak/nuget-sources.json
+          git commit -m "Regenerate Flatpak NuGet cache"
+          git push
