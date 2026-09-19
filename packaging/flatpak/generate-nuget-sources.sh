@@ -18,18 +18,22 @@ freedesktop_version=25.08
 dotnet_version=10
 runtime=linux-x64
 
+# Pin the generator so upstream CLI changes cannot silently break dependency updates.
+flatpak_builder_tools_commit=de2225a6dee4818c1339b3cdbf29f90c471fcb7e
 generator="${script_dir}/.flatpak-dotnet-generator.py"
 if [[ ! -f "${generator}" ]]; then
   curl -sSfL -o "${generator}" \
-    https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/dotnet/flatpak-dotnet-generator.py
+    "https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${flatpak_builder_tools_commit}/dotnet/flatpak-dotnet-generator.py"
 fi
 
 # The --runtime value must match the RID used by `dotnet publish` in the manifest, otherwise
 # the RID-specific native assets (libSkiaSharp.so, libHarfBuzzSharp.so) are never restored.
+# Use --runtime=<value>: current generator versions accept multiple runtime values and would
+# otherwise greedily consume the positional output/project arguments.
 python3 "${generator}" \
   --dotnet "${dotnet_version}" \
   --freedesktop "${freedesktop_version}" \
-  --runtime "${runtime}" \
+  --runtime="${runtime}" \
   "${script_dir}/nuget-sources.json" \
   "${repo_root}/RDPilot.Client/RDPilot.Client.csproj"
 
