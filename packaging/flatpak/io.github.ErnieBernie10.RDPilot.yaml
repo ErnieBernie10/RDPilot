@@ -49,8 +49,8 @@ modules:
     sources:
       - type: git
         url: https://gitlab.gnome.org/GNOME/libsecret.git
-        tag: '0.21.7'
-        commit: 22d58b2cd018b9beaab46fcc31cc552fa05afc2b
+        tag: '0.21.8.2'
+        commit: 4941c2f3088eb0ea4a180737b02e22320b8ff7a7
     cleanup:
       - /share/gir-1.0
       - /share/vala
