@@ -12,5 +12,11 @@
         "ffmpeg"
       ]
     }
+  ],
+  "overrides": [
+    {
+      "name": "openssl",
+      "version": "3.6.4#1"
+    }
   ]
 }
