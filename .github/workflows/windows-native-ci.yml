@@ -1,0 +1,49 @@
+name: Windows Native CI
+
+on:
+  pull_request:
+    paths:
+      - "vcpkg.json"
+      - "vcpkg-overlay-ports/**"
+      - "scripts/setup-windows-vcpkg.ps1"
+      - "RDPilot.Wrapper/**"
+      - ".github/workflows/windows-native-ci.yml"
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
+    paths:
+      - "vcpkg.json"
+      - "vcpkg-overlay-ports/**"
+      - "scripts/setup-windows-vcpkg.ps1"
+      - "RDPilot.Wrapper/**"
+      - ".github/workflows/windows-native-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build and test Windows native dependencies
+    runs-on: windows-latest
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup vcpkg dependencies
+        shell: pwsh
+        run: scripts/setup-windows-vcpkg.ps1 -VcpkgRoot $env:VCPKG_ROOT
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test RDPilot.slnx --configuration Release
