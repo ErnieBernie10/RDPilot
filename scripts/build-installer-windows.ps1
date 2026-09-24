@@ -79,6 +79,7 @@ Require-PublishedFile -Path (Join-Path $publishDir "freerdp_wrapper.dll") -Descr
 Require-PublishedFile -Path (Join-Path $publishDir "freerdp3.dll") -Description "FreeRDP runtime DLL"
 Require-PublishedFile -Path (Join-Path $publishDir "freerdp-client3.dll") -Description "FreeRDP client runtime DLL"
 Require-PublishedFile -Path (Join-Path $publishDir "winpr3.dll") -Description "WinPR runtime DLL"
+Require-PublishedFile -Path (Join-Path $publishDir "uriparser.dll") -Description "URI parser runtime DLL"
 
 $dependencyDlls = @(Get-ChildItem -LiteralPath $publishDir -Filter "*.dll" -File)
 if ($dependencyDlls.Count -lt 4) {
