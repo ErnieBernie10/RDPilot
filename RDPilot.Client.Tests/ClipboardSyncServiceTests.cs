@@ -34,7 +34,7 @@ public sealed class ClipboardSyncServiceTests
         _service.BeginRemoteFilesUpdate(["remote.txt"]);
         Assert.False(_service.ShouldPollLocalClipboard);
 
-        _service.EndRemoteTextUpdate();
+        _service.EndRemoteUpdate();
         Assert.True(_service.ShouldPollLocalClipboard);
     }
 
@@ -46,7 +46,7 @@ public sealed class ClipboardSyncServiceTests
         _service.BeginRemoteTextUpdate("remote");
         Assert.False(_service.ShouldPollLocalClipboard);
 
-        _service.EndRemoteTextUpdate();
+        _service.EndRemoteUpdate();
         Assert.True(_service.ShouldPollLocalClipboard);
     }
 
@@ -57,5 +57,54 @@ public sealed class ClipboardSyncServiceTests
         Assert.True(_service.TryRememberText("hello", out _));
         Assert.True(_service.ClearSignature());
         Assert.False(_service.ClearSignature());
+    }
+
+    [Fact]
+    public void TransientEmptyRead_DoesNotEchoRemoteText()
+    {
+        _service.BeginRemoteTextUpdate("remote");
+        _service.EndRemoteUpdate();
+
+        Assert.False(_service.ObserveEmptyClipboard());
+        Assert.False(_service.TryRememberText("remote", out _));
+    }
+
+    [Fact]
+    public void ConsecutiveEmptyReads_ClearPreviousOfferOnce()
+    {
+        _service.TryRememberFiles(["file.txt"], out _);
+
+        Assert.False(_service.ObserveEmptyClipboard());
+        Assert.True(_service.ObserveEmptyClipboard());
+        Assert.False(_service.ObserveEmptyClipboard());
+        Assert.True(_service.TryRememberText("new text", out _));
+    }
+
+    [Fact]
+    public void OverlappingRemoteUpdates_KeepPollingSuppressedUntilBothFinish()
+    {
+        _service.BeginRemoteTextUpdate("first");
+        _service.BeginRemoteFilesUpdate(["second.txt"]);
+
+        _service.EndRemoteUpdate();
+        Assert.False(_service.ShouldPollLocalClipboard);
+        _service.EndRemoteUpdate();
+        Assert.True(_service.ShouldPollLocalClipboard);
+        Assert.False(_service.TryRememberFiles(["second.txt"], out _));
+    }
+
+    [Fact]
+    public void SwitchingSessions_ReoffersUnchangedClipboardContent()
+    {
+        var first = new object();
+        var second = new object();
+        _service.UseSession(first);
+        Assert.True(_service.TryRememberText("copy", out _));
+        Assert.False(_service.TryRememberText("copy", out _));
+
+        _service.UseSession(second);
+        Assert.True(_service.TryRememberText("copy", out _));
+        _service.UseSession(second);
+        Assert.False(_service.TryRememberText("copy", out _));
     }
 }

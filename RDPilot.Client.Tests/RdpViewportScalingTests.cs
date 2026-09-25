@@ -99,7 +99,7 @@ public sealed class RdpViewportScalingTests
         return new RdpViewportPresenter(
             () => vm,
             () => null,
-            _ => [],
+            _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
             () => viewportSize,
             () => { },
             _ => null,

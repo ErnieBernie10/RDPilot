@@ -314,12 +314,25 @@ static bool get_file_size_and_attributes(const char* path, UINT64* size, DWORD* 
     *size = 0;
     *attributes = 0x80; /* FILE_ATTRIBUTE_NORMAL */
 
+#if defined(_WIN32)
+    WCHAR* wide_path = ConvertUtf8ToWCharAlloc(path, NULL);
+    if (!wide_path)
+        return false;
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    BOOL found = GetFileAttributesExW(wide_path, GetFileExInfoStandard, &data);
+    free(wide_path);
+    if (!found || (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        return false;
+    *size = ((UINT64)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+    *attributes = data.dwFileAttributes;
+#else
     struct stat st = {0};
     if (stat(path, &st) != 0)
         return false;
     if (S_ISDIR(st.st_mode))
         return false;
     *size = (UINT64)st.st_size;
+#endif
     return true;
 }
 
@@ -339,7 +352,16 @@ static bool read_file_range(const char* path, UINT64 offset, UINT32 requested, c
 
     memset(buffer, 0, sizeof(*buffer));
 
+#if defined(_WIN32)
+    WCHAR* wide_path = ConvertUtf8ToWCharAlloc(path, NULL);
+    if (!wide_path)
+        return false;
+    FILE* fp = NULL;
+    _wfopen_s(&fp, wide_path, L"rb");
+    free(wide_path);
+#else
     FILE* fp = fopen(path, "rb");
+#endif
     if (!fp)
         return false;
 
@@ -408,13 +430,19 @@ static bool build_file_group_descriptor_w(rdp_session* session, BYTE** outData, 
 #if defined(_WIN32)
         /* Match wfreerdp exactly: use Win32 APIs for file metadata */
         {
-            WCHAR wide_path[MAX_PATH] = {0};
-            MultiByteToWideChar(CP_UTF8, 0, path, -1, wide_path, MAX_PATH);
+            WCHAR* wide_path = ConvertUtf8ToWCharAlloc(path, NULL);
+            if (!wide_path)
+            {
+                free(descriptor);
+                LeaveCriticalSection(&session->clipboard_lock);
+                return false;
+            }
 
             HANDLE hFile = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+                                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
             if (hFile == INVALID_HANDLE_VALUE)
             {
+                free(wide_path);
                 free(descriptor);
                 LeaveCriticalSection(&session->clipboard_lock);
                 return false;
@@ -422,6 +450,7 @@ static bool build_file_group_descriptor_w(rdp_session* session, BYTE** outData, 
 
             f->dwFlags = FD_ATTRIBUTES | FD_FILESIZE | FD_WRITESTIME | FD_PROGRESSUI;
             f->dwFileAttributes = GetFileAttributesW(wide_path);
+            free(wide_path);
             if (!GetFileTime(hFile, NULL, NULL, &f->ftLastWriteTime))
             {
                 f->dwFlags &= ~FD_WRITESTIME;
@@ -430,13 +459,19 @@ static bool build_file_group_descriptor_w(rdp_session* session, BYTE** outData, 
             CloseHandle(hFile);
 
             /* Copy filename manually - wcscpy_s fills remaining buffer with 0xFE in MSVC debug mode */
-            WCHAR wide_name[MAX_PATH] = {0};
-            MultiByteToWideChar(CP_UTF8, 0, base, -1, wide_name, MAX_PATH);
+            WCHAR* wide_name = ConvertUtf8ToWCharAlloc(base, NULL);
+            if (!wide_name)
+            {
+                free(descriptor);
+                LeaveCriticalSection(&session->clipboard_lock);
+                return false;
+            }
             size_t nameLen = wcslen(wide_name);
             if (nameLen >= ARRAYSIZE(f->cFileName))
                 nameLen = ARRAYSIZE(f->cFileName) - 1;
             memcpy(f->cFileName, wide_name, nameLen * sizeof(WCHAR));
             f->cFileName[nameLen] = 0;
+            free(wide_name);
         }
 #else
         UINT64 size = 0;
@@ -655,10 +690,9 @@ static UINT send_clipboard_format_list(rdp_session* session)
         total_formats += 2; // CFSTR_FILEDESCRIPTOR + CFSTR_FILECONTENTS
     }
     
-    LeaveCriticalSection(&session->clipboard_lock);
-    
     if (total_formats == 0)
     {
+        LeaveCriticalSection(&session->clipboard_lock);
         // Send empty format list
         CLIPRDR_FORMAT_LIST format_list;
         memset(&format_list, 0, sizeof(format_list));
@@ -677,6 +711,7 @@ static UINT send_clipboard_format_list(rdp_session* session)
     CLIPRDR_FORMAT* formats = (CLIPRDR_FORMAT*)calloc(total_formats, sizeof(CLIPRDR_FORMAT));
     if (!formats)
     {
+        LeaveCriticalSection(&session->clipboard_lock);
         fprintf(stderr, "[CLIPRDR] failed to allocate format list\n");
         return ERROR_NOT_ENOUGH_MEMORY;
     }
@@ -684,7 +719,6 @@ static UINT send_clipboard_format_list(rdp_session* session)
     UINT32 format_index = 0;
     
     // Add standard formats
-    EnterCriticalSection(&session->clipboard_lock);
     for (UINT32 i = 0; i < session->supported_local_formats_count; i++)
     {
         formats[format_index].formatId = session->supported_local_formats[i];
@@ -863,6 +897,18 @@ printf("[CLIPRDR] send local file descriptor response bytes=%u\n", response.comm
     return send_clipboard_failed_data_response(session, "ClientFormatDataResponse unsupported");
 }
 
+static UINT send_clipboard_failed_file_contents_response(rdp_session* session, UINT32 stream_id, const char* reason)
+{
+    CLIPRDR_FILE_CONTENTS_RESPONSE response;
+    memset(&response, 0, sizeof(response));
+    response.common.msgType = CB_FILECONTENTS_RESPONSE;
+    response.common.msgFlags = CB_RESPONSE_FAIL;
+    response.streamId = stream_id;
+    UINT rc = session->cliprdr->ClientFileContentsResponse(session->cliprdr, &response);
+    log_channel_rc(reason, rc);
+    return rc;
+}
+
 static UINT send_clipboard_file_contents_response(rdp_session* session,
                                                   const CLIPRDR_FILE_CONTENTS_REQUEST* request)
 {
@@ -876,53 +922,58 @@ static UINT send_clipboard_file_contents_response(rdp_session* session,
 
     EnterCriticalSection(&session->clipboard_lock);
     const size_t index = request->listIndex;
-    const char* path = (index < session->local_file_paths_count) ? session->local_file_paths[index] : NULL;
+    const char* stored_path = (index < session->local_file_paths_count) ? session->local_file_paths[index] : NULL;
+    char* path = stored_path ? duplicate_string(stored_path) : NULL;
     if (path)
         ok = get_file_size_and_attributes(path, &fileSize, &attributes);
     LeaveCriticalSection(&session->clipboard_lock);
 
     if (!ok || !path)
     {
+        free(path);
         printf("[CLIPRDR] remote requested file contents for invalid index=%u\n", request->listIndex);
-        return send_clipboard_failed_data_response(session, "ClientFileContentsResponse invalid index");
+        return send_clipboard_failed_file_contents_response(session, request->streamId, "ClientFileContentsResponse invalid index");
     }
 
     if (request->dwFlags & FILECONTENTS_SIZE)
     {
-        UINT64* sizeResponse = (UINT64*)malloc(sizeof(UINT64));
-        if (!sizeResponse)
-            return send_clipboard_failed_data_response(session, "ClientFileContentsResponse size oom");
-
-        *sizeResponse = fileSize;
         CLIPRDR_FILE_CONTENTS_RESPONSE response;
         memset(&response, 0, sizeof(response));
         response.common.msgType = CB_FILECONTENTS_RESPONSE;
         response.common.msgFlags = CB_RESPONSE_OK;
         response.streamId = request->streamId;
         response.cbRequested = sizeof(UINT64);
-        response.requestedData = (const BYTE*)sizeResponse;
+        response.requestedData = (const BYTE*)&fileSize;
         UINT rc = session->cliprdr->ClientFileContentsResponse(session->cliprdr, &response);
         log_channel_rc("ClientFileContentsResponse size", rc);
-        free(sizeResponse);
+        free(path);
         return rc;
     }
 
     UINT64 offset = ((UINT64)request->nPositionHigh << 32) | request->nPositionLow;
     UINT32 wanted = request->cbRequested;
     if (offset > fileSize)
-        return send_clipboard_failed_data_response(session, "ClientFileContentsResponse offset");
+    {
+        free(path);
+        return send_clipboard_failed_file_contents_response(session, request->streamId, "ClientFileContentsResponse offset");
+    }
 
     UINT64 remaining = fileSize - offset;
     if (remaining < wanted)
         wanted = (UINT32)remaining;
     if (wanted == 0)
-        return send_clipboard_failed_data_response(session, "ClientFileContentsResponse eof");
+    {
+        free(path);
+        return send_clipboard_failed_file_contents_response(session, request->streamId, "ClientFileContentsResponse eof");
+    }
 
     if (!read_file_range(path, offset, wanted, &buffer))
     {
+        free(path);
         printf("[CLIPRDR] failed to read file contents index=%u offset=%" PRIu64 " wanted=%u\n", request->listIndex, offset, wanted);
-        return send_clipboard_failed_data_response(session, "ClientFileContentsResponse read");
+        return send_clipboard_failed_file_contents_response(session, request->streamId, "ClientFileContentsResponse read");
     }
+    free(path);
 
     CLIPRDR_FILE_CONTENTS_RESPONSE response;
     memset(&response, 0, sizeof(response));
@@ -1014,7 +1065,12 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
         }
     }
 
-    // Request the highest priority format available
+    // File copies often advertise text too (the filenames). Prefer the file data.
+    if (has_files && session && session->cliprdr)
+    {
+        return request_remote_file_descriptor(session);
+    }
+
     if (has_unicode_text && session && session->cliprdr)
     {
         session->pending_remote_format_id = CF_UNICODETEXT;
@@ -1028,11 +1084,6 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
         return rc;
     }
 
-    if (has_files && session && session->cliprdr)
-    {
-        return request_remote_file_descriptor(session);
-    }
-    
     return CHANNEL_RC_OK;
 }
 
@@ -1174,7 +1225,14 @@ UINT on_cliprdr_server_file_contents_response(CliprdrClientContext* context,
             return CHANNEL_RC_OK;
         }
 
+#if defined(_WIN32)
+        WCHAR* wide_path = ConvertUtf8ToWCharAlloc(session->remote_active_file_path, NULL);
+        if (wide_path)
+            _wfopen_s(&session->remote_active_file, wide_path, L"wb");
+        free(wide_path);
+#else
         session->remote_active_file = fopen(session->remote_active_file_path, "wb");
+#endif
         if (!session->remote_active_file)
         {
             printf("[CLIPRDR] failed to open remote temp file path=%s\n", session->remote_active_file_path);
@@ -1315,6 +1373,8 @@ void rdp_session_clipboard_set_local_bitmap(rdp_session* session, const BYTE* bi
     // Store new bitmap data
     if (bitmap_data && bitmap_data_size > 0 && width > 0 && height > 0)
     {
+        free_local_clipboard_text(session);
+        free_local_file_paths(session);
         session->local_bitmap_data = (BYTE*)malloc(bitmap_data_size);
         if (session->local_bitmap_data)
         {
@@ -1362,6 +1422,11 @@ void rdp_session_clipboard_commit_local_files(rdp_session* session) {
     if (!session) return;
 
     EnterCriticalSection(&session->clipboard_lock);
+    if (session->local_file_paths_count > 0)
+    {
+        free_local_clipboard_text(session);
+        free_local_bitmap_data(session);
+    }
     mark_local_files_changed(session);
     LeaveCriticalSection(&session->clipboard_lock);
 }
@@ -1387,6 +1452,8 @@ void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text
 
     EnterCriticalSection(&session->clipboard_lock);
     free_local_clipboard_text(session);
+    free_local_file_paths(session);
+    free_local_bitmap_data(session);
     if (text && text[0] != '\0')
     {
         session->local_clipboard_text = duplicate_string(text);

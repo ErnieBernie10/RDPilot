@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -24,7 +25,7 @@ public partial class RdpViewportView : UserControl
         _presenter = new RdpViewportPresenter(
             () => DataContext as MainWindowViewModel,
             () => TopLevel.GetTopLevel(this)?.Clipboard,
-            paths => CreateStorageItems(paths),
+            CreateStorageItemsAsync,
             () => ViewportHost.Bounds.Size,
             () => RdpImage.InvalidateVisual(),
             ConvertBitmapToDib,
@@ -123,15 +124,23 @@ public partial class RdpViewportView : UserControl
 
     private void OnRemoteClipboardTextReceived(object? sender, (RdpSessionViewModel Session, string Text) e)
     {
-        Dispatcher.UIThread.Post(async () => await _presenter.HandleRemoteClipboardTextReceivedAsync(e.Text));
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
+                await _presenter.HandleRemoteClipboardTextReceivedAsync(e.Text);
+        });
     }
 
     private void OnRemoteClipboardFilesReceived(object? sender, (RdpSessionViewModel Session, string[] FilePaths) e)
     {
-        Dispatcher.UIThread.Post(async () => await _presenter.HandleRemoteClipboardFilesReceivedAsync(e.FilePaths));
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
+                await _presenter.HandleRemoteClipboardFilesReceivedAsync(e.FilePaths);
+        });
     }
 
-    private IStorageItem[] CreateStorageItems(string[] filePaths)
+    private async Task<IStorageItem[]> CreateStorageItemsAsync(string[] filePaths)
     {
         var topLevel = TopLevel.GetTopLevel(this);
         var storageProvider = topLevel?.StorageProvider;
@@ -141,13 +150,20 @@ public partial class RdpViewportView : UserControl
         }
 
         var items = new IStorageItem[filePaths.Length];
-        for (var i = 0; i < filePaths.Length; i++)
+        try
         {
-            items[i] = storageProvider.TryGetFileFromPathAsync(filePaths[i]).GetAwaiter().GetResult()
-                ?? throw new InvalidOperationException($"Unable to resolve clipboard file path '{filePaths[i]}'.");
+            for (var i = 0; i < filePaths.Length; i++)
+            {
+                items[i] = await storageProvider.TryGetFileFromPathAsync(filePaths[i])
+                    ?? throw new InvalidOperationException($"Unable to resolve clipboard file path '{filePaths[i]}'.");
+            }
+            return items;
         }
-
-        return items;
+        catch
+        {
+            foreach (var item in items) item?.Dispose();
+            throw;
+        }
     }
 
     private static byte[]? ConvertBitmapToDib(Bitmap bitmap)

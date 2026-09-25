@@ -7,29 +7,41 @@ namespace RDPilot.Client.Views;
 internal sealed class ClipboardSyncService
 {
     private string? _lastClipboardSignature;
-    private bool _settingClipboardFromRemote;
+    private object? _activeSession;
+    private int _remoteUpdatesInProgress;
+    private int _emptyReads;
 
-    public bool ShouldPollLocalClipboard => !_settingClipboardFromRemote;
+    public bool ShouldPollLocalClipboard => _remoteUpdatesInProgress == 0;
+
+    public void UseSession(object? session)
+    {
+        if (ReferenceEquals(_activeSession, session)) return;
+        _activeSession = session;
+        ClearSignature();
+    }
 
     public void BeginRemoteTextUpdate(string text)
     {
-        _settingClipboardFromRemote = true;
+        _remoteUpdatesInProgress++;
         _lastClipboardSignature = BuildTextSignature(text);
+        _emptyReads = 0;
     }
 
     public void BeginRemoteFilesUpdate(string[] filePaths)
     {
-        _settingClipboardFromRemote = true;
+        _remoteUpdatesInProgress++;
         _lastClipboardSignature = BuildFilesSignature(filePaths);
+        _emptyReads = 0;
     }
 
-    public void EndRemoteTextUpdate()
+    public void EndRemoteUpdate()
     {
-        _settingClipboardFromRemote = false;
+        if (_remoteUpdatesInProgress > 0) _remoteUpdatesInProgress--;
     }
 
     public bool ClearSignature()
     {
+        _emptyReads = 0;
         if (_lastClipboardSignature == null)
         {
             return false;
@@ -37,6 +49,17 @@ internal sealed class ClipboardSyncService
 
         _lastClipboardSignature = null;
         return true;
+    }
+
+    public bool ObserveEmptyClipboard()
+    {
+        // Clipboard reads can briefly return empty while another application owns it.
+        if (++_emptyReads < 2)
+        {
+            return false;
+        }
+
+        return ClearSignature();
     }
 
     public bool TryRememberText(string text, out string signature)
@@ -62,6 +85,7 @@ internal sealed class ClipboardSyncService
 
     private bool TryRememberSignature(string signature)
     {
+        _emptyReads = 0;
         if (signature == _lastClipboardSignature)
         {
             return false;

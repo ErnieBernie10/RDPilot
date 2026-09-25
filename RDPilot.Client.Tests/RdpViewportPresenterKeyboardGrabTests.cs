@@ -134,7 +134,7 @@ public sealed class RdpViewportPresenterKeyboardGrabTests
         var presenter = new RdpViewportPresenter(
             () => vm,
             () => null,
-            _ => [],
+            _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
             () => new Size(1280, 720),
             () => { },
             _ => null,
