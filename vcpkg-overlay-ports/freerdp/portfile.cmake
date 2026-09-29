@@ -7,9 +7,6 @@ vcpkg_from_github(
     PATCHES
         dependencies.patch
         ffmpeg.diff
-        fix-aom-target.patch
-        fix-cjson-config.patch
-        fix-windows-pkgconfig.patch
         install-layout.patch
         windows-linkage.patch
 )
@@ -22,7 +19,6 @@ endif()
 
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
     FEATURES
-        av1         WITH_AOM
         av1         WITH_GFX_AV1
         client      WITH_CLIENT
         ffmpeg      WITH_DSP_FFMPEG
@@ -36,7 +32,6 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
 )
 
 if("client" IN_LIST FEATURES)
-    # Xcode dependency and untested installation paths
     if(VCPKG_TARGET_IS_IOS)
         message(STATUS "Not building native client components.")
         list(APPEND FEATURE_OPTIONS -DWITH_CLIENT_IOS=OFF)
@@ -47,20 +42,16 @@ if("client" IN_LIST FEATURES)
 endif()
 
 set(HAS_SHADOW_SUBSYSTEM ON)
-
 if("server" IN_LIST FEATURES)
-    # actual shadow platform subsystem
-    if(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_WINDOWS # implementation unmaintained
-       OR NOT WITH_X11) # dependency
+    if(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_WINDOWS OR NOT WITH_X11)
         set(HAS_SHADOW_SUBSYSTEM OFF)
     endif()
-    # actual platform server implementation
-    if(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_WINDOWS) # implementation unmaintained
+    if(VCPKG_TARGET_IS_OSX OR VCPKG_TARGET_IS_WINDOWS)
         list(APPEND FEATURE_OPTIONS -DWITH_PLATFORM_SERVER=OFF)
     endif()
 endif()
 
-if (NOT HAS_SHADOW_SUBSYSTEM)
+if(NOT HAS_SHADOW_SUBSYSTEM)
     list(APPEND FEATURE_OPTIONS -DWITH_SHADOW_SUBSYSTEM=OFF -DWITH_SERVER_SHADOW_CLI=OFF)
 endif()
 
@@ -78,18 +69,17 @@ vcpkg_cmake_configure(
         -DWITH_CCACHE=OFF
         -DWITH_CJSON_REQUIRED=ON
         -DWITH_CLANG_FORMAT=OFF
+        # WinPR's built-in MD4 and RC4 support NTLM and RDP licensing without OpenSSL legacy.dll.
+        -DWITH_INTERNAL_MD4=ON
+        -DWITH_INTERNAL_RC4=ON
         -DWITH_MANPAGES=OFF
         -DWITH_OPENSSL=ON
         -DWITH_SAMPLE=OFF
-        -DWITH_SNDIO=OFF
         -DWITH_UNICODE_BUILTIN=ON
         "-DMSVC_RUNTIME=${VCPKG_CRT_LINKAGE}"
         "-DPKG_CONFIG_EXECUTABLE=${PKGCONFIG}"
-        # Unmaintained
         -DWITH_CLIENT_WINDOWS=OFF
         -DWITH_WAYLAND=OFF
-        # Uncontrolled dependencies w.r.t. vcpkg ports, system libs, or tools
-        # Can be overriden in custom triplet file
         -DUSE_UNWIND=OFF
         -DWITH_ALSA=OFF
         -DWITH_CAIRO=OFF
@@ -97,14 +87,14 @@ vcpkg_cmake_configure(
         -DWITH_CUPS=OFF
         -DWITH_FUSE=OFF
         -DWITH_KRB5=OFF
-        -DWITH_SYSTEMD=OFF
+        -DWITH_LIBSYSTEMD=OFF
         -DWITH_OPUS=OFF
         -DWITH_OSS=OFF
         -DWITH_PCSC=OFF
         -DWITH_PKCS11=OFF
         -DWITH_PROXY_MODULES=OFF
         -DWITH_PULSE=OFF
-        -DWITH_URIPARSER=OFF
+        -DWITH_URIPARSER=ON
     OPTIONS_RELEASE
         -DWITH_VERBOSE_WINPR_ASSERT=OFF
     MAYBE_UNUSED_VARIABLES
@@ -112,7 +102,6 @@ vcpkg_cmake_configure(
         USE_UNWIND
         VCPKG_LOCK_FIND_PACKAGE_X11
         WITH_CLIENT_WINDOWS
-        WITH_SNDIO
 )
 
 vcpkg_cmake_install()
@@ -127,9 +116,9 @@ if("server" IN_LIST FEATURES)
     list(APPEND tools freerdp-proxy)
     vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/FreeRDP-Proxy3 PACKAGE_NAME freerdp-Proxy3 DO_NOT_DELETE_PARENT_CONFIG_PATH)
     vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/FreeRDP-Server3 PACKAGE_NAME freerdp-server3 DO_NOT_DELETE_PARENT_CONFIG_PATH)
-    if (HAS_SHADOW_SUBSYSTEM)
-        vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/FreeRDP-Shadow3 PACKAGE_NAME freerdp-shadow3 DO_NOT_DELETE_PARENT_CONFIG_PATH)
+    if(HAS_SHADOW_SUBSYSTEM)
         list(APPEND tools freerdp-shadow-cli)
+        vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/FreeRDP-Shadow3 PACKAGE_NAME freerdp-shadow3 DO_NOT_DELETE_PARENT_CONFIG_PATH)
     endif()
 endif()
 if("winpr-tools" IN_LIST FEATURES)
@@ -146,17 +135,10 @@ endif()
 
 vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/winpr3/winpr/build-config.h" "\"${CURRENT_PACKAGES_DIR}" "/* vcpkg redacted */ \"")
 if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    # They build static with dllexport, so it must be used with dllexport. Proper fix needs invasive patching.
     vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/freerdp3/freerdp/api.h" "#ifdef FREERDP_EXPORTS" "#if 1")
 endif()
 
-file(COPY
-    "${CURRENT_PACKAGES_DIR}/include/freerdp3/"
-    "${CURRENT_PACKAGES_DIR}/include/winpr3/"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/include"
-)
-
-file(GLOB cmakefiles  "${CURRENT_PACKAGES_DIR}/include/*/CMakeFiles")
+file(GLOB cmakefiles "${CURRENT_PACKAGES_DIR}/include/*/CMakeFiles")
 file(REMOVE_RECURSE
     ${cmakefiles}
     "${CURRENT_PACKAGES_DIR}/include/winpr3/config"
@@ -164,12 +146,4 @@ file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/share"
 )
 
-vcpkg_install_copyright(
-    FILE_LIST
-        "${SOURCE_PATH}/LICENSE"
-        "${SOURCE_PATH}/channels/audin/client/opensles/opensl_io.c"
-        "${SOURCE_PATH}/winpr/libwinpr/crypto/md4.c"
-        "${SOURCE_PATH}/winpr/libwinpr/crypto/md5.c"
-        "${SOURCE_PATH}/winpr/libwinpr/sysinfo/cpufeatures/NOTICE"
-        "${SOURCE_PATH}/winpr/libwinpr/sysinfo/cpufeatures/cpu-features.h"
-)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
