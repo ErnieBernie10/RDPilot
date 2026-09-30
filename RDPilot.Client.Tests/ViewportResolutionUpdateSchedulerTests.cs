@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RDPilot.Client.Views;
 using Xunit;
@@ -33,23 +35,38 @@ public sealed class ViewportResolutionUpdateSchedulerTests
     [Fact]
     public async Task Schedule_RespectsMinimumIntervalBetweenSends()
     {
-        var appliedAt = new List<DateTimeOffset>();
+        var firstSend = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSend = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sendCount = 0;
         using var scheduler = new ViewportResolutionUpdateScheduler(
             post: action => action(),
             quietDelay: TimeSpan.FromMilliseconds(10),
             minimumInterval: TimeSpan.FromMilliseconds(60));
 
         scheduler.Schedule(1000, 700, 1.0, Capture);
-        await Task.Delay(30);
+        // Wait for the first callback so the second update cannot coalesce with it.
+        var firstSentAt = await firstSend.Task.WaitAsync(TimeSpan.FromSeconds(5));
         scheduler.Schedule(1200, 800, 1.0, Capture);
 
-        await Task.Delay(130);
+        var secondSentAt = await secondSend.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(2, appliedAt.Count);
-        Assert.True(appliedAt[1] - appliedAt[0] >= TimeSpan.FromMilliseconds(50));
+        Assert.Equal(2, Volatile.Read(ref sendCount));
+        Assert.True(Stopwatch.GetElapsedTime(firstSentAt, secondSentAt) >= TimeSpan.FromMilliseconds(50));
         return;
 
-        void Capture(int _, int __, double ___) => appliedAt.Add(DateTimeOffset.UtcNow);
+        void Capture(int _, int __, double ___)
+        {
+            var sentAt = Stopwatch.GetTimestamp();
+            switch (Interlocked.Increment(ref sendCount))
+            {
+                case 1:
+                    firstSend.TrySetResult(sentAt);
+                    break;
+                case 2:
+                    secondSend.TrySetResult(sentAt);
+                    break;
+            }
+        }
     }
 
     [Fact]
