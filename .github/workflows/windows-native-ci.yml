@@ -9,8 +9,9 @@ on:
       - "RDPilot.Wrapper/**"
       - ".github/workflows/windows-native-ci.yml"
   push:
-    branches:
-      - "**"
+    # PR checks already validate merges to master; avoid rebuilding native dependencies twice.
+    branches-ignore:
+      - "master"
     tags-ignore:
       - "v*"
     paths:
