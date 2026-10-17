@@ -2,16 +2,74 @@ name: CI
 
 on:
   pull_request:
+  # Feature branches are covered by pull_request; pushing there too built every PR commit twice.
   push:
     branches:
-      - "**"
-    tags-ignore:
-      - "v*"
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
+  # Decides which of the slow, path-specific jobs this change needs. They live in this workflow
+  # (instead of path-filtered workflows of their own) so the "Required" job below can see them:
+  # branch protection can only require a check that always reports.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+      flatpak: ${{ steps.filter.outputs.flatpak }}
+    steps:
+      - name: Classify changed files
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            echo "flatpak=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$EVENT" == "pull_request" ]]; then
+            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+          elif [[ "$BEFORE" =~ ^0+$ ]]; then
+            files=$(gh api "repos/$GITHUB_REPOSITORY/commits/$AFTER" --jq '.files[].filename')
+          else
+            files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq '.files[].filename')
+          fi
+          printf '%s\n' "$files"
+
+          native=false
+          flatpak=false
+          while IFS= read -r f; do
+            case "$f" in
+              vcpkg.json|vcpkg-overlay-ports/*|scripts/setup-windows-vcpkg.ps1|RDPilot.Wrapper/*|.github/workflows/windows-native-ci.yml|.github/workflows/ci.yml)
+                native=true ;;
+            esac
+            case "$f" in
+              packaging/flatpak/*|.github/workflows/flatpak.yml|.github/workflows/ci.yml)
+                flatpak=true ;;
+            esac
+          done <<< "$files"
+
+          echo "native=$native" >> "$GITHUB_OUTPUT"
+          echo "flatpak=$flatpak" >> "$GITHUB_OUTPUT"
+          echo "native=$native flatpak=$flatpak"
+
   build-test:
     name: Build and test
     runs-on: ubuntu-latest
@@ -44,3 +102,37 @@ jobs:
           cmake -S RDPilot.Wrapper -B build-e2e -DRDPILOT_BUILD_E2E_TESTS=ON
           cmake --build build-e2e
           ctest --test-dir build-e2e --output-on-failure
+
+  # Also runs on master pushes that touch native files, to seed the vcpkg binary cache that PRs
+  # restore from (caches saved inside a PR are not visible to other PRs).
+  windows-native:
+    name: Windows native
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    uses: ./.github/workflows/windows-native-ci.yml
+
+  flatpak:
+    name: Flatpak
+    needs: changes
+    if: needs.changes.outputs.flatpak == 'true' && github.event_name != 'push'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/flatpak.yml
+
+  # The single check branch protection requires. Skipped jobs count as passing; anything that
+  # ran must have succeeded.
+  required:
+    name: Required
+    if: always()
+    needs: [changes, build-test, windows-native, flatpak]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e '[.[].result] | any(. == "failure" or . == "cancelled")' > /dev/null; then
+            echo "::error::A required job failed or was cancelled."
+            exit 1
+          fi
