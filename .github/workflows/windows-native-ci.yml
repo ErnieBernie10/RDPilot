@@ -1,30 +1,10 @@
 name: Windows Native CI
 
+# Called from CI (ci.yml), which decides when native files changed and gates merges on the
+# result. Manual runs are kept for re-seeding the vcpkg binary cache.
 on:
-  pull_request:
-    paths:
-      - "vcpkg.json"
-      - "vcpkg-overlay-ports/**"
-      - "scripts/setup-windows-vcpkg.ps1"
-      - "RDPilot.Wrapper/**"
-      - ".github/workflows/windows-native-ci.yml"
-  # Runs on master only to seed the vcpkg binary cache: caches saved from a PR are scoped to
-  # that PR, so other PRs can only reuse what master has saved. Feature-branch pushes are
-  # covered by the pull_request trigger.
-  push:
-    branches:
-      - master
-    paths:
-      - "vcpkg.json"
-      - "vcpkg-overlay-ports/**"
-      - "scripts/setup-windows-vcpkg.ps1"
-      - "RDPilot.Wrapper/**"
-      - ".github/workflows/windows-native-ci.yml"
+  workflow_call:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

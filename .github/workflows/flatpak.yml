@@ -1,18 +1,13 @@
 name: Flatpak
 
+# Pull requests reach this through CI (ci.yml), which only calls it for Flatpak packaging changes
+# and gates merges on the result. Tags still trigger it directly to publish the bundle.
 on:
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "packaging/flatpak/**"
-      - ".github/workflows/flatpak.yml"
   push:
     tags:
       - "v*"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
