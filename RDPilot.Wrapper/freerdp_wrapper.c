@@ -990,6 +990,11 @@ static bool setup_instance(rdp_session* session, const connection_params* params
                                     CLIPRDR_FLAG_LOCAL_TO_REMOTE_FILES |
                                     CLIPRDR_FLAG_REMOTE_TO_LOCAL_FILES);
     freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, params->use_network_level_authentication ? TRUE : FALSE);
+    /* HYBRID_EX is NLA too. FreeRDP enables it by default, so leaving it on makes a credential-less
+     * connect still request CredSSP; a server that supports NLA without requiring it (the setup
+     * for logging in on the remote logon screen) then picks HYBRID_EX and the connect fails with
+     * SEC_E_NO_CREDENTIALS instead of falling back to TLS. */
+    freerdp_settings_set_bool(settings, FreeRDP_ExtSecurity, params->use_network_level_authentication ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_MstscCookieMode, TRUE);
@@ -1167,15 +1172,22 @@ static DWORD WINAPI rdp_thread_func(LPVOID lpParam) {
         }
 
         // Wake: data ready (waitStatus in [0, eventCount)) or timeout expired (WAIT_TIMEOUT).
-        // Either way, drain input first so the server sees the latest local mouse/key state,
-        // then process channel data, then handle resize.
+        // Either way, announce a local clipboard change first, then drain input, then process
+        // channel data, then handle resize. Clipboard goes before input so that "copy locally,
+        // switch to the session, Ctrl+V" reaches the server as format list then keystroke;
+        // the other way round the remote app pastes the previous clipboard.
         ULONGLONG phase_start = GetTickCount64();
-        process_pending_input(session);
-        UINT32 input_ms = (UINT32)(GetTickCount64() - phase_start);
+        if (process_pending_clipboard(session))
+        {
+            // Channel writes are only queued by the cliprdr plugin; flush them now, otherwise
+            // they leave in freerdp_check_event_handles below, after the input we send next.
+            freerdp_channels_check_fds(session->instance->context->channels, session->instance);
+        }
+        UINT32 clipboard_ms = (UINT32)(GetTickCount64() - phase_start);
 
         phase_start = GetTickCount64();
-        process_pending_clipboard(session);
-        UINT32 clipboard_ms = (UINT32)(GetTickCount64() - phase_start);
+        process_pending_input(session);
+        UINT32 input_ms = (UINT32)(GetTickCount64() - phase_start);
 
         phase_start = GetTickCount64();
         BOOL fdsOk = freerdp_check_event_handles(session->instance->context);

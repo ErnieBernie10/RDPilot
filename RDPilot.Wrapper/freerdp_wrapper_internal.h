@@ -77,6 +77,19 @@ typedef enum {
 /* Our rdpPointer subclass. `pointer` MUST stay first: FreeRDP allocates `pointer.size` bytes and
  * hands back the address as an rdpPointer*. Instances live from Pointer_New until Pointer_Free and
  * are reachable from the session's cursor_list so the UI thread can pull pixels by id. */
+#define REMOTE_REQUEST_QUEUE_CAPACITY 16
+
+typedef enum {
+    REMOTE_REQUEST_TEXT,
+    REMOTE_REQUEST_FILE_DESCRIPTOR
+} remote_request_kind;
+
+typedef struct {
+    remote_request_kind kind;
+    UINT32 format_id;
+    UINT32 generation;
+} remote_request;
+
 typedef struct wrapper_pointer {
     rdpPointer pointer;
     UINT32 id;
@@ -152,7 +165,19 @@ struct rdp_session {
     char* temp_directory;
     UINT32 remote_file_group_descriptor_format_id;
     UINT32 remote_file_contents_format_id;
-    UINT32 pending_remote_format_id;
+    // Outstanding remote format data requests. CLIPRDR responses carry no request id; the server
+    // answers requests in order, so responses are matched FIFO. `generation` is bumped on every
+    // server format list so answers to requests made for an older list can be told apart and
+    // dropped. RDP-thread only (cliprdr callbacks and the RDP loop), so no lock.
+    remote_request remote_requests[REMOTE_REQUEST_QUEUE_CAPACITY];
+    size_t remote_requests_head;
+    size_t remote_requests_count;
+    UINT32 remote_generation;
+    bool remote_offers_text;
+    bool remote_retry_pending;
+    remote_request remote_retry;
+    UINT32 remote_retry_attempt;
+    ULONGLONG remote_retry_due_ms;
     UINT32 remote_file_stream_id;
     char** remote_received_file_paths;
     size_t remote_received_file_paths_count;
@@ -235,7 +260,8 @@ void free_cursor_cache(rdp_session* session);
 
 void free_local_clipboard_text(rdp_session* session);
 void free_clipboard_data(rdp_session* session);
-void process_pending_clipboard(rdp_session* session);
+/* Returns true when it queued a cliprdr PDU (a local format list or a retried request). */
+bool process_pending_clipboard(rdp_session* session);
 
 char* duplicate_string(const char* text);
 

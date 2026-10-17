@@ -120,7 +120,6 @@ static void clear_remote_file_transfer(rdp_session* session)
     session->remote_active_file_index = 0;
     session->remote_file_stream_id = 0;
     session->remote_file_transfer_in_progress = false;
-    session->pending_remote_format_id = 0;
 }
 
 static char get_path_separator(void)
@@ -560,22 +559,125 @@ static void free_local_file_paths(rdp_session* session)
     }
 }
 
+/* Retry schedule for a remote data request the server answered with CB_RESPONSE_FAIL. Windows'
+ * rdpclip fails a request when it cannot open the clipboard, which is common right after a copy
+ * because the source application (or a clipboard history/manager) still holds it. We fetch
+ * eagerly at that exact moment, unlike mstsc which fetches on paste, so we must retry. */
+static const UINT32 k_remote_retry_delays_ms[] = { 25, 50, 100, 200, 400, 800 };
+#define REMOTE_RETRY_MAX_ATTEMPTS (sizeof(k_remote_retry_delays_ms) / sizeof(k_remote_retry_delays_ms[0]))
+
+static void reset_remote_requests(rdp_session* session)
+{
+    if (!session)
+        return;
+    session->remote_requests_head = 0;
+    session->remote_requests_count = 0;
+    session->remote_retry_pending = false;
+    session->remote_retry_attempt = 0;
+}
+
+static UINT send_remote_request(rdp_session* session, remote_request request)
+{
+    if (!session || !session->cliprdr)
+        return CHANNEL_RC_OK;
+
+    if (session->remote_requests_count == REMOTE_REQUEST_QUEUE_CAPACITY)
+    {
+        /* The server stopped answering; the FIFO can no longer be trusted. Start over. */
+        fprintf(stderr, "[CLIPRDR] remote request queue overflow, resetting\n");
+        session->remote_requests_head = 0;
+        session->remote_requests_count = 0;
+    }
+
+    size_t tail = (session->remote_requests_head + session->remote_requests_count) % REMOTE_REQUEST_QUEUE_CAPACITY;
+    session->remote_requests[tail] = request;
+    session->remote_requests_count++;
+
+    CLIPRDR_FORMAT_DATA_REQUEST pdu;
+    memset(&pdu, 0, sizeof(pdu));
+    pdu.common.msgType = CB_FORMAT_DATA_REQUEST;
+    pdu.requestedFormatId = request.format_id;
+    printf("[CLIPRDR] request remote %s format=%u generation=%u\n",
+           request.kind == REMOTE_REQUEST_TEXT ? "Unicode text" : "file descriptor",
+           request.format_id, request.generation);
+    UINT rc = session->cliprdr->ClientFormatDataRequest(session->cliprdr, &pdu);
+    log_channel_rc("ClientFormatDataRequest", rc);
+    if (rc != CHANNEL_RC_OK)
+    {
+        /* Nothing went on the wire, so no response will come for it. */
+        session->remote_requests_count--;
+    }
+    return rc;
+}
+
+static bool pop_remote_request(rdp_session* session, remote_request* out)
+{
+    if (!session || session->remote_requests_count == 0)
+        return false;
+    *out = session->remote_requests[session->remote_requests_head];
+    session->remote_requests_head = (session->remote_requests_head + 1) % REMOTE_REQUEST_QUEUE_CAPACITY;
+    session->remote_requests_count--;
+    return true;
+}
+
+static UINT request_remote_text(rdp_session* session)
+{
+    remote_request request = { REMOTE_REQUEST_TEXT, CF_UNICODETEXT, session->remote_generation };
+    return send_remote_request(session, request);
+}
+
 static UINT request_remote_file_descriptor(rdp_session* session)
 {
     if (!session || !session->cliprdr || session->remote_file_group_descriptor_format_id == 0)
         return CHANNEL_RC_OK;
 
     clear_remote_file_transfer(session);
-    session->pending_remote_format_id = session->remote_file_group_descriptor_format_id;
+    remote_request request = { REMOTE_REQUEST_FILE_DESCRIPTOR, session->remote_file_group_descriptor_format_id, session->remote_generation };
+    return send_remote_request(session, request);
+}
 
-    CLIPRDR_FORMAT_DATA_REQUEST request;
-    memset(&request, 0, sizeof(request));
-    request.common.msgType = CB_FORMAT_DATA_REQUEST;
-    request.requestedFormatId = session->remote_file_group_descriptor_format_id;
-    printf("[CLIPRDR] request remote file descriptor format=%u\n", request.requestedFormatId);
-    UINT rc = session->cliprdr->ClientFormatDataRequest(session->cliprdr, &request);
-    log_channel_rc("ClientFormatDataRequest file descriptor", rc);
-    return rc;
+/* A request for the current clipboard generation failed. Retry with backoff; once retries are
+ * exhausted for a file list, fall back to the text the server offered alongside it. */
+static UINT handle_failed_remote_request(rdp_session* session, remote_request request)
+{
+    if (request.generation != session->remote_generation)
+        return CHANNEL_RC_OK;
+
+    if (session->remote_retry_attempt < REMOTE_RETRY_MAX_ATTEMPTS)
+    {
+        UINT32 delay = k_remote_retry_delays_ms[session->remote_retry_attempt];
+        session->remote_retry_attempt++;
+        session->remote_retry = request;
+        session->remote_retry_pending = true;
+        session->remote_retry_due_ms = GetTickCount64() + delay;
+        printf("[CLIPRDR] remote request failed, retry %u in %ums\n", session->remote_retry_attempt, delay);
+        return CHANNEL_RC_OK;
+    }
+
+    session->remote_retry_attempt = 0;
+    if (request.kind == REMOTE_REQUEST_FILE_DESCRIPTOR && session->remote_offers_text)
+    {
+        printf("[CLIPRDR] remote file list unavailable, falling back to text\n");
+        clear_remote_file_transfer(session);
+        return request_remote_text(session);
+    }
+
+    printf("[CLIPRDR] remote request failed, giving up after %u retries\n", (unsigned)REMOTE_RETRY_MAX_ATTEMPTS);
+    return CHANNEL_RC_OK;
+}
+
+static void process_remote_retry(rdp_session* session)
+{
+    if (!session->remote_retry_pending || GetTickCount64() < session->remote_retry_due_ms)
+        return;
+
+    session->remote_retry_pending = false;
+    if (session->remote_retry.generation != session->remote_generation)
+        return;
+
+    if (session->remote_retry.kind == REMOTE_REQUEST_FILE_DESCRIPTOR)
+        clear_remote_file_transfer(session);
+    send_remote_request(session, session->remote_retry);
 }
 
 static UINT request_next_remote_file_chunk(rdp_session* session, bool request_size_only)
@@ -635,7 +737,6 @@ static void finish_remote_file_transfer(rdp_session* session)
 
     close_remote_active_file(session);
     session->remote_file_transfer_in_progress = false;
-    session->pending_remote_format_id = 0;
 
     if (session->remote_received_file_paths_count > 0 && session->clipboard_files_callback)
     {
@@ -1001,6 +1102,7 @@ UINT on_cliprdr_monitor_ready(CliprdrClientContext* context, const CLIPRDR_MONIT
     rdp_session* session = context ? (rdp_session*)context->custom : NULL;
     (void)monitorReady;
     printf("[CLIPRDR] monitor ready\n");
+    reset_remote_requests(session);
     UINT rc = send_clipboard_capabilities(session);
     if (rc != CHANNEL_RC_OK) return rc;
     return send_clipboard_format_list(session);
@@ -1015,6 +1117,13 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
 
     if (session)
     {
+        /* A new server clipboard supersedes everything we were fetching for the previous one:
+         * answers still in flight are recognized by their old generation and dropped, a pending
+         * retry is abandoned, and a half-finished file download must not land after this. */
+        session->remote_generation++;
+        session->remote_retry_pending = false;
+        session->remote_retry_attempt = 0;
+        clear_remote_file_transfer(session);
         session->remote_file_group_descriptor_format_id = 0;
         session->remote_file_contents_format_id = 0;
     }
@@ -1046,6 +1155,8 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
     }
 
     has_files = session && session->remote_file_group_descriptor_format_id != 0 && session->remote_file_contents_format_id != 0;
+    if (session)
+        session->remote_offers_text = has_unicode_text;
 
     printf("[CLIPRDR] server formats count=%u unicodeText=%s bitmap=%s files=%s\n",
            formatList->numFormats, has_unicode_text ? "true" : "false", 
@@ -1073,15 +1184,7 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
 
     if (has_unicode_text && session && session->cliprdr)
     {
-        session->pending_remote_format_id = CF_UNICODETEXT;
-        CLIPRDR_FORMAT_DATA_REQUEST request;
-        memset(&request, 0, sizeof(request));
-        request.common.msgType = CB_FORMAT_DATA_REQUEST;
-        request.requestedFormatId = CF_UNICODETEXT;
-        printf("[CLIPRDR] request remote Unicode text\n");
-        UINT rc = session->cliprdr->ClientFormatDataRequest(session->cliprdr, &request);
-        log_channel_rc("ClientFormatDataRequest", rc);
-        return rc;
+        return request_remote_text(session);
     }
 
     return CHANNEL_RC_OK;
@@ -1105,13 +1208,33 @@ UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context,
                                                      const CLIPRDR_FORMAT_DATA_RESPONSE* formatDataResponse)
 {
     rdp_session* session = context ? (rdp_session*)context->custom : NULL;
-    if (!(formatDataResponse->common.msgFlags & CB_RESPONSE_OK) || !formatDataResponse->requestedFormatData)
+    if (!session)
+        return CHANNEL_RC_OK;
+
+    remote_request request;
+    if (!pop_remote_request(session, &request))
     {
-        printf("[CLIPRDR] remote text response failed flags=0x%04x\n", formatDataResponse->common.msgFlags);
+        printf("[CLIPRDR] unexpected remote data response (no request outstanding), ignoring\n");
         return CHANNEL_RC_OK;
     }
 
-    if (session && session->pending_remote_format_id == session->remote_file_group_descriptor_format_id)
+    if (request.generation != session->remote_generation)
+    {
+        /* Answer to a request for a clipboard the server has since replaced. A request for the
+         * current clipboard is already queued behind it. */
+        printf("[CLIPRDR] dropping stale remote response generation=%u current=%u\n", request.generation, session->remote_generation);
+        return CHANNEL_RC_OK;
+    }
+
+    if (!(formatDataResponse->common.msgFlags & CB_RESPONSE_OK) || !formatDataResponse->requestedFormatData)
+    {
+        printf("[CLIPRDR] remote data response failed flags=0x%04x format=%u\n", formatDataResponse->common.msgFlags, request.format_id);
+        return handle_failed_remote_request(session, request);
+    }
+
+    session->remote_retry_attempt = 0;
+
+    if (request.kind == REMOTE_REQUEST_FILE_DESCRIPTOR)
     {
         if (formatDataResponse->common.dataLen < sizeof(UINT32))
         {
@@ -1161,9 +1284,6 @@ UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context,
         return request_next_remote_file_chunk(session, true);
     }
 
-    if (session)
-        session->pending_remote_format_id = 0;
-
     size_t wchar_len = formatDataResponse->common.dataLen / sizeof(WCHAR);
     if (wchar_len == 0)
     {
@@ -1179,7 +1299,7 @@ UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context,
     }
 
     printf("[CLIPRDR] remote text received bytes=%u chars=%zu\n", formatDataResponse->common.dataLen, utf8_len);
-    if (session && session->clipboard_text_callback)
+    if (session->clipboard_text_callback)
     {
         session->clipboard_text_callback(session, text);
     }
@@ -1194,6 +1314,12 @@ UINT on_cliprdr_server_file_contents_response(CliprdrClientContext* context,
     rdp_session* session = context ? (rdp_session*)context->custom : NULL;
     if (!session || !session->remote_file_transfer_in_progress)
         return CHANNEL_RC_OK;
+
+    if (fileContentsResponse->streamId != session->remote_file_stream_id)
+    {
+        printf("[CLIPRDR] dropping file contents for stale stream=%u current=%u\n", fileContentsResponse->streamId, session->remote_file_stream_id);
+        return CHANNEL_RC_OK;
+    }
 
     if (!(fileContentsResponse->common.msgFlags & CB_RESPONSE_OK) || !fileContentsResponse->requestedData)
     {
@@ -1273,9 +1399,13 @@ UINT on_cliprdr_server_file_contents_response(CliprdrClientContext* context,
     return request_next_remote_file_chunk(session, true);
 }
 
-void process_pending_clipboard(rdp_session* session)
+bool process_pending_clipboard(rdp_session* session)
 {
-    if (!session || !session->cliprdr) return;
+    if (!session || !session->cliprdr) return false;
+
+    const bool retried = session->remote_retry_pending;
+    process_remote_retry(session);
+    const bool sent_retry = retried && !session->remote_retry_pending;
 
     bool pending = false;
     EnterCriticalSection(&session->clipboard_lock);
@@ -1287,6 +1417,8 @@ void process_pending_clipboard(rdp_session* session)
     {
         send_clipboard_format_list(session);
     }
+
+    return pending || sent_retry;
 }
 
 static bool ensure_supported_formats_capacity(rdp_session* session, size_t needed_capacity)
