@@ -36,7 +36,7 @@ jobs:
             pkgconf
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare build user
         run: |
@@ -90,7 +90,7 @@ jobs:
           sha256sum "${{ steps.version.outputs.package }}" > "${{ steps.version.outputs.package }}.sha256"
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: RDPilot-${{ steps.version.outputs.version }}-arch-x86_64
           include-hidden-files: true
@@ -102,7 +102,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/linux/${{ steps.version.outputs.package }}

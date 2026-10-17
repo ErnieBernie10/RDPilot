@@ -36,7 +36,7 @@ jobs:
       # a direct push. NUGET_CACHE_PUSH_TOKEN is the repo owner's fine-grained PAT (this repo,
       # Contents: read and write) so the regeneration commit below can still land on master.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.NUGET_CACHE_PUSH_TOKEN || github.token }}
 
