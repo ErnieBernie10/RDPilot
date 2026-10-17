@@ -18,6 +18,11 @@ on:
       - 'packaging/flatpak/generate-nuget-sources.sh'
       - '.github/workflows/flatpak-nuget-cache.yml'
 
+# Queue master runs so two regeneration commits never race; cancel superseded PR runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: write
 
@@ -42,12 +47,15 @@ jobs:
           chmod +x packaging/flatpak/generate-nuget-sources.sh
           packaging/flatpak/generate-nuget-sources.sh
 
-      - name: Verify pull request includes generated cache
+      # Informational only: the push job below regenerates and commits the file once the PR
+      # lands on master, so a stale copy here should not block merging (it blocked every
+      # dependency bump). Flatpak bundles are only built from tags, after that commit.
+      - name: Report stale generated cache
         if: github.event_name == 'pull_request'
         run: |
-          if ! git diff --exit-code -- packaging/flatpak/nuget-sources.json; then
-            echo "::error::packaging/flatpak/nuget-sources.json is stale. Run packaging/flatpak/generate-nuget-sources.sh and commit the result."
-            exit 1
+          if ! git diff --quiet -- packaging/flatpak/nuget-sources.json; then
+            echo "::warning::packaging/flatpak/nuget-sources.json is stale; it will be regenerated on master after merge."
+            git diff --stat -- packaging/flatpak/nuget-sources.json
           fi
 
       - name: Commit regenerated cache

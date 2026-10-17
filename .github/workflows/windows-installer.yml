@@ -21,6 +21,7 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
+      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\..\vcpkg-binary-cache
 
     steps:
       - name: Checkout
@@ -51,6 +52,23 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
+
+      # Read-only reuse of the binaries Windows Native CI saved from master; vcpkg still
+      # rebuilds anything whose ABI hash does not match.
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
+          key: vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-overlay-ports/**') }}-
+          restore-keys: |
+            vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-overlay-ports/**') }}-
+            vcpkg-bin-${{ runner.os }}-
+
+      - name: Configure vcpkg binary caching
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_BINARY_CACHE_DIR | Out-Null
+          "VCPKG_BINARY_SOURCES=clear;files,$env:VCPKG_BINARY_CACHE_DIR,read" >> $env:GITHUB_ENV
 
       - name: Setup vcpkg dependencies
         shell: pwsh

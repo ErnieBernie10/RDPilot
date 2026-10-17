@@ -2,11 +2,15 @@ name: CI
 
 on:
   pull_request:
+  # Feature branches are covered by pull_request; pushing there too built every PR commit twice.
   push:
     branches:
-      - "**"
-    tags-ignore:
-      - "v*"
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
