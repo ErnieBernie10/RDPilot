@@ -1,25 +1,10 @@
 name: Windows Native CI
 
+# Called from CI (ci.yml), which decides when native files changed and gates merges on the
+# result. Manual runs are kept for re-seeding the vcpkg binary cache.
 on:
-  pull_request:
-    paths:
-      - "vcpkg.json"
-      - "vcpkg-overlay-ports/**"
-      - "scripts/setup-windows-vcpkg.ps1"
-      - "RDPilot.Wrapper/**"
-      - ".github/workflows/windows-native-ci.yml"
-  push:
-    # PR checks already validate merges to master; avoid rebuilding native dependencies twice.
-    branches-ignore:
-      - "master"
-    tags-ignore:
-      - "v*"
-    paths:
-      - "vcpkg.json"
-      - "vcpkg-overlay-ports/**"
-      - "scripts/setup-windows-vcpkg.ps1"
-      - "RDPilot.Wrapper/**"
-      - ".github/workflows/windows-native-ci.yml"
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,6 +16,7 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
+      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\.vcpkg-binary-cache
 
     steps:
       - name: Checkout
@@ -41,9 +27,57 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # vcpkg reuses a cached package whenever its ABI hash matches, so restoring the newest
+      # cache with the same prefix means a dependency bump only rebuilds what actually changed.
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
+          key: vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-overlay-ports/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-overlay-ports/**') }}-
+            vcpkg-bin-${{ runner.os }}-
+
+      - name: Configure vcpkg binary caching
+        id: vcpkg-cache-before
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_BINARY_CACHE_DIR | Out-Null
+          "VCPKG_BINARY_SOURCES=clear;files,$env:VCPKG_BINARY_CACHE_DIR,readwrite" >> $env:GITHUB_ENV
+          $count = (Get-ChildItem -Recurse -File $env:VCPKG_BINARY_CACHE_DIR | Measure-Object).Count
+          "count=$count" >> $env:GITHUB_OUTPUT
+          $matched = '${{ steps.vcpkg-cache.outputs.cache-matched-key }}'
+          if ($matched) { "::notice title=vcpkg cache::Restored $count archives from $matched" }
+          else { "::notice title=vcpkg cache::No cache restored; full vcpkg build" }
+
       - name: Setup vcpkg dependencies
         shell: pwsh
         run: scripts/setup-windows-vcpkg.ps1 -VcpkgRoot $env:VCPKG_ROOT
+
+      # Save even when a later step fails or the run is cancelled, so a long cold build is not
+      # thrown away. Skip the upload when nothing new was built.
+      - name: Check for new vcpkg binaries
+        id: vcpkg-cache-after
+        if: always()
+        shell: pwsh
+        run: |
+          $count = 0
+          if (Test-Path $env:VCPKG_BINARY_CACHE_DIR) {
+            $count = (Get-ChildItem -Recurse -File $env:VCPKG_BINARY_CACHE_DIR | Measure-Object).Count
+          }
+          $before = [int]'${{ steps.vcpkg-cache-before.outputs.count }}'
+          "changed=$($count -gt $before)".ToLower() >> $env:GITHUB_OUTPUT
+          $mb = 0
+          if ($count -gt 0) { $mb = [math]::Round((Get-ChildItem -Recurse -File $env:VCPKG_BINARY_CACHE_DIR | Measure-Object Length -Sum).Sum / 1MB) }
+          "::notice title=vcpkg cache::$before archives restored, $count after build (${mb} MB)"
+
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache-after.outputs.changed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
+          key: vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-overlay-ports/**') }}-${{ github.run_id }}
 
       - name: Test
         shell: pwsh
