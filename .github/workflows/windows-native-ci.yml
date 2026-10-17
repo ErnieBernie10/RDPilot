@@ -36,7 +36,7 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
-      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\..\vcpkg-binary-cache
+      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\.vcpkg-binary-cache
 
     steps:
       - name: Checkout
@@ -67,7 +67,9 @@ jobs:
           "VCPKG_BINARY_SOURCES=clear;files,$env:VCPKG_BINARY_CACHE_DIR,readwrite" >> $env:GITHUB_ENV
           $count = (Get-ChildItem -Recurse -File $env:VCPKG_BINARY_CACHE_DIR | Measure-Object).Count
           "count=$count" >> $env:GITHUB_OUTPUT
-          "Restored $count cached vcpkg archives."
+          $matched = '${{ steps.vcpkg-cache.outputs.cache-matched-key }}'
+          if ($matched) { "::notice title=vcpkg cache::Restored $count archives from $matched" }
+          else { "::notice title=vcpkg cache::No cache restored; full vcpkg build" }
 
       - name: Setup vcpkg dependencies
         shell: pwsh
@@ -86,7 +88,9 @@ jobs:
           }
           $before = [int]'${{ steps.vcpkg-cache-before.outputs.count }}'
           "changed=$($count -gt $before)".ToLower() >> $env:GITHUB_OUTPUT
-          "vcpkg archives: $before before, $count after."
+          $mb = 0
+          if ($count -gt 0) { $mb = [math]::Round((Get-ChildItem -Recurse -File $env:VCPKG_BINARY_CACHE_DIR | Measure-Object Length -Sum).Sum / 1MB) }
+          "::notice title=vcpkg cache::$before archives restored, $count after build (${mb} MB)"
 
       - name: Save vcpkg binary cache
         if: always() && steps.vcpkg-cache-after.outputs.changed == 'true'

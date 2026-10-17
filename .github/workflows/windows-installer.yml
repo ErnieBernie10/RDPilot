@@ -21,7 +21,7 @@ jobs:
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}\..\vcpkg
-      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\..\vcpkg-binary-cache
+      VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}\.vcpkg-binary-cache
 
     steps:
       - name: Checkout
