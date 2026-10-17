@@ -16,7 +16,7 @@
   "overrides": [
     {
       "name": "openssl",
-      "version": "3.6.4#1"
+      "version": "3.6.5#2"
     }
   ]
 }
