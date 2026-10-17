@@ -32,8 +32,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # master requires the "Required" check, which the default Actions token cannot satisfy for
+      # a direct push. NUGET_CACHE_PUSH_TOKEN is the repo owner's fine-grained PAT (this repo,
+      # Contents: read and write) so the regeneration commit below can still land on master.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NUGET_CACHE_PUSH_TOKEN || github.token }}
 
       - name: Install Flatpak tooling
         run: |
