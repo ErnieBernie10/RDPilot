@@ -90,6 +90,7 @@ public partial class RdpViewportView : UserControl
 
         _hostWindow.SizeChanged += OnHostWindowSizeChanged;
         _hostWindow.Deactivated += OnHostWindowDeactivated;
+        _hostWindow.Activated += OnHostWindowActivated;
         _hostWindow.LayoutUpdated += OnHostWindowLayoutUpdated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
@@ -111,10 +112,18 @@ public partial class RdpViewportView : UserControl
 
         _hostWindow.SizeChanged -= OnHostWindowSizeChanged;
         _hostWindow.Deactivated -= OnHostWindowDeactivated;
+        _hostWindow.Activated -= OnHostWindowActivated;
         _hostWindow.LayoutUpdated -= OnHostWindowLayoutUpdated;
         _hostWindow.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _hostWindow.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
         _hostWindow = null;
+    }
+
+    // Coming back to the window is the moment a local copy is about to be pasted remotely; read the
+    // clipboard now instead of waiting up to a full poll interval, or the paste races the poll.
+    private async void OnHostWindowActivated(object? sender, EventArgs e)
+    {
+        await _presenter.PollClipboardAsync();
     }
 
     private void OnSessionRedrawRequested(object? sender, RdpSessionViewModel e)

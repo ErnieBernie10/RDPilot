@@ -85,6 +85,7 @@ jobs:
             dotnet-sdk \
             freerdp \
             git \
+            openssl \
             pkgconf
 
       - name: Checkout
@@ -95,6 +96,12 @@ jobs:
 
       - name: Test
         run: dotnet test RDPilot.slnx --configuration Release --no-build
+
+      - name: Wrapper end-to-end tests
+        run: |
+          cmake -S RDPilot.Wrapper -B build-e2e -DRDPILOT_BUILD_E2E_TESTS=ON
+          cmake --build build-e2e
+          ctest --test-dir build-e2e --output-on-failure
 
   # Also runs on master pushes that touch native files, to seed the vcpkg binary cache that PRs
   # restore from (caches saved inside a PR are not visible to other PRs).
