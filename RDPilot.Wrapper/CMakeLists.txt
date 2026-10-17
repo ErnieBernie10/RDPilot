@@ -100,3 +100,17 @@ install(TARGETS freerdp_wrapper
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/freerdp_wrapper.pc
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )
+
+# End-to-end tests: an in-process FreeRDP test server driven against this wrapper.
+# Needs FreeRDP built with its server library (freerdp-server3); off by default so app builds
+# never depend on it.
+option(RDPILOT_BUILD_E2E_TESTS "Build the wrapper end-to-end tests (needs freerdp-server3)" OFF)
+if(RDPILOT_BUILD_E2E_TESTS)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FREERDP_SERVER REQUIRED IMPORTED_TARGET freerdp-server3 freerdp3 winpr3)
+    find_package(Threads REQUIRED)
+    enable_testing()
+    add_executable(rdpilot_clipboard_e2e tests/clipboard_e2e.c)
+    target_link_libraries(rdpilot_clipboard_e2e PRIVATE freerdp_wrapper PkgConfig::FREERDP_SERVER Threads::Threads)
+    add_test(NAME clipboard_e2e COMMAND rdpilot_clipboard_e2e --iterations 30)
+endif()

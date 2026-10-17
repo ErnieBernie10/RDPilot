@@ -139,7 +139,17 @@ Clipboard redirection currently supports text and local-to-remote file copy/past
 - Local-to-remote clipboard uses an Avalonia-side polling timer. Text is cached as the latest non-empty string in native code so the RDP thread can answer remote paste requests synchronously; file offers are rebuilt from the current Avalonia clipboard file list.
 - Empty local clipboard reads are ignored because Avalonia/platform clipboard reads may transiently return empty values and should not clear the remote clipboard offer.
 - Remote-to-local file paste is not implemented yet.
+- Remote data requests are matched to responses FIFO (`remote_requests` queue); CLIPRDR responses carry no id. Every server format list bumps `remote_generation`; answers for an older generation are dropped, and a new list cancels an in-flight file download. Never go back to a single "pending format id": back-to-back server copies then misparse text as a file descriptor (and vice versa) and drop the copy.
+- A failed remote data request is retried with backoff (25 ms … 800 ms) from the RDP loop; a file list that never renders falls back to the offered text. rdpclip fails requests while the source app still holds the server clipboard, and we fetch eagerly at exactly that moment.
+- The RDP loop runs `process_pending_clipboard` before `process_pending_input` and flushes channel writes (`freerdp_channels_check_fds`) when it queued a cliprdr PDU, so "copy locally, Ctrl+V in the session" reaches the server as format list then keystroke.
+- The view also polls the local clipboard immediately on window activation, not only on the 500 ms timer.
 - Bitmap, HTML, and custom clipboard formats are not implemented yet.
+
+## End-to-End Tests
+
+`RDPilot.Wrapper/tests/clipboard_e2e.c` hosts a scriptable FreeRDP server in-process and drives the wrapper's public API against it (no .NET, no real RDP server). It covers clipboard both ways, large payloads, rdpclip-style failed/slow answers, bursts, files-then-text, and copy-then-paste ordering. Build with `-DRDPILOT_BUILD_E2E_TESTS=ON` (needs `freerdp-server3` and `openssl`), run `ctest` or `rdpilot_clipboard_e2e --iterations N [--scenario NAME] [--verbose]`. It reports a pass rate per scenario; flaky behaviour shows up as less than N/N. Add a scenario here before fixing any clipboard bug.
+
+Credential-less connects set `FreeRDP_ExtSecurity` off together with `NlaSecurity`; otherwise FreeRDP still offers HYBRID_EX and a server that allows but does not require NLA picks it and the connect fails with `SEC_E_NO_CREDENTIALS`.
 
 ## Avalonia Notes
 
