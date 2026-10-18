@@ -46,6 +46,45 @@ public static class AppDataPaths
         }
     }
 
+    public static string ClipboardCacheDirectory
+    {
+        get
+        {
+            var configuredHome = Environment.GetEnvironmentVariable(ConfigHomeEnvironmentVariable);
+            if (!string.IsNullOrWhiteSpace(configuredHome))
+            {
+                return Path.Combine(configuredHome, AppName, "Clipboard");
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName, "Clipboard");
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Library",
+                    "Caches",
+                    AppName,
+                    "Clipboard");
+            }
+
+            var xdgCacheHome = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+            if (!string.IsNullOrWhiteSpace(xdgCacheHome))
+            {
+                return Path.Combine(xdgCacheHome, AppName, "Clipboard");
+            }
+
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".cache",
+                AppName,
+                "Clipboard");
+        }
+    }
+
     public static string ConnectionsFilePath => Path.Combine(ConfigDirectory, "connections.json");
     public static string SettingsFilePath => Path.Combine(ConfigDirectory, "settings.json");
     public static string CertificateTrustFilePath => Path.Combine(ConfigDirectory, "trusted-certificates.json");

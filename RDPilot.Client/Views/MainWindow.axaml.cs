@@ -1,29 +1,21 @@
 using System;
-using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "Avalonia windows dispose their fullscreen controller in the Closed event.")]
 public partial class MainWindow : Window
 {
-    /// <summary>Windowed inset around the content area; dropped in fullscreen. Mirrors the
-    /// <c>Margin</c> on <c>ContentGrid</c> in MainWindow.axaml.</summary>
-    private static readonly Thickness ContentMargin = new(2);
-
     private readonly SessionTabsView _sessionToolbar;
-    private readonly DispatcherTimer _toolbarHideTimer;
-    private readonly HashSet<Key> _locallyHandledFullscreenKeys = [];
+    private readonly FullscreenWindowController _fullscreen;
     private readonly IKeyboardGrab _keyboardGrab = KeyboardGrab.CreateDefault();
     private MainWindowViewModel? _subscribedViewModel;
-    private WindowState _windowStateBeforeFullscreen = WindowState.Normal;
-    private WindowState _lastNonFullscreenWindowState = WindowState.Normal;
-    private bool _isFullscreen;
 
     public MainWindow()
     {
@@ -32,14 +24,8 @@ public partial class MainWindow : Window
         _sessionToolbar = new SessionTabsView();
         _sessionToolbar.FullscreenToggleRequested += OnFullscreenToggleRequested;
         SessionToolbarHost.Child = _sessionToolbar;
-        _toolbarHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
-        _toolbarHideTimer.Tick += OnToolbarHideTimerTick;
-        SessionToolbarHost.PointerEntered += OnSessionToolbarPointerEntered;
-        SessionToolbarHost.PointerExited += OnSessionToolbarPointerExited;
-        SessionToolbarHost.GotFocus += OnSessionToolbarGotFocus;
-        SessionToolbarHost.LostFocus += OnSessionToolbarLostFocus;
-        FullscreenRevealZone.PointerEntered += OnFullscreenRevealZonePointerEntered;
-        FullscreenRevealZone.PointerExited += OnFullscreenRevealZonePointerExited;
+        _fullscreen = new FullscreenWindowController(this, NavigationRail, StatusBar, ShellGrid,
+            RootLayout, ContentGrid, SessionToolbarHost, FullscreenRevealZone, RdpViewport);
         AddHandler(InputElement.KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, true);
         AddHandler(InputElement.KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, true);
         PropertyChanged += OnWindowPropertyChanged;
@@ -51,8 +37,7 @@ public partial class MainWindow : Window
 
         Closed += (_, _) =>
         {
-            _toolbarHideTimer.Stop();
-            _toolbarHideTimer.Tick -= OnToolbarHideTimerTick;
+            _fullscreen.Dispose();
             PropertyChanged -= OnWindowPropertyChanged;
             Deactivated -= OnWindowDeactivated;
             Activated -= OnWindowActivated;
@@ -146,40 +131,22 @@ public partial class MainWindow : Window
 
     private void OnFullscreenToggleRequested(object? sender, EventArgs e)
     {
-        SetFullscreen(WindowState != WindowState.FullScreen);
+        _fullscreen.Toggle();
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_locallyHandledFullscreenKeys.Contains(e.Key))
-        {
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F11)
-        {
-            _locallyHandledFullscreenKeys.Add(e.Key);
-            SetFullscreen(WindowState != WindowState.FullScreen);
-            e.Handled = true;
-        }
-        else if (WindowState == WindowState.FullScreen && e.Key == Key.Escape)
-        {
-            _locallyHandledFullscreenKeys.Add(e.Key);
-            SetFullscreen(false);
-            e.Handled = true;
-        }
+        _fullscreen.HandleKeyDown(e);
     }
 
     private void OnWindowKeyUp(object? sender, KeyEventArgs e)
     {
-        if (_locallyHandledFullscreenKeys.Remove(e.Key))
-        {
-            e.Handled = true;
-        }
+        _fullscreen.HandleKeyUp(e);
     }
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
-        _locallyHandledFullscreenKeys.Clear();
+        _fullscreen.OnWindowDeactivated();
 
         // The only escape route from a grab, since there is no release hotkey: clicking another
         // window deactivates us and hands the keyboard back to the local desktop.
@@ -188,160 +155,11 @@ public partial class MainWindow : Window
         RdpViewport.SetKeyboardGrabActive(false);
     }
 
-    private void SetFullscreen(bool isFullscreen)
-    {
-        if (isFullscreen && WindowState != WindowState.FullScreen)
-        {
-            _windowStateBeforeFullscreen = WindowState == WindowState.Minimized
-                ? _lastNonFullscreenWindowState
-                : WindowState;
-            WindowState = WindowState.FullScreen;
-        }
-        else if (!isFullscreen && WindowState == WindowState.FullScreen)
-        {
-            WindowState = _windowStateBeforeFullscreen;
-        }
-
-        SynchronizeFullscreenState();
-    }
-
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property == WindowStateProperty)
         {
-            SynchronizeFullscreenState();
-        }
-    }
-
-    private void SynchronizeFullscreenState()
-    {
-        var isFullscreen = WindowState == WindowState.FullScreen;
-        if (!isFullscreen && WindowState != WindowState.Minimized)
-        {
-            _lastNonFullscreenWindowState = WindowState;
-        }
-
-        if (_isFullscreen == isFullscreen)
-        {
-            return;
-        }
-
-        if (isFullscreen)
-        {
-            _windowStateBeforeFullscreen = _lastNonFullscreenWindowState;
-        }
-
-        _isFullscreen = isFullscreen;
-        ApplyFullscreenLayout();
-
-        if (_isFullscreen)
-        {
-            MoveFocusOutsideFullscreenToolbar();
-            HideFullscreenToolbar(force: true);
-        }
-        else
-        {
-            _toolbarHideTimer.Stop();
-            SessionToolbarHost.Opacity = 1;
-            SessionToolbarHost.IsHitTestVisible = true;
-        }
-    }
-
-    private void MoveFocusOutsideFullscreenToolbar()
-    {
-        if (SessionToolbarHost.IsKeyboardFocusWithin)
-        {
-            RdpViewport.Focus();
-        }
-    }
-
-    private void ApplyFullscreenLayout()
-    {
-        NavigationRail.IsVisible = !_isFullscreen;
-        StatusBar.IsVisible = !_isFullscreen;
-        ShellGrid.ColumnDefinitions[0].Width = new GridLength(_isFullscreen ? 0 : 32);
-        RootLayout.RowDefinitions[1].Height = _isFullscreen ? new GridLength(0) : GridLength.Auto;
-        // The reveal zone is pinned to the top of ContentGrid, so any margin here becomes a dead
-        // strip above it - and the top edge of the screen is exactly where the pointer lands when
-        // you throw it upwards to summon the toolbar.
-        ContentGrid.Margin = _isFullscreen ? new Thickness(0) : ContentMargin;
-        Grid.SetRowSpan(SessionToolbarHost, _isFullscreen ? 2 : 1);
-        FullscreenRevealZone.IsVisible = _isFullscreen;
-
-        if (_isFullscreen)
-        {
-            SessionToolbarHost.Classes.Add("FullscreenSessionToolbar");
-            FullscreenRevealZone.Classes.Add("FullscreenRevealZone");
-        }
-        else
-        {
-            SessionToolbarHost.Classes.Remove("FullscreenSessionToolbar");
-            FullscreenRevealZone.Classes.Remove("FullscreenRevealZone");
-        }
-    }
-
-    private void OnFullscreenRevealZonePointerEntered(object? sender, PointerEventArgs e)
-    {
-        ShowFullscreenToolbar();
-    }
-
-    private void OnFullscreenRevealZonePointerExited(object? sender, PointerEventArgs e)
-    {
-        ScheduleFullscreenToolbarHide();
-    }
-
-    private void OnSessionToolbarPointerEntered(object? sender, PointerEventArgs e)
-    {
-        ShowFullscreenToolbar();
-    }
-
-    private void OnSessionToolbarPointerExited(object? sender, PointerEventArgs e)
-    {
-        ScheduleFullscreenToolbarHide();
-    }
-
-    private void OnSessionToolbarGotFocus(object? sender, FocusChangedEventArgs e)
-    {
-        ShowFullscreenToolbar();
-    }
-
-    private void OnSessionToolbarLostFocus(object? sender, FocusChangedEventArgs e)
-    {
-        if (_isFullscreen && !SessionToolbarHost.IsPointerOver)
-        {
-            _toolbarHideTimer.Start();
-        }
-    }
-
-    private void OnToolbarHideTimerTick(object? sender, EventArgs e)
-    {
-        HideFullscreenToolbar();
-    }
-
-    private void ShowFullscreenToolbar()
-    {
-        if (!_isFullscreen) return;
-
-        _toolbarHideTimer.Stop();
-        SessionToolbarHost.Opacity = 0.96;
-        SessionToolbarHost.IsHitTestVisible = true;
-    }
-
-    private void ScheduleFullscreenToolbarHide()
-    {
-        if (_isFullscreen && !SessionToolbarHost.IsKeyboardFocusWithin)
-        {
-            _toolbarHideTimer.Start();
-        }
-    }
-
-    private void HideFullscreenToolbar(bool force = false)
-    {
-        _toolbarHideTimer.Stop();
-        if (_isFullscreen && (force || (!SessionToolbarHost.IsPointerOver && !SessionToolbarHost.IsKeyboardFocusWithin)))
-        {
-            SessionToolbarHost.Opacity = 0;
-            SessionToolbarHost.IsHitTestVisible = false;
+            _fullscreen.Synchronize();
         }
     }
 }

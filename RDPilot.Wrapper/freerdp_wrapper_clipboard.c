@@ -1,5 +1,29 @@
 #include "freerdp_wrapper_internal.h"
 
+static void fail_remote_file_contents_requests(rdp_session* session);
+
+void wrapper_clipboard_attach(rdp_session* session, CliprdrClientContext* cliprdr)
+{
+    if (!session) return;
+    session->cliprdr = cliprdr;
+    if (!cliprdr) return;
+    cliprdr->custom = session;
+    cliprdr->ServerCapabilities = on_cliprdr_server_capabilities;
+    cliprdr->MonitorReady = on_cliprdr_monitor_ready;
+    cliprdr->ServerFormatList = on_cliprdr_server_format_list;
+    cliprdr->ServerFormatDataRequest = on_cliprdr_server_format_data_request;
+    cliprdr->ServerFileContentsRequest = on_cliprdr_server_file_contents_request;
+    cliprdr->ServerFormatDataResponse = on_cliprdr_server_format_data_response;
+    cliprdr->ServerFileContentsResponse = on_cliprdr_server_file_contents_response;
+}
+
+void wrapper_clipboard_detach(rdp_session* session)
+{
+    if (!session) return;
+    fail_remote_file_contents_requests(session);
+    session->cliprdr = NULL;
+}
+
 // Standard clipboard format constants (from Winuser.h)
 #ifndef CF_TEXT
 #define CF_TEXT 1
@@ -43,259 +67,8 @@ typedef struct
     FILEDESCRIPTORW fgd[1];
 } RDPILOT_FILEGROUPDESCRIPTORW;
 
-#define REMOTE_FILE_CHUNK_SIZE (256u * 1024u)
-
-static void clear_remote_file_transfer(rdp_session* session);
 static UINT request_remote_file_descriptor(rdp_session* session);
-static UINT request_next_remote_file_chunk(rdp_session* session, bool request_size_only);
-static void finish_remote_file_transfer(rdp_session* session);
 static void update_supported_local_formats(rdp_session* session);
-
-static bool ensure_received_file_paths_capacity(rdp_session* session, size_t needed_capacity)
-{
-    if (!session)
-        return false;
-
-    if (needed_capacity <= session->remote_received_file_paths_capacity)
-        return true;
-
-    size_t new_capacity = session->remote_received_file_paths_capacity ? session->remote_received_file_paths_capacity * 2 : 4;
-    while (new_capacity < needed_capacity)
-        new_capacity *= 2;
-
-    char** new_paths = (char**)realloc(session->remote_received_file_paths, new_capacity * sizeof(char*));
-    if (!new_paths)
-        return false;
-
-    session->remote_received_file_paths = new_paths;
-    session->remote_received_file_paths_capacity = new_capacity;
-    return true;
-}
-
-static void close_remote_active_file(rdp_session* session)
-{
-    if (!session)
-        return;
-
-    if (session->remote_active_file)
-    {
-        fclose(session->remote_active_file);
-        session->remote_active_file = NULL;
-    }
-
-    if (session->remote_active_file_path)
-    {
-        free(session->remote_active_file_path);
-        session->remote_active_file_path = NULL;
-    }
-
-    session->remote_active_file_size = 0;
-    session->remote_active_file_offset = 0;
-}
-
-static void free_remote_received_file_paths(rdp_session* session)
-{
-    if (!session || !session->remote_received_file_paths)
-        return;
-
-    for (size_t i = 0; i < session->remote_received_file_paths_count; i++)
-    {
-        free(session->remote_received_file_paths[i]);
-    }
-
-    free(session->remote_received_file_paths);
-    session->remote_received_file_paths = NULL;
-    session->remote_received_file_paths_count = 0;
-    session->remote_received_file_paths_capacity = 0;
-}
-
-static void clear_remote_file_transfer(rdp_session* session)
-{
-    if (!session)
-        return;
-
-    close_remote_active_file(session);
-    free_remote_received_file_paths(session);
-    session->remote_expected_file_count = 0;
-    session->remote_active_file_index = 0;
-    session->remote_file_stream_id = 0;
-    session->remote_file_transfer_in_progress = false;
-}
-
-static char get_path_separator(void)
-{
-#if defined(_WIN32)
-    return '\\';
-#else
-    return '/';
-#endif
-}
-
-static bool path_exists(const char* path)
-{
-    if (!path || path[0] == '\0')
-        return false;
-
-#if defined(_WIN32)
-    DWORD attrs = GetFileAttributesA(path);
-    return attrs != INVALID_FILE_ATTRIBUTES;
-#else
-    struct stat st = {0};
-    return stat(path, &st) == 0;
-#endif
-}
-
-static bool ensure_directory_exists(const char* path)
-{
-    if (!path || path[0] == '\0')
-        return false;
-
-    if (path_exists(path))
-        return true;
-
-#if defined(_WIN32)
-    return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-    return mkdir(path, 0700) == 0 || errno == EEXIST;
-#endif
-}
-
-static char* duplicate_printf(const char* format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    int needed = vsnprintf(NULL, 0, format, args);
-    va_end(args);
-    if (needed < 0)
-        return NULL;
-
-    char* buffer = (char*)malloc((size_t)needed + 1);
-    if (!buffer)
-        return NULL;
-
-    va_start(args, format);
-    vsnprintf(buffer, (size_t)needed + 1, format, args);
-    va_end(args);
-    return buffer;
-}
-
-static char* sanitize_remote_filename(const WCHAR* wide_name)
-{
-    if (!wide_name || wide_name[0] == 0)
-        return duplicate_string("clipboard-file");
-
-    size_t utf8_len = 0;
-    char* utf8 = ConvertWCharToUtf8Alloc(wide_name, &utf8_len);
-    if (!utf8 || utf8_len == 0)
-    {
-        free(utf8);
-        return duplicate_string("clipboard-file");
-    }
-
-    for (size_t i = 0; utf8[i] != '\0'; i++)
-    {
-        unsigned char ch = (unsigned char)utf8[i];
-        if (ch < 32 || utf8[i] == '/' || utf8[i] == '\\' || utf8[i] == ':' || utf8[i] == '*' || utf8[i] == '?' || utf8[i] == '"' || utf8[i] == '<' || utf8[i] == '>' || utf8[i] == '|')
-            utf8[i] = '_';
-    }
-
-    while (utf8[0] == '.' || utf8[0] == ' ')
-        memmove(utf8, utf8 + 1, strlen(utf8));
-
-    if (utf8[0] == '\0')
-    {
-        free(utf8);
-        return duplicate_string("clipboard-file");
-    }
-
-    return utf8;
-}
-
-static char* get_remote_clipboard_temp_directory(rdp_session* session)
-{
-    if (!session)
-        return NULL;
-
-    if (session->temp_directory)
-        return session->temp_directory;
-
-#if defined(_WIN32)
-    char temp_path[MAX_PATH] = {0};
-    DWORD len = GetTempPathA(MAX_PATH, temp_path);
-    if (len == 0 || len >= MAX_PATH)
-        return NULL;
-
-    char* root = duplicate_printf("%sRDPilot", temp_path);
-#else
-    const char* base = getenv("XDG_RUNTIME_DIR");
-    if (!base || base[0] == '\0')
-        base = getenv("TMPDIR");
-    if (!base || base[0] == '\0')
-        base = "/tmp";
-
-    char* root = duplicate_printf("%s%cRDPilot", base, get_path_separator());
-#endif
-    if (!root)
-        return NULL;
-
-    if (!ensure_directory_exists(root))
-    {
-        free(root);
-        return NULL;
-    }
-
-    char* clipboard_dir = duplicate_printf("%s%cClipboard", root, get_path_separator());
-    free(root);
-    if (!clipboard_dir)
-        return NULL;
-
-    if (!ensure_directory_exists(clipboard_dir))
-    {
-        free(clipboard_dir);
-        return NULL;
-    }
-
-    session->temp_directory = clipboard_dir;
-    return session->temp_directory;
-}
-
-static char* build_unique_remote_file_path(rdp_session* session, const WCHAR* wide_name)
-{
-    char* directory = get_remote_clipboard_temp_directory(session);
-    char* sanitized = sanitize_remote_filename(wide_name);
-    if (!directory || !sanitized)
-    {
-        free(sanitized);
-        return NULL;
-    }
-
-    char separator = get_path_separator();
-    char* candidate = duplicate_printf("%s%c%s", directory, separator, sanitized);
-    if (!candidate)
-    {
-        free(sanitized);
-        return NULL;
-    }
-
-    if (!path_exists(candidate))
-    {
-        free(sanitized);
-        return candidate;
-    }
-
-    for (UINT32 suffix = 1; suffix < 10000; suffix++)
-    {
-        free(candidate);
-        candidate = duplicate_printf("%s%c%u-%s", directory, separator, suffix, sanitized);
-        if (!candidate)
-            break;
-        if (!path_exists(candidate))
-            break;
-    }
-
-    free(sanitized);
-    return candidate;
-}
 
 static const char* basename_from_path(const char* path)
 {
@@ -631,7 +404,6 @@ static UINT request_remote_file_descriptor(rdp_session* session)
     if (!session || !session->cliprdr || session->remote_file_group_descriptor_format_id == 0)
         return CHANNEL_RC_OK;
 
-    clear_remote_file_transfer(session);
     remote_request request = { REMOTE_REQUEST_FILE_DESCRIPTOR, session->remote_file_group_descriptor_format_id, session->remote_generation };
     return send_remote_request(session, request);
 }
@@ -658,7 +430,6 @@ static UINT handle_failed_remote_request(rdp_session* session, remote_request re
     if (request.kind == REMOTE_REQUEST_FILE_DESCRIPTOR && session->remote_offers_text)
     {
         printf("[CLIPRDR] remote file list unavailable, falling back to text\n");
-        clear_remote_file_transfer(session);
         return request_remote_text(session);
     }
 
@@ -675,82 +446,75 @@ static void process_remote_retry(rdp_session* session)
     if (session->remote_retry.generation != session->remote_generation)
         return;
 
-    if (session->remote_retry.kind == REMOTE_REQUEST_FILE_DESCRIPTOR)
-        clear_remote_file_transfer(session);
     send_remote_request(session, session->remote_retry);
 }
 
-static UINT request_next_remote_file_chunk(rdp_session* session, bool request_size_only)
+static void notify_file_contents(rdp_session* session, UINT32 stream_id, bool ok, const BYTE* data, UINT32 size)
 {
-    if (!session || !session->cliprdr || !session->remote_file_transfer_in_progress)
-        return CHANNEL_RC_OK;
-
-    if (session->remote_active_file_index >= session->remote_received_file_paths_count)
-    {
-        finish_remote_file_transfer(session);
-        return CHANNEL_RC_OK;
-    }
-
-    CLIPRDR_FILE_CONTENTS_REQUEST request;
-    memset(&request, 0, sizeof(request));
-    request.common.msgType = CB_FILECONTENTS_REQUEST;
-    request.streamId = ++session->remote_file_stream_id;
-    request.listIndex = (UINT32)session->remote_active_file_index;
-    request.dwFlags = request_size_only ? FILECONTENTS_SIZE : FILECONTENTS_RANGE;
-    request.nPositionLow = (UINT32)(session->remote_active_file_offset & 0xFFFFFFFFu);
-    request.nPositionHigh = (UINT32)(session->remote_active_file_offset >> 32);
-    request.cbRequested = request_size_only
-        ? sizeof(UINT64)
-        : (UINT32)(((session->remote_active_file_size - session->remote_active_file_offset) < REMOTE_FILE_CHUNK_SIZE)
-            ? (session->remote_active_file_size - session->remote_active_file_offset)
-            : REMOTE_FILE_CHUNK_SIZE);
-
-    printf("[CLIPRDR] request remote file chunk index=%u stream=%u flags=0x%08x offset=%" PRIu64 " size=%u\n",
-           request.listIndex,
-           request.streamId,
-           request.dwFlags,
-           session->remote_active_file_offset,
-           request.cbRequested);
-    UINT rc = session->cliprdr->ClientFileContentsRequest(session->cliprdr, &request);
-    log_channel_rc(request_size_only ? "ClientFileContentsRequest size" : "ClientFileContentsRequest data", rc);
-    return rc;
+    if (session->clipboard_file_contents_callback)
+        session->clipboard_file_contents_callback(session, stream_id, ok, ok ? data : NULL, ok ? size : 0);
 }
 
-static bool begin_remote_file_download(rdp_session* session)
+/* Fails every file contents request the host is still waiting on, so it never waits for an answer
+ * that cannot come: the server clipboard they refer to is gone, or the channel is. */
+static void fail_remote_file_contents_requests(rdp_session* session)
 {
-    if (!session || session->remote_received_file_paths_count == 0)
-        return false;
+    file_contents_request queued[FILE_CONTENTS_REQUEST_CAPACITY];
+    EnterCriticalSection(&session->clipboard_lock);
+    const size_t queued_count = session->file_contents_queue_count;
+    memcpy(queued, session->file_contents_queue, queued_count * sizeof(file_contents_request));
+    session->file_contents_queue_count = 0;
+    LeaveCriticalSection(&session->clipboard_lock);
 
-    close_remote_active_file(session);
-
-    session->remote_active_file_index = 0;
-    session->remote_active_file_size = 0;
-    session->remote_active_file_offset = 0;
-    session->remote_file_transfer_in_progress = true;
-    return true;
+    const size_t outstanding_count = session->file_contents_outstanding_count;
+    session->file_contents_outstanding_count = 0;
+    for (size_t i = 0; i < outstanding_count; i++)
+        notify_file_contents(session, session->file_contents_outstanding[i].stream_id, false, NULL, 0);
+    for (size_t i = 0; i < queued_count; i++)
+        notify_file_contents(session, queued[i].stream_id, false, NULL, 0);
 }
 
-static void finish_remote_file_transfer(rdp_session* session)
+static bool process_pending_file_contents_requests(rdp_session* session)
 {
-    if (!session)
-        return;
+    file_contents_request batch[FILE_CONTENTS_REQUEST_CAPACITY];
+    EnterCriticalSection(&session->clipboard_lock);
+    const size_t count = session->file_contents_queue_count;
+    memcpy(batch, session->file_contents_queue, count * sizeof(file_contents_request));
+    session->file_contents_queue_count = 0;
+    LeaveCriticalSection(&session->clipboard_lock);
 
-    close_remote_active_file(session);
-    session->remote_file_transfer_in_progress = false;
-
-    if (session->remote_received_file_paths_count > 0 && session->clipboard_files_callback)
+    bool sent = false;
+    for (size_t i = 0; i < count; i++)
     {
-        session->clipboard_files_callback(session, (const char**)session->remote_received_file_paths, session->remote_received_file_paths_count);
-    }
-}
+        const file_contents_request* r = &batch[i];
+        if (r->generation != session->remote_generation || session->remote_file_contents_format_id == 0 ||
+            session->file_contents_outstanding_count == FILE_CONTENTS_REQUEST_CAPACITY)
+        {
+            notify_file_contents(session, r->stream_id, false, NULL, 0);
+            continue;
+        }
 
-static void free_temp_directory(rdp_session* session)
-{
-    if (session && session->temp_directory)
-    {
-        free(session->temp_directory);
-        session->temp_directory = NULL;
+        CLIPRDR_FILE_CONTENTS_REQUEST pdu;
+        memset(&pdu, 0, sizeof(pdu));
+        pdu.common.msgType = CB_FILECONTENTS_REQUEST;
+        pdu.streamId = r->stream_id;
+        pdu.listIndex = r->list_index;
+        pdu.dwFlags = r->size_only ? FILECONTENTS_SIZE : FILECONTENTS_RANGE;
+        pdu.nPositionLow = r->size_only ? 0 : (UINT32)(r->offset & 0xFFFFFFFFu);
+        pdu.nPositionHigh = r->size_only ? 0 : (UINT32)(r->offset >> 32);
+        pdu.cbRequested = r->size_only ? sizeof(UINT64) : r->size;
+        UINT rc = session->cliprdr->ClientFileContentsRequest(session->cliprdr, &pdu);
+        if (rc != CHANNEL_RC_OK)
+        {
+            log_channel_rc("ClientFileContentsRequest", rc);
+            notify_file_contents(session, r->stream_id, false, NULL, 0);
+            continue;
+        }
+
+        session->file_contents_outstanding[session->file_contents_outstanding_count++] = *r;
+        sent = true;
     }
+    return sent;
 }
 
 void free_local_clipboard_text(rdp_session* session)
@@ -769,8 +533,6 @@ void free_clipboard_data(rdp_session* session)
     free_local_clipboard_text(session);
     free_supported_local_formats(session);
     free_local_file_paths(session);
-    clear_remote_file_transfer(session);
-    free_temp_directory(session);
     free_local_bitmap_data(session);
 }
 
@@ -1123,7 +885,7 @@ UINT on_cliprdr_server_format_list(CliprdrClientContext* context, const CLIPRDR_
         session->remote_generation++;
         session->remote_retry_pending = false;
         session->remote_retry_attempt = 0;
-        clear_remote_file_transfer(session);
+        fail_remote_file_contents_requests(session);
         session->remote_file_group_descriptor_format_id = 0;
         session->remote_file_contents_format_id = 0;
     }
@@ -1236,52 +998,20 @@ UINT on_cliprdr_server_format_data_response(CliprdrClientContext* context,
 
     if (request.kind == REMOTE_REQUEST_FILE_DESCRIPTOR)
     {
-        if (formatDataResponse->common.dataLen < sizeof(UINT32))
-        {
-            printf("[CLIPRDR] remote file descriptor response too small bytes=%u\n", formatDataResponse->common.dataLen);
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
+        const UINT32 data_len = formatDataResponse->common.dataLen;
         const BYTE* data = formatDataResponse->requestedFormatData;
-        UINT32 item_count = *(const UINT32*)data;
-        size_t expected_len = sizeof(UINT32) + (size_t)item_count * sizeof(FILEDESCRIPTORW);
-        if (item_count == 0 || formatDataResponse->common.dataLen < expected_len)
+        const UINT32 item_count = data_len >= sizeof(UINT32) ? *(const UINT32*)data : 0;
+        const size_t expected_len = sizeof(UINT32) + (size_t)item_count * sizeof(FILEDESCRIPTORW);
+        if (item_count == 0 || data_len < expected_len)
         {
-            printf("[CLIPRDR] remote file descriptor payload invalid items=%u bytes=%u\n", item_count, formatDataResponse->common.dataLen);
-            clear_remote_file_transfer(session);
+            printf("[CLIPRDR] remote file descriptor payload invalid items=%u bytes=%u\n", item_count, data_len);
             return CHANNEL_RC_OK;
         }
 
-        clear_remote_file_transfer(session);
-        session->remote_expected_file_count = item_count;
-        if (!ensure_received_file_paths_capacity(session, item_count))
-        {
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
-        const FILEDESCRIPTORW* descriptors = (const FILEDESCRIPTORW*)(data + sizeof(UINT32));
-        for (UINT32 i = 0; i < item_count; i++)
-        {
-            char* path = build_unique_remote_file_path(session, descriptors[i].cFileName);
-            if (!path)
-            {
-                clear_remote_file_transfer(session);
-                return CHANNEL_RC_OK;
-            }
-
-            session->remote_received_file_paths[session->remote_received_file_paths_count++] = path;
-        }
-
-        if (!begin_remote_file_download(session))
-        {
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
-        printf("[CLIPRDR] remote file descriptor received items=%u\n", item_count);
-        return request_next_remote_file_chunk(session, true);
+        printf("[CLIPRDR] remote file descriptor received items=%u generation=%u\n", item_count, request.generation);
+        if (session->clipboard_files_callback)
+            session->clipboard_files_callback(session, request.generation, data, expected_len);
+        return CHANNEL_RC_OK;
     }
 
     size_t wchar_len = formatDataResponse->common.dataLen / sizeof(WCHAR);
@@ -1312,91 +1042,30 @@ UINT on_cliprdr_server_file_contents_response(CliprdrClientContext* context,
                                               const CLIPRDR_FILE_CONTENTS_RESPONSE* fileContentsResponse)
 {
     rdp_session* session = context ? (rdp_session*)context->custom : NULL;
-    if (!session || !session->remote_file_transfer_in_progress)
+    if (!session)
         return CHANNEL_RC_OK;
 
-    if (fileContentsResponse->streamId != session->remote_file_stream_id)
+    size_t index = 0;
+    while (index < session->file_contents_outstanding_count &&
+           session->file_contents_outstanding[index].stream_id != fileContentsResponse->streamId)
+        index++;
+    if (index == session->file_contents_outstanding_count)
     {
-        printf("[CLIPRDR] dropping file contents for stale stream=%u current=%u\n", fileContentsResponse->streamId, session->remote_file_stream_id);
-        return CHANNEL_RC_OK;
-    }
-
-    if (!(fileContentsResponse->common.msgFlags & CB_RESPONSE_OK) || !fileContentsResponse->requestedData)
-    {
-        printf("[CLIPRDR] remote file contents response failed flags=0x%04x\n", fileContentsResponse->common.msgFlags);
-        clear_remote_file_transfer(session);
+        printf("[CLIPRDR] dropping file contents for unknown stream=%u\n", fileContentsResponse->streamId);
         return CHANNEL_RC_OK;
     }
 
-    if (session->remote_active_file_index >= session->remote_received_file_paths_count)
-    {
-        clear_remote_file_transfer(session);
-        return CHANNEL_RC_OK;
-    }
+    const file_contents_request request = session->file_contents_outstanding[index];
+    session->file_contents_outstanding[index] = session->file_contents_outstanding[--session->file_contents_outstanding_count];
 
-    if (!session->remote_active_file)
-    {
-        if (fileContentsResponse->cbRequested < sizeof(UINT64))
-        {
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
-        session->remote_active_file_size = *(const UINT64*)fileContentsResponse->requestedData;
-        session->remote_active_file_offset = 0;
-        session->remote_active_file_path = duplicate_string(session->remote_received_file_paths[session->remote_active_file_index]);
-        if (!session->remote_active_file_path)
-        {
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
-#if defined(_WIN32)
-        WCHAR* wide_path = ConvertUtf8ToWCharAlloc(session->remote_active_file_path, NULL);
-        if (wide_path)
-            _wfopen_s(&session->remote_active_file, wide_path, L"wb");
-        free(wide_path);
-#else
-        session->remote_active_file = fopen(session->remote_active_file_path, "wb");
-#endif
-        if (!session->remote_active_file)
-        {
-            printf("[CLIPRDR] failed to open remote temp file path=%s\n", session->remote_active_file_path);
-            clear_remote_file_transfer(session);
-            return CHANNEL_RC_OK;
-        }
-
-        if (session->remote_active_file_size == 0)
-        {
-            close_remote_active_file(session);
-            session->remote_active_file_index++;
-            return request_next_remote_file_chunk(session, true);
-        }
-
-        return request_next_remote_file_chunk(session, false);
-    }
-
-    size_t written = fwrite(fileContentsResponse->requestedData, 1, fileContentsResponse->cbRequested, session->remote_active_file);
-    if (written != fileContentsResponse->cbRequested)
-    {
-        printf("[CLIPRDR] failed to write remote temp file path=%s\n", session->remote_active_file_path ? session->remote_active_file_path : "<null>");
-        clear_remote_file_transfer(session);
-        return CHANNEL_RC_OK;
-    }
-
-    session->remote_active_file_offset += fileContentsResponse->cbRequested;
-    if (session->remote_active_file_offset < session->remote_active_file_size)
-        return request_next_remote_file_chunk(session, false);
-
-    close_remote_active_file(session);
-    session->remote_active_file_index++;
-    if (session->remote_active_file_index >= session->remote_received_file_paths_count)
-    {
-        finish_remote_file_transfer(session);
-        return CHANNEL_RC_OK;
-    }
-
-    return request_next_remote_file_chunk(session, true);
+    const bool ok = request.generation == session->remote_generation &&
+                    (fileContentsResponse->common.msgFlags & CB_RESPONSE_OK) &&
+                    fileContentsResponse->requestedData &&
+                    (!request.size_only || fileContentsResponse->cbRequested >= sizeof(UINT64));
+    if (!ok)
+        printf("[CLIPRDR] remote file contents failed stream=%u flags=0x%04x\n", request.stream_id, fileContentsResponse->common.msgFlags);
+    notify_file_contents(session, request.stream_id, ok, fileContentsResponse->requestedData, fileContentsResponse->cbRequested);
+    return CHANNEL_RC_OK;
 }
 
 bool process_pending_clipboard(rdp_session* session)
@@ -1418,7 +1087,8 @@ bool process_pending_clipboard(rdp_session* session)
         send_clipboard_format_list(session);
     }
 
-    return pending || sent_retry;
+    const bool sent_file_requests = process_pending_file_contents_requests(session);
+    return pending || sent_retry || sent_file_requests;
 }
 
 static bool ensure_supported_formats_capacity(rdp_session* session, size_t needed_capacity)
@@ -1596,4 +1266,22 @@ void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text
     LeaveCriticalSection(&session->clipboard_lock);
 
     printf("[CLIPRDR] local text changed chars=%zu\n", text_len);
+}
+
+bool rdp_session_clipboard_request_remote_file_contents(rdp_session* session, uint32_t generation, uint32_t stream_id,
+                                                       uint32_t list_index, bool size_only, uint64_t offset, uint32_t size)
+{
+    if (!session || !session->running || (!size_only && size == 0))
+        return false;
+
+    bool queued = false;
+    EnterCriticalSection(&session->clipboard_lock);
+    if (session->file_contents_queue_count < FILE_CONTENTS_REQUEST_CAPACITY)
+    {
+        file_contents_request request = { generation, stream_id, list_index, size_only, offset, size };
+        session->file_contents_queue[session->file_contents_queue_count++] = request;
+        queued = true;
+    }
+    LeaveCriticalSection(&session->clipboard_lock);
+    return queued;
 }

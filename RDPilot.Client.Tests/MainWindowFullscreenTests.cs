@@ -656,10 +656,16 @@ public sealed class MainWindowFullscreenTests
 
     private static DispatcherTimer GetToolbarHideTimer(MainWindow window)
     {
-        var field = typeof(MainWindow).GetField(
+        var controllerField = typeof(MainWindow).GetField(
+            "_fullscreen",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(controllerField);
+        var controller = controllerField.GetValue(window);
+        Assert.NotNull(controller);
+        var field = controller.GetType().GetField(
             "_toolbarHideTimer",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        return Assert.IsType<DispatcherTimer>(field?.GetValue(window));
+        return Assert.IsType<DispatcherTimer>(field?.GetValue(controller));
     }
 
     private static void RaiseWindowDeactivated(MainWindow window)

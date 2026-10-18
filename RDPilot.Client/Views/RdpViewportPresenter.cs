@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,26 +7,20 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
-internal sealed class RdpViewportPresenter
+internal sealed class RdpViewportPresenter : IDisposable
 {
     private readonly Func<MainWindowViewModel?> _getViewModel;
-    private readonly Func<IClipboard?> _getClipboard;
-    private readonly Func<string[], Task<IStorageItem[]>> _createStorageItems;
     private readonly Func<Size> _getViewportSize;
     private readonly Action _invalidateViewport;
-    private readonly Func<Bitmap, byte[]?> _convertBitmapToDib;
     private readonly ViewportResolutionService _viewportResolutionService;
     private readonly ViewportResolutionUpdateScheduler _viewportResolutionUpdateScheduler;
     private readonly PointerMoveScheduler _pointerMoveScheduler;
-    private readonly ClipboardSyncService _clipboardSyncService;
-    private bool _pollingClipboard;
-    private int _remoteClipboardGeneration;
-    private bool _clipboardReadErrorReported;
-    private string? _lastInvalidClipboardFilePath;
+    private readonly ViewportClipboardCoordinator _clipboard;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly HashSet<ushort> _pressedGrabbedScancodes = new();
     private bool _rdpKeyboardActive;
@@ -48,13 +40,11 @@ internal sealed class RdpViewportPresenter
         PointerMoveScheduler pointerMoveScheduler)
     {
         _getViewModel = getViewModel;
-        _getClipboard = getClipboard;
-        _createStorageItems = createStorageItems;
         _getViewportSize = getViewportSize;
         _invalidateViewport = invalidateViewport;
-        _convertBitmapToDib = convertBitmapToDib;
         _viewportResolutionService = viewportResolutionService;
-        _clipboardSyncService = clipboardSyncService;
+        _clipboard = new ViewportClipboardCoordinator(getViewModel, getClipboard, createStorageItems, convertBitmapToDib, clipboardSyncService,
+            OperatingSystem.IsWindows() ? new WindowsVirtualFileClipboard() : null);
         _viewportResolutionUpdateScheduler = viewportResolutionUpdateScheduler;
         _pointerMoveScheduler = pointerMoveScheduler;
     }
@@ -64,174 +54,19 @@ internal sealed class RdpViewportPresenter
         _invalidateViewport();
     }
 
-    public async Task HandleRemoteClipboardTextReceivedAsync(string text)
-    {
-        var clipboard = _getClipboard();
-        if (clipboard == null)
-        {
-            return;
-        }
+    public Task HandleRemoteClipboardTextReceivedAsync(RdpSessionViewModel session, string text) => _clipboard.HandleRemoteTextAsync(session, text);
 
-        try
-        {
-            _remoteClipboardGeneration++;
-            _clipboardSyncService.UseSession(_getViewModel()?.SelectedSession);
-            _clipboardSyncService.BeginRemoteTextUpdate(text);
-            await clipboard.SetTextAsync(text);
-        }
-        catch (Exception ex)
-        {
-            _clipboardSyncService.ClearSignature();
-            Trace.TraceWarning("Unable to set remote clipboard text: {0}", ex);
-        }
-        finally
-        {
-            _clipboardSyncService.EndRemoteUpdate();
-        }
-    }
+    public Task HandleRemoteClipboardFilesReceivedAsync(RdpSessionViewModel session, RemoteFileOffer offer) => _clipboard.HandleRemoteFileOfferAsync(session, offer);
 
-    public async Task HandleRemoteClipboardFilesReceivedAsync(string[] filePaths)
-    {
-        var clipboard = _getClipboard();
-        if (clipboard == null || filePaths.Length == 0)
-        {
-            return;
-        }
+    public Task PollClipboardAsync() => _clipboard.PollClipboardAsync();
 
-        try
-        {
-            _remoteClipboardGeneration++;
-            _clipboardSyncService.UseSession(_getViewModel()?.SelectedSession);
-            _clipboardSyncService.BeginRemoteFilesUpdate(filePaths);
-            var items = await _createStorageItems(filePaths);
-            if (items.Length == 0) throw new InvalidOperationException("No local clipboard files could be resolved.");
-            await clipboard.SetFilesAsync(items);
-        }
-        catch (Exception ex)
-        {
-            _clipboardSyncService.ClearSignature();
-            Trace.TraceWarning("Unable to set remote clipboard files: {0}", ex);
-        }
-        finally
-        {
-            _clipboardSyncService.EndRemoteUpdate();
-        }
-    }
+    public void StartClipboardPolling() => _clipboard.Start();
 
-    public async Task PollClipboardAsync()
-    {
-        var clipboard = _getClipboard();
-        var vm = _getViewModel();
-        var session = vm?.SelectedSession;
-        if (session?.IsConnected != true)
-        {
-            _clipboardSyncService.UseSession(null);
-            return;
-        }
+    public void StopClipboardPolling() => _clipboard.Stop();
 
-        _clipboardSyncService.UseSession(session);
+    public void ClipboardSessionChanged() => _clipboard.SessionChanged();
 
-        if (_pollingClipboard || !_clipboardSyncService.ShouldPollLocalClipboard || clipboard == null)
-        {
-            return;
-        }
-
-        _pollingClipboard = true;
-        var generation = _remoteClipboardGeneration;
-        try
-        {
-            var data = await clipboard.TryGetDataAsync();
-            if (generation != _remoteClipboardGeneration || !_clipboardSyncService.ShouldPollLocalClipboard || !ReferenceEquals(session, _getViewModel()?.SelectedSession)) return;
-            if (data == null)
-            {
-                _clipboardReadErrorReported = false;
-                if (_clipboardSyncService.ObserveEmptyClipboard())
-                {
-                    session.SetLocalClipboardText("");
-                }
-
-                return;
-            }
-
-            var files = await data.TryGetFilesAsync();
-            if (generation != _remoteClipboardGeneration || !_clipboardSyncService.ShouldPollLocalClipboard || !ReferenceEquals(session, _getViewModel()?.SelectedSession)) return;
-            if (files is { Length: > 0 })
-            {
-                var paths = new List<string>(files.Length);
-                foreach (var item in files)
-                {
-                    using (item)
-                    {
-                        var path = item.TryGetLocalPath();
-                        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                        {
-                            _lastInvalidClipboardFilePath = null;
-                            paths.Add(path);
-                        }
-                        else if ((path ?? "<no local path>") != _lastInvalidClipboardFilePath)
-                        {
-                            Trace.TraceWarning("Clipboard file has no readable local path (folders are not supported): {0}", path);
-                            _lastInvalidClipboardFilePath = path ?? "<no local path>";
-                        }
-                    }
-                }
-
-                if (paths.Count > 0)
-                {
-                    _clipboardReadErrorReported = false;
-                    if (_clipboardSyncService.TryRememberFiles(paths.ToArray(), out _))
-                    {
-                        session.SetLocalClipboardFiles(paths.ToArray());
-                    }
-
-                    return;
-                }
-            }
-
-            var text = await data.TryGetTextAsync();
-            if (generation != _remoteClipboardGeneration || !_clipboardSyncService.ShouldPollLocalClipboard || !ReferenceEquals(session, _getViewModel()?.SelectedSession)) return;
-            if (!string.IsNullOrEmpty(text))
-            {
-                _clipboardReadErrorReported = false;
-                if (_clipboardSyncService.TryRememberText(text, out _))
-                {
-                    session.SetLocalClipboardText(text);
-                }
-
-                return;
-            }
-
-            var bitmap = await data.TryGetBitmapAsync();
-            if (generation != _remoteClipboardGeneration || !_clipboardSyncService.ShouldPollLocalClipboard || !ReferenceEquals(session, _getViewModel()?.SelectedSession)) return;
-            _clipboardReadErrorReported = false;
-            if (bitmap != null && _clipboardSyncService.TryRememberBitmap(bitmap, out _))
-            {
-                var dib = _convertBitmapToDib(bitmap);
-                if (dib != null)
-                {
-                    session.SetLocalClipboardBitmap(dib, (uint)bitmap.PixelSize.Width, (uint)bitmap.PixelSize.Height);
-                }
-                return;
-            }
-
-            if (bitmap == null && _clipboardSyncService.ObserveEmptyClipboard())
-            {
-                session.SetLocalClipboardText("");
-            }
-        }
-        catch (Exception ex)
-        {
-            if (!_clipboardReadErrorReported)
-            {
-                Trace.TraceWarning("Unable to read local clipboard: {0}", ex);
-                _clipboardReadErrorReported = true;
-            }
-        }
-        finally
-        {
-            _pollingClipboard = false;
-        }
-    }
+    public void Dispose() => _clipboard.Dispose();
 
     public void HandleScaleChanged(double scale, bool isMinimized)
     {

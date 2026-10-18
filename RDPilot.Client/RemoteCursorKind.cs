@@ -1,4 +1,4 @@
-namespace RDPilot.Client.ViewModels;
+namespace RDPilot.Client;
 
 /// <summary>
 /// Managed mirror of the native <c>rdp_cursor_kind</c> enum in <c>freerdp_wrapper.h</c>.

@@ -81,25 +81,17 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
     public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
-    public event EventHandler<(RdpSessionViewModel Session, string[] FilePaths)>? RemoteClipboardFilesReceived;
+    public event EventHandler<(RdpSessionViewModel Session, RemoteFileOffer Offer)>? RemoteClipboardFilesReceived;
 
-    public MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
+    internal MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
     }
 
-    public MainWindowViewModel(LaunchOptions launchOptions, IJumpListService jumpListService) : this(launchOptions, jumpListService, new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
+    internal MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), sessionFactory)
     {
     }
 
-    public MainWindowViewModel(ConnectionStore connectionStore) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), new RdpSessionFactory())
-    {
-    }
-
-    public MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), sessionFactory)
-    {
-    }
-
-    public MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, settingsStore, sessionFactory)
+    internal MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, settingsStore, sessionFactory)
     {
     }
 
@@ -257,27 +249,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (SelectedConnection == null) return;
 
         var connection = SelectedConnection;
-        string password;
-        string gatewayPassword;
-
-        try
-        {
-            password = await _connectionStore.GetPasswordAsync(connection) ?? "";
-            gatewayPassword = await _connectionStore.GetGatewayPasswordAsync(connection) ?? "";
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Unable to read password from {SecretStoreDescription}: {ex.Message}";
-            return;
-        }
-
-        StatusMessage = $"Opening {connection.Name}...";
-        var session = CreateSession(
-            connection,
-            password,
-            gatewayPassword,
-            OnRemoteClipboardTextReceived,
-            OnRemoteClipboardFilesReceived);
+        var session = await OpenSessionAsync(connection, "Opening");
+        if (session == null) return;
 
         SubscribeSession(session);
         Sessions.Add(session);
@@ -349,25 +322,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (session == null) return;
 
         var oldSession = session;
-        var index = Sessions.IndexOf(oldSession);
-        if (index < 0) return;
-        var wasSelected = ReferenceEquals(oldSession, SelectedSession);
+        if (!Sessions.Contains(oldSession)) return;
 
-        string password;
-        string gatewayPassword;
-        try
+        var newSession = await OpenSessionAsync(oldSession.Connection, "Reconnecting");
+        if (newSession == null) return;
+        // A close can complete while credentials are being read. Never replace another tab.
+        var index = Sessions.IndexOf(oldSession);
+        if (index < 0)
         {
-            password = await _connectionStore.GetPasswordAsync(oldSession.Connection) ?? "";
-            gatewayPassword = await _connectionStore.GetGatewayPasswordAsync(oldSession.Connection) ?? "";
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Unable to read password from {SecretStoreDescription}: {ex.Message}";
+            newSession.Dispose();
             return;
         }
-
-        StatusMessage = $"Reconnecting {oldSession.Title}...";
-        var newSession = CreateSession(oldSession.Connection, password, gatewayPassword, OnRemoteClipboardTextReceived, OnRemoteClipboardFilesReceived);
+        var wasSelected = ReferenceEquals(oldSession, SelectedSession);
         SubscribeSession(newSession);
         UnsubscribeSession(oldSession);
         Sessions[index] = newSession;
@@ -482,41 +448,36 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         await ConnectAsync();
     }
 
-    private void OnRemoteClipboardFilesReceived(RdpSessionViewModel session, string[] filePaths)
+    private void OnRemoteClipboardFilesReceived(RdpSessionViewModel session, RemoteFileOffer offer)
     {
         if (ReferenceEquals(session, SelectedSession))
         {
-            RemoteClipboardFilesReceived?.Invoke(this, (session, filePaths));
+            RemoteClipboardFilesReceived?.Invoke(this, (session, offer));
         }
     }
 
-    private RdpSessionViewModel CreateSession(
-        SavedConnection connection,
-        string password,
-        string gatewayPassword,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+    private async Task<RdpSessionViewModel?> OpenSessionAsync(SavedConnection connection, string action)
     {
-        var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
+        string password;
+        string gatewayPassword;
+        try
+        {
+            password = await _connectionStore.GetPasswordAsync(connection) ?? "";
+            gatewayPassword = await _connectionStore.GetGatewayPasswordAsync(connection) ?? "";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to read password from {SecretStoreDescription}: {ex.Message}";
+            return null;
+        }
 
+        StatusMessage = $"{action} {connection.Name}...";
+        var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
+        var request = new RdpSessionStartRequest(connection, password, gatewayPassword, _requestedWidth, _requestedHeight, _renderScaling, qualitySettings);
         return _sessionFactory.Create(
-            connection,
-            password,
-            gatewayPassword,
-            _requestedWidth,
-            _requestedHeight,
-            _renderScaling,
-            qualitySettings.ColorDepth,
-            qualitySettings.Compression,
-            qualitySettings.FontSmoothing,
-            qualitySettings.BitmapCache,
-            qualitySettings.DesktopWallpaper,
-            qualitySettings.Themes,
-            qualitySettings.MenuAnimations,
-            qualitySettings.FullWindowDrag,
-            qualitySettings.ConnectionType,
-            remoteClipboardTextReceived,
-            remoteClipboardFilesReceived);
+            request,
+            OnRemoteClipboardTextReceived,
+            OnRemoteClipboardFilesReceived);
     }
 
     private void SubscribeSession(RdpSessionViewModel session)

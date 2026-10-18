@@ -140,28 +140,14 @@ public sealed class RdpViewportScalingTests
         public int Height { get; private set; }
 
         public RdpSessionViewModel Create(
-            SavedConnection connection,
-            string password,
-            string gatewayPassword,
-            int width,
-            int height,
-            double renderScaling,
-            int colorDepth,
-            bool compression,
-            bool fontSmoothing,
-            bool bitmapCache,
-            bool desktopWallpaper,
-            bool themes,
-            bool menuAnimations,
-            bool fullWindowDrag,
-            RdpConnectionType connectionType,
+            RdpSessionStartRequest request,
             Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-            Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+            Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
         {
-            RenderScaling = renderScaling;
-            Width = width;
-            Height = height;
-            return new RdpSessionViewModel(connection, RdpSessionStatus.Connected);
+            RenderScaling = request.RenderScaling;
+            Width = request.Width;
+            Height = request.Height;
+            return new RdpSessionViewModel(request.Connection, RdpSessionStatus.Connected);
         }
     }
 
