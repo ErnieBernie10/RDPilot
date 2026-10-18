@@ -20,44 +20,27 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
         _certificatePromptService = certificatePromptService;
     }
 
-public RdpSessionViewModel Create(
-        SavedConnection connection,
-        string password,
-        string gatewayPassword,
-        int width,
-        int height,
-        double renderScaling,
-        int colorDepth,
-        bool compression,
-        bool fontSmoothing,
-        bool bitmapCache,
-        bool desktopWallpaper,
-        bool themes,
-        bool menuAnimations,
-        bool fullWindowDrag,
-        RdpConnectionType connectionType,
+    public RdpSessionViewModel Create(
+        RdpSessionStartRequest request,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+        Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
     {
-return new RdpSessionViewModel(
-            connection,
-            password,
-            gatewayPassword,
-            width,
-            height,
-            renderScaling,
-            colorDepth,
-            compression,
-            fontSmoothing,
-            bitmapCache,
-            desktopWallpaper,
-            themes,
-            menuAnimations,
-            fullWindowDrag,
-            connectionType,
+        var session = new RdpSessionViewModel(
+            request,
             remoteClipboardTextReceived,
             remoteClipboardFilesReceived,
             DecideCertificateTrust);
+        // Construction roots callbacks and subscribes presentation before native delivery begins.
+        try
+        {
+            session.Start(request);
+            return session;
+        }
+        catch
+        {
+            session.Dispose();
+            throw;
+        }
     }
 
     private CertificateTrustDecision DecideCertificateTrust(RdpCertificatePrompt prompt)

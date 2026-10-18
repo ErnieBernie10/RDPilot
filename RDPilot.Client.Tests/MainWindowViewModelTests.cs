@@ -34,6 +34,97 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task ConnectTwice_CreatesTwoIndependentTabsForTheSameProfile()
+    {
+        using var env = new TestConfigHome();
+        var secrets = new FakeSecretStore();
+        var store = new ConnectionStore(secrets);
+        var profile = CreateConnection("Duplicate");
+        var first = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var second = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([first, second]));
+        await vm.LoadConnectionsAsync();
+        vm.SelectedConnection = profile;
+
+        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.ConnectCommand.ExecuteAsync(null);
+
+        Assert.Equal([first, second], vm.Sessions);
+        Assert.Same(second, vm.SelectedSession);
+    }
+
+    [Fact]
+    public async Task Connect_WhenSecretReadFails_LeavesTabsUnchanged()
+    {
+        using var env = new TestConfigHome();
+        var secrets = new FakeSecretStore { GetError = new InvalidOperationException("locked") };
+        var vm = new MainWindowViewModel(new ConnectionStore(secrets), new QueueSessionFactory([]));
+        await vm.LoadConnectionsAsync();
+        vm.SelectedConnection = CreateConnection("Locked");
+
+        await vm.ConnectCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.Sessions);
+        Assert.Contains("locked", vm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task Reconnect_WhenTabClosesDuringCredentialRead_DoesNotReplaceAnotherTab()
+    {
+        using var env = new TestConfigHome();
+        var secrets = new FakeSecretStore();
+        var store = new ConnectionStore(secrets);
+        var profile = CreateConnection("Closing");
+        var old = new RdpSessionViewModel(profile, RdpSessionStatus.Failed);
+        var neighbor = new RdpSessionViewModel(CreateConnection("Neighbor"), RdpSessionStatus.Connected);
+        var replacement = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([old, neighbor, replacement]));
+        await vm.LoadConnectionsAsync();
+        vm.SelectedConnection = profile;
+        await vm.ConnectCommand.ExecuteAsync(null);
+        vm.SelectedConnection = neighbor.Connection;
+        await vm.ConnectCommand.ExecuteAsync(null);
+
+        var pendingRead = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        secrets.PendingRead = pendingRead;
+        var reconnect = vm.ReconnectSessionCommand.ExecuteAsync(old);
+        await vm.CloseSessionCommand.ExecuteAsync(old);
+        pendingRead.SetResult("pw");
+        await reconnect;
+
+        Assert.Equal([neighbor], vm.Sessions);
+        Assert.Same(neighbor, vm.SelectedSession);
+    }
+
+    [Fact]
+    public async Task Reconnect_WhenSelectionChangesDuringCredentialRead_KeepsTheNewSelection()
+    {
+        using var env = new TestConfigHome();
+        var secrets = new FakeSecretStore();
+        var profile = CreateConnection("Reconnect Background");
+        var old = new RdpSessionViewModel(profile, RdpSessionStatus.Failed);
+        var neighbor = new RdpSessionViewModel(CreateConnection("Active"), RdpSessionStatus.Connected);
+        var replacement = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var vm = new MainWindowViewModel(new ConnectionStore(secrets), new QueueSessionFactory([old, neighbor, replacement]));
+        await vm.LoadConnectionsAsync();
+        vm.SelectedConnection = profile;
+        await vm.ConnectCommand.ExecuteAsync(null);
+        vm.SelectedConnection = neighbor.Connection;
+        await vm.ConnectCommand.ExecuteAsync(null);
+        vm.SelectedSession = old;
+
+        var pendingRead = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        secrets.PendingRead = pendingRead;
+        var reconnect = vm.ReconnectSessionCommand.ExecuteAsync(old);
+        vm.SelectedSession = neighbor;
+        pendingRead.SetResult("pw");
+        await reconnect;
+
+        Assert.Equal([replacement, neighbor], vm.Sessions);
+        Assert.Same(neighbor, vm.SelectedSession);
+    }
+
+    [Fact]
     public async Task LoadConnections_DoesNotSelectFirstSavedConnection()
     {
         using var env = new TestConfigHome();
@@ -108,12 +199,13 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Toggleable"), RdpSessionStatus.Connected)]);
+        using var context = new SessionTestContext("Toggleable");
+        context.ConnectStatus();
+        var factory = new QueueSessionFactory([context.ViewModel]);
         var vm = new MainWindowViewModel(store, factory);
         await vm.LoadConnectionsAsync();
         await ConnectAsync(vm, CreateConnection("Toggleable"), secretStore);
         vm.IsKeyboardGrabSupported = true;
-        MarkSessionNativeHandleLive(vm.SelectedSession!);
 
         vm.ToggleKeyboardGrabCommand.Execute(null);
         Assert.True(vm.IsKeyboardGrabActive);
@@ -139,12 +231,6 @@ public sealed class MainWindowViewModelTests
         Assert.False(vm.IsKeyboardGrabActive);
     }
 
-    private static void MarkSessionNativeHandleLive(RdpSessionViewModel session)
-    {
-        var field = typeof(RdpSessionViewModel).GetField("_handle", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        field.SetValue(session, new IntPtr(0xC0DE));
-    }
 
     [Fact]
     public async Task CloseSelectedSession_SelectsNeighbor()
@@ -547,16 +633,17 @@ public sealed class MainWindowViewModelTests
         await ConnectAsync(vm, second.Connection, secretStore);
         vm.SelectedSession = first;
 
-        var received = new List<(RdpSessionViewModel Session, string[] FilePaths)>();
+        var received = new List<(RdpSessionViewModel Session, RemoteFileOffer Offer)>();
         vm.RemoteClipboardFilesReceived += (_, value) => received.Add(value);
 
-        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", second, new[] { "background.txt" });
+        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", second, TestFileDescriptors.Offer(("background.txt", 1, false)));
         Assert.Empty(received);
 
-        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", first, new[] { "selected.txt" });
+        var selected = TestFileDescriptors.Offer(("selected.txt", 1, false));
+        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", first, selected);
         var clipboardEvent = Assert.Single(received);
         Assert.Same(first, clipboardEvent.Session);
-        Assert.Equal(["selected.txt"], clipboardEvent.FilePaths);
+        Assert.Same(selected, clipboardEvent.Offer);
     }
 
     private static void InvokePrivate(object target, string methodName, params object?[] args)
@@ -603,17 +690,17 @@ public sealed class MainWindowViewModelTests
             _sessions = new Queue<RdpSessionViewModel>(sessions);
         }
 
-        public RdpSessionViewModel Create(SavedConnection connection, string password, string gatewayPassword, int width, int height, double renderScaling, int colorDepth, bool compression, bool fontSmoothing, bool bitmapCache, bool desktopWallpaper, bool themes, bool menuAnimations, bool fullWindowDrag, RdpConnectionType connectionType, Action<RdpSessionViewModel, string> remoteClipboardTextReceived, Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+        public RdpSessionViewModel Create(RdpSessionStartRequest request, Action<RdpSessionViewModel, string> remoteClipboardTextReceived, Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
         {
-            ColorDepth = colorDepth;
-            Compression = compression;
-            FontSmoothing = fontSmoothing;
-            BitmapCache = bitmapCache;
-            DesktopWallpaper = desktopWallpaper;
-            Themes = themes;
-            MenuAnimations = menuAnimations;
-            FullWindowDrag = fullWindowDrag;
-            ConnectionType = connectionType;
+            ColorDepth = request.Quality.ColorDepth;
+            Compression = request.Quality.Compression;
+            FontSmoothing = request.Quality.FontSmoothing;
+            BitmapCache = request.Quality.BitmapCache;
+            DesktopWallpaper = request.Quality.DesktopWallpaper;
+            Themes = request.Quality.Themes;
+            MenuAnimations = request.Quality.MenuAnimations;
+            FullWindowDrag = request.Quality.FullWindowDrag;
+            ConnectionType = request.Quality.ConnectionType;
             return _sessions.Dequeue();
         }
     }
@@ -621,11 +708,19 @@ public sealed class MainWindowViewModelTests
     private sealed class FakeSecretStore : ISecretStore
     {
         private readonly Dictionary<string, string> _values = new();
+        public Exception? GetError { get; set; }
+        public TaskCompletionSource<string?>? PendingRead { get; set; }
 
         public string Description => "Fake";
 
         public Task<string?> GetSecretAsync(string key)
         {
+            if (GetError != null) return Task.FromException<string?>(GetError);
+            if (PendingRead is { } pending)
+            {
+                PendingRead = null;
+                return pending.Task;
+            }
             _values.TryGetValue(key, out var value);
             return Task.FromResult<string?>(value);
         }

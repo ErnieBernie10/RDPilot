@@ -154,23 +154,9 @@ public sealed class MainWindowKeyboardGrabTests
     private sealed class NoSessionFactory : IRdpSessionFactory
     {
         public RdpSessionViewModel Create(
-            SavedConnection connection,
-            string password,
-            string gatewayPassword,
-            int width,
-            int height,
-            double renderScaling,
-            int colorDepth,
-            bool compression,
-            bool fontSmoothing,
-            bool bitmapCache,
-            bool desktopWallpaper,
-            bool themes,
-            bool menuAnimations,
-            bool fullWindowDrag,
-            RdpConnectionType connectionType,
+            RdpSessionStartRequest request,
             Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-            Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+            Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
         {
             throw new NotSupportedException("Sessions are created directly in these tests.");
         }

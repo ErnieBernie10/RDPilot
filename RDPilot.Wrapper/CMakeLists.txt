@@ -50,6 +50,11 @@ endif()
 
 add_library(freerdp_wrapper SHARED
     freerdp_wrapper.c
+    freerdp_wrapper_frame.c
+    freerdp_wrapper_graphics.c
+    freerdp_wrapper_display.c
+    freerdp_wrapper_channels.c
+    freerdp_wrapper_connection.c
     freerdp_wrapper_input.c
     freerdp_wrapper_clipboard.c
     freerdp_wrapper_pointer.c

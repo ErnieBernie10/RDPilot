@@ -42,7 +42,18 @@ typedef enum {
  * RDP_CURSOR_DEFAULT every field after `kind` is zero. */
 typedef void (*CursorCallback)(rdp_session* session, int kind, uint32_t cursor_id, int width, int height, int hot_x, int hot_y);
 typedef void (*ClipboardTextCallback)(rdp_session* session, const char* text);
-typedef void (*ClipboardFilesCallback)(rdp_session* session, const char** file_paths, size_t file_count);
+/* ClipboardFilesCallback is invoked on the RDP thread when the server clipboard holds files.
+ * `descriptor` is the server's FILEGROUPDESCRIPTORW verbatim (UINT32 count followed by count
+ * FILEDESCRIPTORW records) and is valid for the call only. Nothing is downloaded: the host reads
+ * contents on demand with rdp_session_clipboard_request_remote_file_contents, passing
+ * `generation`, which identifies this server clipboard. */
+typedef void (*ClipboardFilesCallback)(rdp_session* session, uint32_t generation, const uint8_t* descriptor, size_t descriptor_size);
+/* ClipboardFileContentsCallback answers one rdp_session_clipboard_request_remote_file_contents
+ * call, on the RDP thread, or on the disconnecting thread when the channel goes away. `data` is
+ * valid for the call only. For a size request it holds the little-endian UINT64 file size. `ok`
+ * is false when the server failed the request, the server clipboard changed, or the channel
+ * closed; every accepted request is answered exactly once. */
+typedef void (*ClipboardFileContentsCallback)(rdp_session* session, uint32_t stream_id, bool ok, const uint8_t* data, uint32_t size);
 typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
 typedef int (*CertificateDecisionCallback)(rdp_session* session, const char* host, uint16_t port, const char* common_name, const char* subject, const char* issuer, const char* fingerprint, int is_changed, const char* previous_subject, const char* previous_issuer, const char* previous_fingerprint);
 
@@ -53,7 +64,7 @@ FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const cha
                                                      bool use_network_level_authentication,
                                                      uint32_t keyboard_layout, uint32_t dpi_scale_percent, uint32_t device_scale_percent,
                                                      FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
-                                                     CursorCallback cursor_callback);
+                                                     CursorCallback cursor_callback, ClipboardFileContentsCallback clipboard_file_contents_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent);
@@ -64,6 +75,12 @@ FREERDP_WRAPPER_API void rdp_session_clipboard_clear_local_files(rdp_session* se
 FREERDP_WRAPPER_API void rdp_session_clipboard_add_local_file(rdp_session* session, const char* file_path);
 FREERDP_WRAPPER_API void rdp_session_clipboard_commit_local_files(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count);
+/* Queues a CB_FILECONTENTS_REQUEST for file `list_index` of the server clipboard identified by
+ * `generation`. `stream_id` is chosen by the caller, must be unique among its outstanding
+ * requests, and comes back in ClipboardFileContentsCallback. Returns false when the request was
+ * not accepted (session not running, queue full); no callback follows in that case. */
+FREERDP_WRAPPER_API bool rdp_session_clipboard_request_remote_file_contents(rdp_session* session, uint32_t generation, uint32_t stream_id,
+                                                                            uint32_t list_index, bool size_only, uint64_t offset, uint32_t size);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_bitmap(rdp_session* session, const uint8_t* bitmap_data, size_t bitmap_data_size, uint32_t width, uint32_t height);
 /* Marks the current GDI primary framebuffer for a full copy on the next present. This is used
  * when a suspended UI presenter is recreated after its bitmap was released. */

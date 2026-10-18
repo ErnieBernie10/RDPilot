@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -12,9 +13,9 @@ using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "The presenter is disposed when its host window closes; detach stops its timers for reusable views.")]
 public partial class RdpViewportView : UserControl
 {
-    private readonly DispatcherTimer _clipboardPollTimer;
     private readonly RdpViewportPresenter _presenter;
     private MainWindowViewModel? _subscribedViewModel;
     private Window? _hostWindow;
@@ -33,12 +34,6 @@ public partial class RdpViewportView : UserControl
             new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(action => Dispatcher.UIThread.Post(action)),
             new PointerMoveScheduler(action => Dispatcher.UIThread.Post(action)));
-
-        _clipboardPollTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(500)
-        };
-        _clipboardPollTimer.Tick += async (_, _) => await _presenter.PollClipboardAsync();
 
         DataContextChanged += OnDataContextChanged;
         AttachedToVisualTree += (_, _) => AttachToHostWindow();
@@ -66,6 +61,7 @@ public partial class RdpViewportView : UserControl
         }
 
         _subscribedViewModel = DataContext as MainWindowViewModel;
+        _presenter.ClipboardSessionChanged();
         if (_subscribedViewModel != null)
         {
             _subscribedViewModel.SessionRedrawRequested += OnSessionRedrawRequested;
@@ -89,18 +85,19 @@ public partial class RdpViewportView : UserControl
         }
 
         _hostWindow.SizeChanged += OnHostWindowSizeChanged;
+        _hostWindow.Closed += OnHostWindowClosed;
         _hostWindow.Deactivated += OnHostWindowDeactivated;
         _hostWindow.Activated += OnHostWindowActivated;
         _hostWindow.LayoutUpdated += OnHostWindowLayoutUpdated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
-        _clipboardPollTimer.Start();
+        _presenter.StartClipboardPolling();
         QueueViewportResolutionUpdate();
     }
 
     private void DetachFromHostWindow()
     {
-        _clipboardPollTimer.Stop();
+        _presenter.StopClipboardPolling();
         _presenter.ReleasePressedRdpKeys();
         _presenter.ReleaseGrabbedKeys();
         _presenter.CancelViewportResolutionUpdates();
@@ -111,12 +108,19 @@ public partial class RdpViewportView : UserControl
         }
 
         _hostWindow.SizeChanged -= OnHostWindowSizeChanged;
+        _hostWindow.Closed -= OnHostWindowClosed;
         _hostWindow.Deactivated -= OnHostWindowDeactivated;
         _hostWindow.Activated -= OnHostWindowActivated;
         _hostWindow.LayoutUpdated -= OnHostWindowLayoutUpdated;
         _hostWindow.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _hostWindow.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
         _hostWindow = null;
+    }
+
+    private void OnHostWindowClosed(object? sender, EventArgs e)
+    {
+        DetachFromHostWindow();
+        _presenter.Dispose();
     }
 
     // Coming back to the window is the moment a local copy is about to be pasted remotely; read the
@@ -136,16 +140,16 @@ public partial class RdpViewportView : UserControl
         Dispatcher.UIThread.Post(async () =>
         {
             if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
-                await _presenter.HandleRemoteClipboardTextReceivedAsync(e.Text);
+                await _presenter.HandleRemoteClipboardTextReceivedAsync(e.Session, e.Text);
         });
     }
 
-    private void OnRemoteClipboardFilesReceived(object? sender, (RdpSessionViewModel Session, string[] FilePaths) e)
+    private void OnRemoteClipboardFilesReceived(object? sender, (RdpSessionViewModel Session, RemoteFileOffer Offer) e)
     {
         Dispatcher.UIThread.Post(async () =>
         {
             if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
-                await _presenter.HandleRemoteClipboardFilesReceivedAsync(e.FilePaths);
+                await _presenter.HandleRemoteClipboardFilesReceivedAsync(e.Session, e.Offer);
         });
     }
 

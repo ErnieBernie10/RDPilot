@@ -13,6 +13,8 @@ The client uses `DllImport("freerdp_wrapper")` to load the native wrapper copied
 
 Native sessions are handle-based. `rdp_session_connect` returns an opaque `rdp_session*`; resize, input, clipboard, disconnect, and free calls must use that handle. Do not reintroduce singleton native state for connection/session data.
 
+Native module boundaries: `freerdp_wrapper.c` allocates/joins/frees sessions; `freerdp_wrapper_connection.c` owns FreeRDP instance setup and the event loop; `freerdp_wrapper_channels.c` routes channel attach/detach; `freerdp_wrapper_graphics.c` owns GDI/RDPGFX lifecycle; `freerdp_wrapper_display.c` applies queued monitor layouts; `freerdp_wrapper_frame.c` owns dirty-frame publication and locked presentation. Clipboard, pointer and input keep their existing modules. Module headers are private; `freerdp_wrapper.h` remains the public ABI.
+
 ## Build And Run
 
 Use the solution build; the .NET project configures/builds the native CMake wrapper automatically.
@@ -129,7 +131,7 @@ applied as a real OS cursor on `RdpImage`.
 
 ## Clipboard Notes
 
-Clipboard redirection currently supports text and local-to-remote file copy/paste:
+Clipboard redirection currently supports text and file copy/paste in both directions:
 
 - Native wrapper enables `FreeRDP_RedirectClipboard` and handles the static `cliprdr` channel.
 - The wrapper sends cliprdr client capabilities on `MonitorReady` before advertising local formats.
@@ -138,8 +140,10 @@ Clipboard redirection currently supports text and local-to-remote file copy/past
 - C# owns interaction with Avalonia's `TopLevel.Clipboard`; native calls back with remote UTF-8 text and C# writes it to the local OS clipboard.
 - Local-to-remote clipboard uses an Avalonia-side polling timer. Text is cached as the latest non-empty string in native code so the RDP thread can answer remote paste requests synchronously; file offers are rebuilt from the current Avalonia clipboard file list.
 - Empty local clipboard reads are ignored because Avalonia/platform clipboard reads may transiently return empty values and should not clear the remote clipboard offer.
-- Remote-to-local file paste is not implemented yet.
-- Remote data requests are matched to responses FIFO (`remote_requests` queue); CLIPRDR responses carry no id. Every server format list bumps `remote_generation`; answers for an older generation are dropped, and a new list cancels an in-flight file download. Never go back to a single "pending format id": back-to-back server copies then misparse text as a file descriptor (and vice versa) and drop the copy.
+- Remote-to-local files are read on demand, never downloaded eagerly by native. Native fetches only the server's `FileGroupDescriptorW` and hands it to C# verbatim with its `remote_generation` (`ClipboardFilesCallback`). C# reads contents through `rdp_session_clipboard_request_remote_file_contents` (caller-chosen stream id, answered exactly once by `ClipboardFileContentsCallback`, including on clipboard change or channel close). `RdpSessionRuntime` matches answers to requests by stream id; `RemoteFileReader` keeps a window of 8 × 256 KiB range requests in flight, because one request per round trip caps throughput at about 1 MB/s.
+- Windows: `WindowsVirtualFileClipboard` puts an OLE `IDataObject` (FileGroupDescriptorW + FileContents `IStream`s) on the clipboard from its own STA thread, like mstsc, so Explorer pulls bytes only on paste and shows its own progress. Stream reads block on network round trips, which is why it is not the Avalonia UI thread. While it owns the clipboard, local polling is skipped; reading it back would announce an empty clipboard to the server and take ownership away mid-paste.
+- Other platforms cannot paste virtual files, so `RemoteFileDownloader` writes the offer into `AppDataPaths.ClipboardCacheDirectory` (one directory per offer, previous ones deleted, partial downloads removed) and then publishes the paths. A remote text copy, a local copy, or a tab change cancels the download; an empty local clipboard is not announced while one runs.
+- Remote data requests are matched to responses FIFO (`remote_requests` queue); CLIPRDR responses carry no id. Every server format list bumps `remote_generation`; answers for an older generation are dropped, and outstanding file contents requests are failed. Never go back to a single "pending format id": back-to-back server copies then misparse text as a file descriptor (and vice versa) and drop the copy.
 - A failed remote data request is retried with backoff (25 ms … 800 ms) from the RDP loop; a file list that never renders falls back to the offered text. rdpclip fails requests while the source app still holds the server clipboard, and we fetch eagerly at exactly that moment.
 - The RDP loop runs `process_pending_clipboard` before `process_pending_input` and flushes channel writes (`freerdp_channels_check_fds`) when it queued a cliprdr PDU, so "copy locally, Ctrl+V in the session" reaches the server as format list then keystroke.
 - The view also polls the local clipboard immediately on window activation, not only on the 500 ms timer.
@@ -147,7 +151,7 @@ Clipboard redirection currently supports text and local-to-remote file copy/past
 
 ## End-to-End Tests
 
-`RDPilot.Wrapper/tests/clipboard_e2e.c` hosts a scriptable FreeRDP server in-process and drives the wrapper's public API against it (no .NET, no real RDP server). It covers clipboard both ways, large payloads, rdpclip-style failed/slow answers, bursts, files-then-text, and copy-then-paste ordering. Build with `-DRDPILOT_BUILD_E2E_TESTS=ON` (needs `freerdp-server3` and `openssl`), run `ctest` or `rdpilot_clipboard_e2e --iterations N [--scenario NAME] [--verbose]`. It reports a pass rate per scenario; flaky behaviour shows up as less than N/N. Add a scenario here before fixing any clipboard bug.
+`RDPilot.Wrapper/tests/clipboard_e2e.c` hosts a scriptable FreeRDP server in-process and drives the wrapper's public API against it (no .NET, no real RDP server). It covers clipboard both ways, large payloads, rdpclip-style failed/slow answers, bursts, files-then-text, pipelined remote file reads, a clipboard change during a file read, and copy-then-paste ordering. Build with `-DRDPILOT_BUILD_E2E_TESTS=ON` (needs `freerdp-server3` and `openssl`), run `ctest` or `rdpilot_clipboard_e2e --iterations N [--scenario NAME] [--verbose]`. It reports a pass rate per scenario; flaky behaviour shows up as less than N/N. Add a scenario here before fixing any clipboard bug.
 
 Credential-less connects set `FreeRDP_ExtSecurity` off together with `NlaSecurity`; otherwise FreeRDP still offers HYBRID_EX and a server that allows but does not require NLA picks it and the connect fails with `SEC_E_NO_CREDENTIALS`.
 
@@ -158,9 +162,12 @@ Connection management UI:
 - `MainWindow` is a management shell with a saved-connections sidebar, selected profile summary, status bar, and RDP viewport.
 - Add/edit runs through `ConnectionEditorWindow`; keep password fields out of the main shell.
 - `MainWindowViewModel` owns saved profile loading, selected connection state, tab collection, and connect/disconnect/close-tab commands.
-- `RdpSessionViewModel` owns one native session handle, frame coalescing, bitmap rendering state, resize, input, and per-session callbacks.
+- `RdpSessionRuntime` owns one native session handle, the rooted native callback delegates, callback marshalling, and native free; `RdpSessionViewModel` owns bindable session state, managed frame/cursor presentation, resize and input forwarding. `RdpSessionStartRequest` groups normalized, transient connection inputs (including credentials); never persist or log it.
+- Session constructors must not connect. `RdpSessionFactory` calls explicit `Start(request)` only after presentation and runtime subscriptions are assembled; credentials are not retained by the view model. Runtime disposal during startup must free any subsequently returned handle instead of publishing it.
 - `Connect` creates a new tab/session even when another tab for the same saved connection already exists.
 - Switching tabs must not disconnect background sessions. Input, resize, and local clipboard updates should route only to `SelectedSession`.
+- `ViewportClipboardCoordinator` owns selected-session clipboard polling and invalidates in-flight work on tab changes/detach. `FullscreenWindowController` owns fullscreen layout and toolbar reveal timing; `MainWindow` remains responsible for platform keyboard-grab lifecycle.
+- The clipboard coordinator subscribes to the shell's `SelectedSession` changes while attached and increments a generation on every transition, including A → B → A. Data-context identity checks alone cannot reject stale async work when the original tab becomes selected again.
 - `ConnectionStore` stores non-secret metadata in per-user `connections.json` via `AppDataPaths`.
 - `connection.local.json` is only a local development/import convenience and must remain ignored by Git.
 
@@ -262,8 +269,9 @@ laid out flat so the directory can be copied straight into the Flathub repo.
   fails and libsecret falls back to D-Bus. `SecretStore` refuses to degrade to plaintext, so
   removing the permission turns that into a hard failure. Reproduce the fallback branch with
   `flatpak run --env=SECRET_BACKEND=service [--no-talk-name=org.freedesktop.secrets] …`.
-- Keep `finish-args` minimal. No `--filesystem` is currently justified; if remote-to-local
-  clipboard file paste lands, route it through the file-chooser portal instead.
+- Keep `finish-args` minimal. No `--filesystem` is currently justified. Remote-to-local
+  clipboard files are downloaded to `$XDG_CACHE_HOME` (`~/.var/app/<id>/cache`), which host
+  file managers can read without extra permissions.
 - H.264 RDPGFX only decodes when `org.freedesktop.Platform.codecs-extra//25.08-extra` is
   installed — the base runtime builds ffmpeg with `--disable-decoder="h264,hevc,vc1,vvc"`.
   The manifest deliberately has **no** `add-extensions` block for it: the Platform declares
@@ -284,8 +292,8 @@ Traps that cost a CI round-trip each; do not undo these:
   and FreeRDP's `cmake/PreventInSourceBuilds.cmake` aborts.
 - FreeRDP options whose default is a computed variable rather than a literal switch
   themselves on and then hard-require a dependency. `WITH_FUSE` is the live example
-  (`pkg_check_modules(FUSE3 REQUIRED ...)`); it only powers remote-to-local clipboard file
-  paste. Pin them all explicitly.
+  (`pkg_check_modules(FUSE3 REQUIRED ...)`); it only powers FreeRDP's own client clipboard
+  file paste, which RDPilot does not use. Pin them all explicitly.
 - The SDK ships CMake 4, which dropped `cmake_minimum_required` below 3.5. cJSON still
   declares 3.0, hence `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` on that module.
 - Only files under `packaging/flatpak/` come from the manifest directory. Icons and `LICENSE`

@@ -6,22 +6,8 @@ namespace RDPilot.Client.Services;
 
 public interface IRdpSessionFactory
 {
-RdpSessionViewModel Create(
-        SavedConnection connection,
-        string password,
-        string gatewayPassword,
-        int width,
-        int height,
-        double renderScaling,
-        int colorDepth,
-        bool compression,
-        bool fontSmoothing,
-        bool bitmapCache,
-        bool desktopWallpaper,
-        bool themes,
-        bool menuAnimations,
-        bool fullWindowDrag,
-        RdpConnectionType connectionType,
+    RdpSessionViewModel Create(
+        RdpSessionStartRequest request,
         Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived);
+        Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived);
 }

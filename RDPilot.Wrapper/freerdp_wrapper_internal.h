@@ -90,6 +90,17 @@ typedef struct {
     UINT32 generation;
 } remote_request;
 
+#define FILE_CONTENTS_REQUEST_CAPACITY 64
+
+typedef struct {
+    UINT32 generation;
+    UINT32 stream_id;
+    UINT32 list_index;
+    bool size_only;
+    UINT64 offset;
+    UINT32 size;
+} file_contents_request;
+
 typedef struct wrapper_pointer {
     rdpPointer pointer;
     UINT32 id;
@@ -105,6 +116,7 @@ struct rdp_session {
     FrameCallback callback;
     ClipboardTextCallback clipboard_text_callback;
     ClipboardFilesCallback clipboard_files_callback;
+    ClipboardFileContentsCallback clipboard_file_contents_callback;
     StatusCallback status_callback;
     CertificateDecisionCallback certificate_decision_callback;
     CursorCallback cursor_callback;
@@ -162,7 +174,6 @@ struct rdp_session {
     char** local_file_paths;
     size_t local_file_paths_count;
     size_t local_file_paths_capacity;
-    char* temp_directory;
     UINT32 remote_file_group_descriptor_format_id;
     UINT32 remote_file_contents_format_id;
     // Outstanding remote format data requests. CLIPRDR responses carry no request id; the server
@@ -178,17 +189,13 @@ struct rdp_session {
     remote_request remote_retry;
     UINT32 remote_retry_attempt;
     ULONGLONG remote_retry_due_ms;
-    UINT32 remote_file_stream_id;
-    char** remote_received_file_paths;
-    size_t remote_received_file_paths_count;
-    size_t remote_received_file_paths_capacity;
-    size_t remote_expected_file_count;
-    size_t remote_active_file_index;
-    UINT64 remote_active_file_size;
-    UINT64 remote_active_file_offset;
-    char* remote_active_file_path;
-    FILE* remote_active_file;
-    bool remote_file_transfer_in_progress;
+    // Host requests for remote file contents: queued under clipboard_lock from any thread, sent
+    // by the RDP thread. Sent requests wait in `outstanding` (RDP thread only) until the server
+    // answers; responses are matched by stream id.
+    file_contents_request file_contents_queue[FILE_CONTENTS_REQUEST_CAPACITY];
+    size_t file_contents_queue_count;
+    file_contents_request file_contents_outstanding[FILE_CONTENTS_REQUEST_CAPACITY];
+    size_t file_contents_outstanding_count;
     
     // Bitmap clipboard support
     BYTE* local_bitmap_data;
@@ -251,6 +258,8 @@ typedef struct {
 
 rdp_session* session_from_context(rdpContext* context);
 void log_channel_rc(const char* operation, UINT rc);
+void wrapper_frame_notify(rdp_session* session, rdpGdi* gdi, INT32 x, INT32 y, INT32 width, INT32 height);
+void wrapper_frame_reset_dirty(rdp_session* session, rdpGdi* gdi);
 
 void queue_input_event(rdp_session* session, input_event event);
 void process_pending_input(rdp_session* session);
@@ -262,6 +271,9 @@ void free_local_clipboard_text(rdp_session* session);
 void free_clipboard_data(rdp_session* session);
 /* Returns true when it queued a cliprdr PDU (a local format list or a retried request). */
 bool process_pending_clipboard(rdp_session* session);
+void wrapper_clipboard_attach(rdp_session* session, CliprdrClientContext* cliprdr);
+void wrapper_clipboard_detach(rdp_session* session);
+DWORD WINAPI wrapper_connection_thread(LPVOID params);
 
 char* duplicate_string(const char* text);
 

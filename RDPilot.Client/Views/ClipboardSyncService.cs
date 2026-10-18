@@ -27,6 +27,13 @@ internal sealed class ClipboardSyncService
         _emptyReads = 0;
     }
 
+    public void BeginRemoteUpdate()
+    {
+        _remoteUpdatesInProgress++;
+        _lastClipboardSignature = null;
+        _emptyReads = 0;
+    }
+
     public void BeginRemoteFilesUpdate(string[] filePaths)
     {
         _remoteUpdatesInProgress++;

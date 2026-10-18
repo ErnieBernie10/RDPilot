@@ -7,6 +7,8 @@
  * through an independent oracle:
  *
  *   remote -> local : the server announces text; the wrapper's ClipboardTextCallback must report it.
+ *                     For files, ClipboardFilesCallback reports the file list and the test reads
+ *                     contents through rdp_session_clipboard_request_remote_file_contents.
  *   local -> remote : rdp_session_clipboard_set_local_text; the server must fetch and receive it.
  *
  * The server can also misbehave the way a real Windows rdpclip does under load (fail a data
@@ -59,6 +61,7 @@
 
 #define MAX_TEXT (2u * 1024u * 1024u)
 #define WAIT_MS 3000
+#define STREAM_SLOTS 1024
 
 static bool g_verbose = false;
 
@@ -95,6 +98,8 @@ typedef struct
     bool offer_files_next;        /* next server format list advertises files + text */
     bool fail_file_descriptors;   /* the file list exists but can never be rendered */
     unsigned file_contents_delay_ms;
+    UINT64 server_file_size;      /* size of the one file the server offers; contents from file_byte() */
+    unsigned file_contents_requests_seen;
 
     /* wire order as seen by the server's network thread: 'L' client format list, 'V' the V key */
     char wire_log[256];
@@ -107,6 +112,19 @@ typedef struct
     unsigned client_text_callbacks;
     unsigned client_files_callbacks;
     char client_last_event;       /* 'T' text or 'F' files: which callback fired last */
+    uint32_t client_files_generation;
+    uint32_t client_files_count;
+    char client_file_name[260];
+
+    /* ClipboardFileContentsCallback answers, by stream id */
+    struct
+    {
+        unsigned answers;
+        bool ok;
+        uint32_t size;
+        uint8_t* data;
+    } streams[STREAM_SLOTS];
+    uint32_t next_stream_id;
 } shared_state;
 
 static shared_state g = { .lock = PTHREAD_MUTEX_INITIALIZER, .changed = PTHREAD_COND_INITIALIZER };
@@ -259,7 +277,10 @@ static UINT srv_client_format_data_request(CliprdrServerContext* clip, const CLI
         FILEDESCRIPTORW* fd = (FILEDESCRIPTORW*)(buf + sizeof(UINT32));
         fd->dwFlags = FD_ATTRIBUTES | FD_FILESIZE;
         fd->dwFileAttributes = 0x80;
-        fd->nFileSizeLow = 4;
+        pthread_mutex_lock(&g.lock);
+        fd->nFileSizeLow = (UINT32)(g.server_file_size & 0xFFFFFFFFu);
+        fd->nFileSizeHigh = (UINT32)(g.server_file_size >> 32);
+        pthread_mutex_unlock(&g.lock);
         (void)ConvertUtf8ToWChar("report.txt", fd->cFileName, ARRAYSIZE(fd->cFileName));
         CLIPRDR_FORMAT_DATA_RESPONSE rsp = { 0 };
         rsp.common.msgType = CB_FORMAT_DATA_RESPONSE;
@@ -276,30 +297,49 @@ static UINT srv_client_format_data_request(CliprdrServerContext* clip, const CLI
     return rc;
 }
 
+static uint8_t file_byte(UINT64 offset)
+{
+    return (uint8_t)((offset * 2654435761u) >> 13);
+}
+
 static UINT srv_client_file_contents_request(CliprdrServerContext* clip, const CLIPRDR_FILE_CONTENTS_REQUEST* req)
 {
     pthread_mutex_lock(&g.lock);
     const unsigned delay = g.file_contents_delay_ms;
+    const UINT64 file_size = g.server_file_size;
+    g.file_contents_requests_seen++;
+    pthread_cond_broadcast(&g.changed);
     pthread_mutex_unlock(&g.lock);
     if (delay)
         Sleep(delay);
     CLIPRDR_FILE_CONTENTS_RESPONSE rsp = { 0 };
     rsp.common.msgType = CB_FILECONTENTS_RESPONSE;
     rsp.streamId = req->streamId;
+    if (req->listIndex != 0)
+    {
+        rsp.common.msgFlags = CB_RESPONSE_FAIL;
+        return clip->ServerFileContentsResponse(clip, &rsp);
+    }
     if (req->dwFlags & FILECONTENTS_SIZE)
     {
-        static const UINT64 size = 4;
         rsp.common.msgFlags = CB_RESPONSE_OK;
-        rsp.cbRequested = sizeof(size);
-        rsp.requestedData = (const BYTE*)&size;
+        rsp.cbRequested = sizeof(file_size);
+        rsp.requestedData = (const BYTE*)&file_size;
+        return clip->ServerFileContentsResponse(clip, &rsp);
     }
-    else
-    {
-        rsp.common.msgFlags = CB_RESPONSE_OK;
-        rsp.cbRequested = 4;
-        rsp.requestedData = (const BYTE*)"data";
-    }
-    return clip->ServerFileContentsResponse(clip, &rsp);
+
+    const UINT64 offset = ((UINT64)req->nPositionHigh << 32) | req->nPositionLow;
+    const UINT64 available = offset < file_size ? file_size - offset : 0;
+    const UINT32 n = available < req->cbRequested ? (UINT32)available : req->cbRequested;
+    BYTE* data = malloc(n ? n : 1);
+    for (UINT32 k = 0; k < n; k++)
+        data[k] = file_byte(offset + k);
+    rsp.common.msgFlags = CB_RESPONSE_OK;
+    rsp.cbRequested = n;
+    rsp.requestedData = data;
+    UINT rc = clip->ServerFileContentsResponse(clip, &rsp);
+    free(data);
+    return rc;
 }
 
 static UINT srv_client_format_data_response(CliprdrServerContext* clip, const CLIPRDR_FORMAT_DATA_RESPONSE* rsp)
@@ -593,13 +633,41 @@ static void on_clip_text(rdp_session* s, const char* text)
     pthread_mutex_unlock(&g.lock);
 }
 
-static void on_clip_files(rdp_session* s, const char** paths, size_t n)
+static void on_clip_files(rdp_session* s, uint32_t generation, const uint8_t* descriptor, size_t size)
 {
-    (void)s; (void)paths;
-    vlog("[cli] files received n=%zu\n", n);
+    (void)s;
+    const uint32_t count = *(const uint32_t*)descriptor;
+    vlog("[cli] files received n=%u generation=%u bytes=%zu\n", count, generation, size);
     pthread_mutex_lock(&g.lock);
     g.client_files_callbacks++;
     g.client_last_event = 'F';
+    g.client_files_generation = generation;
+    g.client_files_count = size == sizeof(UINT32) + count * sizeof(FILEDESCRIPTORW) ? count : 0;
+    g.client_file_name[0] = '\0';
+    if (g.client_files_count > 0)
+    {
+        const FILEDESCRIPTORW* fd = (const FILEDESCRIPTORW*)(descriptor + sizeof(UINT32));
+        (void)ConvertWCharNToUtf8(fd->cFileName, ARRAYSIZE(fd->cFileName), g.client_file_name, sizeof(g.client_file_name));
+    }
+    pthread_cond_broadcast(&g.changed);
+    pthread_mutex_unlock(&g.lock);
+}
+
+static void on_file_contents(rdp_session* s, uint32_t stream_id, bool ok, const uint8_t* data, uint32_t size)
+{
+    (void)s;
+    pthread_mutex_lock(&g.lock);
+    unsigned slot = stream_id % STREAM_SLOTS;
+    g.streams[slot].answers++;
+    g.streams[slot].ok = ok;
+    g.streams[slot].size = ok ? size : 0;
+    free(g.streams[slot].data);
+    g.streams[slot].data = NULL;
+    if (ok && size)
+    {
+        g.streams[slot].data = malloc(size);
+        memcpy(g.streams[slot].data, data, size);
+    }
     pthread_cond_broadcast(&g.changed);
     pthread_mutex_unlock(&g.lock);
 }
@@ -658,7 +726,69 @@ static void reset_server_behaviour(void)
     g.offer_files_next = false;
     g.fail_file_descriptors = false;
     g.file_contents_delay_ms = 0;
+    g.server_file_size = 4;
     pthread_mutex_unlock(&g.lock);
+}
+
+/* Caller holds g.lock. Issues a request and returns its stream id, or 0 if it was not accepted. */
+static uint32_t request_contents(uint32_t generation, bool size_only, UINT64 offset, uint32_t size)
+{
+    const uint32_t id = ++g.next_stream_id;
+    unsigned slot = id % STREAM_SLOTS;
+    g.streams[slot].answers = 0;
+    g.streams[slot].ok = false;
+    free(g.streams[slot].data);
+    g.streams[slot].data = NULL;
+    pthread_mutex_unlock(&g.lock);
+    const bool accepted = rdp_session_clipboard_request_remote_file_contents(g.session, generation, id, 0, size_only, offset, size);
+    pthread_mutex_lock(&g.lock);
+    return accepted ? id : 0;
+}
+
+static bool pred_stream_answered(const void* a) { return g.streams[*(const uint32_t*)a % STREAM_SLOTS].answers > 0; }
+
+/* Reads the server's file the way RDPilot.Client does: size first, then a window of range
+ * requests kept in flight. Returns true when every byte matched. Caller holds g.lock. */
+static bool read_remote_file(uint32_t generation, UINT64 expected_size, uint32_t chunk, unsigned window)
+{
+    uint32_t id = request_contents(generation, true, 0, 0);
+    if (!id || !wait_until(pred_stream_answered, &id, WAIT_MS) || !g.streams[id % STREAM_SLOTS].ok)
+        return false;
+    UINT64 size = 0;
+    memcpy(&size, g.streams[id % STREAM_SLOTS].data, sizeof(size));
+    if (size != expected_size)
+        return false;
+
+    uint32_t ids[64];
+    UINT64 offsets[64];
+    unsigned head = 0, tail = 0;
+    UINT64 next = 0, verified = 0;
+    while (verified < size)
+    {
+        while (tail - head < window && next < size)
+        {
+            const uint32_t n = size - next < chunk ? (uint32_t)(size - next) : chunk;
+            const uint32_t sid = request_contents(generation, false, next, n);
+            if (!sid)
+                return false;
+            ids[tail % 64] = sid;
+            offsets[tail % 64] = next;
+            tail++;
+            next += n;
+        }
+        uint32_t sid = ids[head % 64];
+        if (!wait_until(pred_stream_answered, &sid, WAIT_MS))
+            return false;
+        const unsigned slot = sid % STREAM_SLOTS;
+        if (!g.streams[slot].ok || g.streams[slot].answers != 1 || offsets[head % 64] != verified)
+            return false;
+        for (uint32_t k = 0; k < g.streams[slot].size; k++)
+            if (g.streams[slot].data[k] != file_byte(verified + k))
+                return false;
+        verified += g.streams[slot].size;
+        head++;
+    }
+    return true;
 }
 
 /* Each scenario returns true on success for one iteration. */
@@ -808,27 +938,85 @@ static bool pred_text_last(const void* a)
     return g.client_last_event == 'T' && pred_client_has(a);
 }
 
-/* Copy a file on the server, and while it is still downloading, copy text. The finished file
- * download must not replace the newer text on the local clipboard. */
-static bool sc_text_during_file_download(unsigned i)
+static bool pred_files_for(const void* a)
+{
+    return g.client_last_event == 'F' && g.client_files_callbacks > *(const unsigned*)a;
+}
+
+/* Copy a file on the server and paste it locally: the client gets the file list right away and
+ * reads a 3 MiB file with a window of requests in flight. */
+static bool sc_remote_file_read(unsigned i)
+{
+    (void)i;
+    pthread_mutex_lock(&g.lock);
+    g.offer_files_next = true;
+    g.server_file_size = 3u * 1024u * 1024u + 123u;
+    const unsigned before = g.client_files_callbacks;
+    pthread_mutex_unlock(&g.lock);
+    char* t = make_text("file-read", i, 0);
+    server_announce(t);
+    pthread_mutex_lock(&g.lock);
+    bool ok = wait_until(pred_files_for, &before, WAIT_MS) && g.client_files_count == 1 &&
+              strcmp(g.client_file_name, "report.txt") == 0 &&
+              read_remote_file(g.client_files_generation, 3u * 1024u * 1024u + 123u, 256u * 1024u, 8);
+    pthread_mutex_unlock(&g.lock);
+    free(t);
+    reset_server_behaviour();
+    return ok;
+}
+
+static bool pred_all_answered(const void* a)
+{
+    const uint32_t* ids = a;
+    for (unsigned k = 0; k < 8; k++)
+        if (ids[k] && g.streams[ids[k] % STREAM_SLOTS].answers == 0)
+            return false;
+    return true;
+}
+
+/* Copy a file on the server and, while the client is reading it, copy text. Every outstanding
+ * read must be answered (failed, since that clipboard is gone), reads for the old file list must
+ * fail without reaching the server, and the text must arrive. */
+static bool sc_text_during_file_read(unsigned i)
 {
     pthread_mutex_lock(&g.lock);
     g.offer_files_next = true;
+    g.server_file_size = 1024u * 1024u;
     g.file_contents_delay_ms = 30;
+    const unsigned before = g.client_files_callbacks;
     pthread_mutex_unlock(&g.lock);
-    char* f = make_text("download", i, 0);
-    char* t = make_text("during-download", i, 0);
+    char* f = make_text("read", i, 0);
+    char* t = make_text("during-read", i, 0);
     server_announce(f);
-    Sleep(10); /* descriptor answered, contents still pending */
+    pthread_mutex_lock(&g.lock);
+    bool ok = wait_until(pred_files_for, &before, WAIT_MS);
+    const uint32_t generation = g.client_files_generation;
+    uint32_t ids[8] = { 0 };
+    for (unsigned k = 0; ok && k < 8; k++)
+        ok = (ids[k] = request_contents(generation, false, (UINT64)k * 65536u, 65536u)) != 0;
+    pthread_mutex_unlock(&g.lock);
+    Sleep(10);
     server_announce(t);
     pthread_mutex_lock(&g.lock);
-    bool ok = wait_until(pred_text_last, t, WAIT_MS);
+    ok = ok && wait_until(pred_text_last, t, WAIT_MS) && wait_until(pred_all_answered, ids, WAIT_MS);
     if (ok)
     {
         pthread_mutex_unlock(&g.lock);
-        Sleep(250);
+        Sleep(250); /* the server still answers the ones it had already received */
         pthread_mutex_lock(&g.lock);
         ok = pred_text_last(t);
+        for (unsigned k = 0; ok && k < 8; k++)
+            ok = g.streams[ids[k] % STREAM_SLOTS].answers == 1;
+        const unsigned seen = g.file_contents_requests_seen;
+        uint32_t stale = request_contents(generation, false, 0, 4);
+        ok = ok && stale && wait_until(pred_stream_answered, &stale, WAIT_MS) && !g.streams[stale % STREAM_SLOTS].ok;
+        if (ok)
+        {
+            pthread_mutex_unlock(&g.lock);
+            Sleep(50);
+            pthread_mutex_lock(&g.lock);
+            ok = g.file_contents_requests_seen == seen;
+        }
     }
     pthread_mutex_unlock(&g.lock);
     free(f);
@@ -920,7 +1108,8 @@ static const scenario k_scenarios[] = {
     { "remote_busy_long", sc_remote_busy_long, 1 },
     { "remote_files_unavailable", sc_remote_files_unavailable, 1 },
     { "remote_burst", sc_remote_burst, 1 },
-    { "text_during_file_download", sc_text_during_file_download, 1 },
+    { "remote_file_read", sc_remote_file_read, 10 },
+    { "text_during_file_read", sc_text_during_file_read, 1 },
     { "remote_files_then_text", sc_remote_files_then_text, 1 },
     { "local_burst", sc_local_burst, 1 },
     { "paste_right_after_copy", sc_paste_right_after_copy, 1 },
@@ -980,6 +1169,7 @@ int main(int argc, char** argv)
     g_cert_path = cert;
     g_key_path = key;
 
+    reset_server_behaviour();
     WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
     winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
     WSADATA wsa;
@@ -999,7 +1189,7 @@ int main(int argc, char** argv)
     g.session = rdp_session_connect("127.0.0.1", "127.0.0.1", port, "", "", "", NULL, NULL, NULL, NULL,
                                     1024, 768, 32, true, false, true, false, false, false, false, 0, false,
                                     false, 0, 100, 100,
-                                    on_frame, on_clip_text, on_clip_files, on_status, on_cert, on_cursor);
+                                    on_frame, on_clip_text, on_clip_files, on_status, on_cert, on_cursor, on_file_contents);
     if (!g.session)
     {
         fprintf(stderr, "rdp_session_connect returned NULL\n");

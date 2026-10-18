@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Input;
@@ -19,8 +18,9 @@ namespace RDPilot.Client.Tests;
 /// delegates, so this needs no headless Avalonia session.
 /// </summary>
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "xUnit test names use underscores for readability.")]
-public sealed class RdpViewportPresenterKeyboardGrabTests
+public sealed class RdpViewportPresenterKeyboardGrabTests : IDisposable
 {
+    private readonly List<IDisposable> _owned = [];
     [Fact]
     public void HandleGrabbedKey_ForwardsScancodeWithExtendedAndReleaseFlags()
     {
@@ -112,26 +112,19 @@ public sealed class RdpViewportPresenterKeyboardGrabTests
         Assert.Empty(keyboardEvents);
     }
 
-    private static (RdpViewportPresenter Presenter, List<(ushort Flags, ushort Code)> KeyboardEvents, object RdpImage) CreatePresenter()
+    private (RdpViewportPresenter Presenter, List<(ushort Flags, ushort Code)> KeyboardEvents, object RdpImage) CreatePresenter()
     {
-        var connection = new SavedConnection
-        {
-            Name = "Grab Test",
-            Host = "grab-test.example.local",
-            Username = "user"
-        };
-
-        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connected);
-        var nativeSession = new RecordingNativeSession(new IntPtr(0xBEEF));
-        SetField(session, "_nativeSession", nativeSession);
-        SetField(session, "_handle", nativeSession.Handle);
+        var context = new SessionTestContext("Grab Test");
+        _owned.Add(context);
+        var session = context.ViewModel;
+        var nativeSession = context.Native;
 
         var vm = new MainWindowViewModel(new ConnectionStore(new FakeSecretStore()), new NoSessionFactory())
         {
             SelectedSession = session
         };
 
-        var presenter = new RdpViewportPresenter(
+        var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new RdpViewportPresenter(
             () => vm,
             () => null,
             _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
@@ -141,73 +134,23 @@ public sealed class RdpViewportPresenterKeyboardGrabTests
             new ViewportResolutionService(),
             new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(),
-            new PointerMoveScheduler());
+            new PointerMoveScheduler()));
+        _owned.Add(presenter);
 
         return (presenter, nativeSession.KeyboardEvents, new object());
     }
 
-    private static void SetField(object target, string fieldName, object? value)
+    public void Dispose() => AvaloniaTestEnvironment.RunOnUiThread(() =>
     {
-        var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        field.SetValue(target, value);
-    }
-
-    private sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
-    {
-        public IntPtr Handle { get; } = handle;
-        public List<(ushort Flags, ushort Code)> KeyboardEvents { get; } = [];
-
-        public void SendKeyboardEvent(ushort flags, ushort code) => KeyboardEvents.Add((flags, code));
-
-        public void Disconnect() { }
-        public void Free() { }
-        public void UpdateResolution(int width, int height, uint dpiScalePercent) { }
-        public void SendMouseEvent(ushort flags, ushort x, ushort y) { }
-        public void SetLocalClipboardText(string? text) { }
-        public void SetLocalClipboardFiles(string[] filePaths) { }
-        public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height) { }
-        public void RequestFullFrame() { }
-
-        public bool Present(
-            IntPtr dest,
-            int destStride,
-            int destWidth,
-            int destHeight,
-            out int dirtyX,
-            out int dirtyY,
-            out int dirtyWidth,
-            out int dirtyHeight,
-            out int fbWidth,
-            out int fbHeight)
-        {
-            dirtyX = dirtyY = dirtyWidth = dirtyHeight = fbWidth = fbHeight = 0;
-            return false;
-        }
-
-        public bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight) => false;
-    }
+        for (var i = _owned.Count - 1; i >= 0; i--) _owned[i].Dispose();
+    });
 
     private sealed class NoSessionFactory : IRdpSessionFactory
     {
         public RdpSessionViewModel Create(
-            SavedConnection connection,
-            string password,
-            string gatewayPassword,
-            int width,
-            int height,
-            double renderScaling,
-            int colorDepth,
-            bool compression,
-            bool fontSmoothing,
-            bool bitmapCache,
-            bool desktopWallpaper,
-            bool themes,
-            bool menuAnimations,
-            bool fullWindowDrag,
-            RdpConnectionType connectionType,
+            RdpSessionStartRequest request,
             Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-            Action<RdpSessionViewModel, string[]> remoteClipboardFilesReceived)
+            Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
         {
             throw new NotSupportedException("Sessions are created directly in these tests.");
         }

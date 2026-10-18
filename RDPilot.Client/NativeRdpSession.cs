@@ -1,4 +1,5 @@
 using System;
+using RDPilot.Client.Models;
 
 namespace RDPilot.Client;
 
@@ -14,6 +15,7 @@ internal interface INativeRdpSession
     void SetLocalClipboardText(string? text);
     void SetLocalClipboardFiles(string[] filePaths);
     void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
+    bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size);
     void RequestFullFrame();
     bool Present(
         IntPtr dest,
@@ -39,73 +41,45 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public IntPtr Handle { get; }
 
-    public static INativeRdpSession Connect(
-        string host,
-        string connectHost,
-        ushort port,
-        string domain,
-        string user,
-        string password,
-        string? gatewayHost,
-        string? gatewayDomain,
-        string? gatewayUser,
-        string? gatewayPassword,
-        int width,
-        int height,
-        int colorDepth,
-        bool compression,
-        bool fontSmoothing,
-        bool bitmapCache,
-        bool desktopWallpaper,
-        bool themes,
-        bool menuAnimations,
-        bool fullWindowDrag,
-        int connectionType,
-        bool networkAutoDetect,
-        bool useNetworkLevelAuthentication,
-        uint keyboardLayout,
-        uint dpiScalePercent,
-        uint deviceScalePercent,
-        NativeWrapper.FrameCallback frameCallback,
-        NativeWrapper.ClipboardTextCallback clipboardCallback,
-        NativeWrapper.ClipboardFilesCallback clipboardFilesCallback,
-        NativeWrapper.StatusCallback statusCallback,
-        NativeWrapper.CertificateDecisionCallback certificateDecisionCallback,
-        NativeWrapper.CursorCallback cursorCallback)
+    public static INativeRdpSession Connect(RdpSessionStartRequest request, NativeSessionCallbacks callbacks)
     {
+        var connection = request.Connection;
+        var quality = request.Quality;
+        var network = RdpSessionOptions.NormalizeNetworkSettings(quality.ConnectionType);
         var handle = NativeWrapper.rdp_session_connect(
-            host,
-            connectHost,
-            port,
-            domain,
-            user,
-            password,
-            gatewayHost,
-            gatewayDomain,
-            gatewayUser,
-            gatewayPassword,
-            width,
-            height,
-            colorDepth,
-            compression,
-            fontSmoothing,
-            bitmapCache,
-            desktopWallpaper,
-            themes,
-            menuAnimations,
-            fullWindowDrag,
-            connectionType,
-            networkAutoDetect,
-            useNetworkLevelAuthentication,
-            keyboardLayout,
-            dpiScalePercent,
-            deviceScalePercent,
-            frameCallback,
-            clipboardCallback,
-            clipboardFilesCallback,
-            statusCallback,
-            certificateDecisionCallback,
-            cursorCallback);
+            connection.Host,
+            NativeWrapper.ResolveDirectConnectHost(connection.Host),
+            RdpSessionOptions.NormalizePort(connection.Port),
+            connection.Domain,
+            connection.Username,
+            request.Password,
+            connection.GatewayHost,
+            connection.GatewayDomain,
+            connection.GatewayUsername,
+            request.GatewayPassword,
+            request.Width,
+            request.Height,
+            quality.ColorDepth,
+            quality.Compression,
+            quality.FontSmoothing,
+            quality.BitmapCache,
+            quality.DesktopWallpaper,
+            quality.Themes,
+            quality.MenuAnimations,
+            quality.FullWindowDrag,
+            network.ConnectionType,
+            network.NetworkAutoDetect,
+            RdpSessionOptions.ShouldUseNetworkLevelAuthentication(connection.Username, request.Password),
+            NativeWrapper.GetCurrentKeyboardLayout(),
+            request.DpiScalePercent,
+            request.DeviceScalePercent,
+            callbacks.Frame,
+            callbacks.ClipboardText,
+            callbacks.ClipboardFiles,
+            callbacks.Status,
+            callbacks.Certificate,
+            callbacks.Cursor,
+            callbacks.ClipboardFileContents);
 
         return new NativeRdpSession(handle);
     }
@@ -142,6 +116,9 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height) =>
         NativeWrapper.rdp_session_clipboard_set_local_bitmap(Handle, bitmapData, bitmapDataSize, width, height);
+
+    public bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size) =>
+        NativeWrapper.rdp_session_clipboard_request_remote_file_contents(Handle, generation, streamId, listIndex, sizeOnly, offset, size);
 
     public void RequestFullFrame() => NativeWrapper.rdp_session_request_full_frame(Handle);
 

@@ -22,7 +22,12 @@ public partial class App : Application
             var launchOptions = LaunchOptions.Parse(desktop.Args ?? []);
             var mainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(launchOptions, new WindowsJumpListService()),
+                DataContext = new MainWindowViewModel(
+                    launchOptions,
+                    new WindowsJumpListService(),
+                    new ConnectionStore(SecretStore.CreateDefault()),
+                    new AppSettingsStore(),
+                    new RdpSessionFactory()),
             };
             _mainWindow = mainWindow;
             desktop.MainWindow = mainWindow;

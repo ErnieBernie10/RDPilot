@@ -98,7 +98,10 @@ internal static class NativeWrapper
     internal delegate void ClipboardTextCallback(IntPtr session, IntPtr text);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate void ClipboardFilesCallback(IntPtr session, IntPtr filePaths, nint fileCount);
+    internal delegate void ClipboardFilesCallback(IntPtr session, uint generation, IntPtr descriptor, nint descriptorSize);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void ClipboardFileContentsCallback(IntPtr session, uint streamId, [MarshalAs(UnmanagedType.I1)] bool ok, IntPtr data, uint size);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate void StatusCallback(IntPtr session, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage);
@@ -152,7 +155,8 @@ internal static class NativeWrapper
             ClipboardFilesCallback clipboardFilesCallback,
             StatusCallback statusCallback,
             CertificateDecisionCallback certificateDecisionCallback,
-            CursorCallback cursorCallback);
+            CursorCallback cursorCallback,
+            ClipboardFileContentsCallback clipboardFileContentsCallback);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_disconnect(IntPtr session);
@@ -180,6 +184,11 @@ internal static class NativeWrapper
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_clipboard_commit_local_files(IntPtr session);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool rdp_session_clipboard_request_remote_file_contents(IntPtr session, uint generation, uint streamId,
+        uint listIndex, [MarshalAs(UnmanagedType.I1)] bool sizeOnly, ulong offset, uint size);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_clipboard_set_local_bitmap(IntPtr session, IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
