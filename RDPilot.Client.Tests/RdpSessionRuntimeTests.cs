@@ -27,13 +27,13 @@ public sealed class RdpSessionRuntimeTests
                     IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                 return new FakeNativeSession(SessionHandle);
             });
-        runtime.StatusReceived += (code, error) =>
+        runtime.StatusReceived += (value, error) =>
         {
-            status = code;
+            status = value;
             Assert.Null(error);
         };
 
-        runtime.Start(CreateRequest());
+        Assert.Null(runtime.Start(CreateRequest()));
 
         Assert.Equal(RdpSessionStatus.Connected, status);
         Assert.Equal((int)CertificateTrustDecision.TrustOnce, certificateDecision);
@@ -82,6 +82,55 @@ public sealed class RdpSessionRuntimeTests
             Marshal.FreeCoTaskMem(text);
             Marshal.FreeCoTaskMem(descriptorPointer);
         }
+    }
+
+    [Fact]
+    public void StatusCallback_MapsNativeCodesAndIgnoresUnknownOnes()
+    {
+        NativeSessionCallbacks? callbacks = null;
+        var statuses = new List<RdpSessionStatus>();
+        using var runtime = new RdpSessionRuntime("saved.example", _ => CertificateTrustDecision.Reject,
+            (_, received) =>
+            {
+                callbacks = received;
+                return new FakeNativeSession(SessionHandle);
+            });
+        runtime.StatusReceived += (status, _) => statuses.Add(status);
+        runtime.Start(CreateRequest());
+
+        foreach (var code in new[] { 1, 0, 3, 2, 9 }) callbacks!.Status(SessionHandle, code, 0, IntPtr.Zero, IntPtr.Zero);
+
+        Assert.Equal([RdpSessionStatus.Connected, RdpSessionStatus.Disconnected, RdpSessionStatus.Failed], statuses);
+    }
+
+    [Fact]
+    public void Operations_ReachNativeOnlyWhileSessionIsLive()
+    {
+        var native = new RecordingNativeSession(SessionHandle);
+        var runtime = new RdpSessionRuntime("saved.example", _ => CertificateTrustDecision.Reject, (_, _) => native);
+
+        Assert.False(runtime.Send(new KeyInput(0, 0x1E)));
+        runtime.Start(CreateRequest());
+        Assert.True(runtime.Send(new KeyInput(0, 0x1E)));
+        Assert.True(runtime.Send(new PointerInput(0x0800, 3, 4)));
+        runtime.OfferBitmap([1, 2, 3], 1, 1);
+        runtime.OfferBitmap([], 1, 1);
+        runtime.Resize(1601, 901);
+
+        runtime.Dispose();
+        Assert.False(runtime.Send(new KeyInput(0, 0x1F)));
+        Assert.False(runtime.Send(new PointerInput(0x0800, 5, 6)));
+        runtime.OfferText("late");
+        runtime.Resize(800, 600);
+        runtime.RequestFullFrame();
+        Assert.Equal(default, runtime.PresentInto(IntPtr.Zero, 0, 0, 0));
+
+        Assert.Equal([((ushort)0, (ushort)0x1E)], native.KeyboardEvents);
+        Assert.Equal([((ushort)0x0800, (ushort)3, (ushort)4)], native.MouseEvents);
+        Assert.Equal([1, 2, 3], Assert.Single(native.ClipboardBitmaps).Data);
+        Assert.Equal((1600, 901, 100u), Assert.Single(native.ResolutionUpdates));
+        Assert.Empty(native.ClipboardTexts);
+        Assert.Equal(0, native.FullFrameCount);
     }
 
     [Fact]
@@ -185,15 +234,10 @@ public sealed class RdpSessionRuntimeTests
         public void SendKeyboardEvent(ushort flags, ushort code) { }
         public void SetLocalClipboardText(string? text) { }
         public void SetLocalClipboardFiles(string[] paths) { }
-        public void SetLocalClipboardBitmap(IntPtr data, nint size, uint width, uint height) { }
+        public void SetLocalClipboardBitmap(byte[] data, uint width, uint height) { }
         public bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size) => false;
         public void RequestFullFrame() { }
-        public bool Present(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY,
-            out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
-        {
-            dirtyX = dirtyY = dirtyWidth = dirtyHeight = fbWidth = fbHeight = 0;
-            return false;
-        }
+        public FramePresentResult Present(IntPtr dest, int destStride, int destWidth, int destHeight) => default;
         public bool CopyCursorImage(uint cursorId, IntPtr dest, int stride, int width, int height) => false;
     }
 }

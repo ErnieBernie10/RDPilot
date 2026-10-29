@@ -11,9 +11,10 @@ internal sealed class SessionTestContext : IDisposable
 {
     internal SessionTestContext(string name = "Test", double scaling = 1,
         Func<RdpCertificatePrompt, CertificateTrustDecision>? decideCertificate = null,
-        Action<NativeSessionCallbacks>? duringConnect = null, bool start = true, IntPtr? handle = null)
+        Action<NativeSessionCallbacks>? duringConnect = null, bool start = true, IntPtr? handle = null,
+        SavedConnection? connection = null)
     {
-        Request = new RdpSessionStartRequest(new SavedConnection { Name = name, Host = "test.example", Username = "user" },
+        Request = new RdpSessionStartRequest(connection ?? new SavedConnection { Name = name, Host = "test.example", Username = "user" },
             "", "", 200, 200, scaling,
             new RdpEffectiveQualitySettings(16, false, false, false, false, false, true, true, RdpConnectionType.Wan));
         Native = new RecordingNativeSession(handle ?? new IntPtr(0x1234));
@@ -42,8 +43,42 @@ internal sealed class SessionTestContext : IDisposable
     internal List<string> ClipboardTexts { get; } = [];
     internal List<RemoteFileOffer> ClipboardFiles { get; } = [];
 
-    internal void ConnectStatus() => AvaloniaTestEnvironment.RunOnUiThread(() =>
-        Callbacks!.Status(Native.Handle, 1, 0, IntPtr.Zero, IntPtr.Zero));
+    internal static RdpSessionViewModel CreateSession(SavedConnection connection, RdpSessionStatus status)
+    {
+        var context = new SessionTestContext(connection: connection);
+        switch (status)
+        {
+            case RdpSessionStatus.Connecting:
+                break;
+            case RdpSessionStatus.Connected:
+                context.ConnectStatus();
+                break;
+            case RdpSessionStatus.Disconnected:
+                context.DisconnectStatus();
+                break;
+            case RdpSessionStatus.Failed:
+                context.FailStatus(1, "FREERDP_ERROR_CONNECT_FAILED", "Connection failed.");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status));
+        }
+        return context.ViewModel;
+    }
+
+    internal void ConnectStatus() => RaiseStatus(1);
+
+    internal void DisconnectStatus() => RaiseStatus(3);
+
+    internal void FailStatus(uint code, string name, string message)
+    {
+        var namePointer = Marshal.StringToCoTaskMemUTF8(name);
+        var messagePointer = Marshal.StringToCoTaskMemUTF8(message);
+        try { RaiseStatus(2, code, namePointer, messagePointer); }
+        finally { Marshal.FreeCoTaskMem(namePointer); Marshal.FreeCoTaskMem(messagePointer); }
+    }
+
+    private void RaiseStatus(int status, uint code = 0, IntPtr name = default, IntPtr message = default) =>
+        AvaloniaTestEnvironment.RunOnUiThread(() => Callbacks!.Status(Native.Handle, status, code, name, message));
 
     public void Dispose() => AvaloniaTestEnvironment.RunOnUiThread(ViewModel.Dispose);
 }
@@ -71,12 +106,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
     public void SendKeyboardEvent(ushort flags, ushort code) => KeyboardEvents.Add((flags, code));
     public void SetLocalClipboardText(string? text) => ClipboardTexts.Add(text ?? "");
     public void SetLocalClipboardFiles(string[] paths) => ClipboardFiles.Add((string[])paths.Clone());
-    public void SetLocalClipboardBitmap(IntPtr data, nint size, uint width, uint height)
-    {
-        var bytes = new byte[checked((int)size)];
-        Marshal.Copy(data, bytes, 0, bytes.Length);
-        ClipboardBitmaps.Add((bytes, width, height));
-    }
+    public void SetLocalClipboardBitmap(byte[] data, uint width, uint height) => ClipboardBitmaps.Add(((byte[])data.Clone(), width, height));
     public bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size)
     {
         if (!AcceptFileContentsRequests) return false;
@@ -84,12 +114,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
         return true;
     }
     public void RequestFullFrame() => FullFrameCount++;
-    public bool Present(IntPtr dest, int stride, int width, int height, out int dirtyX, out int dirtyY,
-        out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
-    {
-        dirtyX = dirtyY = dirtyWidth = dirtyHeight = fbWidth = fbHeight = 0;
-        return false;
-    }
+    public FramePresentResult Present(IntPtr dest, int stride, int width, int height) => default;
     public bool CopyCursorImage(uint cursorId, IntPtr dest, int stride, int width, int height)
     {
         CursorRequests.Add(cursorId);

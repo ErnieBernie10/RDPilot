@@ -607,10 +607,10 @@ public sealed class MainWindowFullscreenTests
     [Fact]
     public void FullscreenTransition_PreservesSelectedSession()
     {
+        var first = SessionTestContext.CreateSession(new SavedConnection { Name = "First" }, RdpSessionStatus.Disconnected);
+        var second = SessionTestContext.CreateSession(new SavedConnection { Name = "Second" }, RdpSessionStatus.Disconnected);
         AvaloniaTestEnvironment.RunOnUiThread(() =>
         {
-            var first = new RdpSessionViewModel(new SavedConnection { Name = "First" }, RdpSessionStatus.Disconnected);
-            var second = new RdpSessionViewModel(new SavedConnection { Name = "Second" }, RdpSessionStatus.Disconnected);
             var viewModel = new MainWindowViewModel();
             viewModel.Sessions.Add(first);
             viewModel.Sessions.Add(second);

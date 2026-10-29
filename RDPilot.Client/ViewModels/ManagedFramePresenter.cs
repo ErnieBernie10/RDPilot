@@ -35,7 +35,7 @@ internal sealed class ManagedFramePresenter : IDisposable
     private double _inputToFrameMaxMs;
     private long _lastReceivedTicks;
 
-    public delegate bool PresentDelegate(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight);
+    public delegate FramePresentResult PresentDelegate(IntPtr dest, int destStride, int destWidth, int destHeight);
 
     public ManagedFramePresenter(string sessionTitle, int width, int height, Action<WriteableBitmap?> setScreen, Action requestRedraw, PresentDelegate present, double renderScaling = 1.0, bool initializeBitmap = true)
     {
@@ -189,9 +189,9 @@ internal sealed class ManagedFramePresenter : IDisposable
                 // and DPI so the next attempt can copy into it.
                 if (screen == null)
                 {
-                    _present(IntPtr.Zero, 0, 0, 0, out _, out _, out _, out _, out int fbW, out int fbH);
-                    if (fbW <= 0 || fbH <= 0) break;
-                    screen = new WriteableBitmap(new PixelSize(fbW, fbH), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+                    var query = _present(IntPtr.Zero, 0, 0, 0);
+                    if (query.FramebufferWidth <= 0 || query.FramebufferHeight <= 0) break;
+                    screen = new WriteableBitmap(new PixelSize(query.FramebufferWidth, query.FramebufferHeight), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
                     _screen = screen;
                     _setScreen(screen);
                 }
@@ -214,20 +214,12 @@ internal sealed class ManagedFramePresenter : IDisposable
                 try
                 {
                     long presentStart = Stopwatch.GetTimestamp();
-                    bool ok = _present(
-                        locked.Address,
-                        locked.RowBytes,
-                        screenDims.Width,
-                        screenDims.Height,
-                        out int dx,
-                        out int dy,
-                        out int dw,
-                        out int dh,
-                        out int fbW,
-                        out int fbH);
+                    var result = _present(locked.Address, locked.RowBytes, screenDims.Width, screenDims.Height);
                     long presentEnd = Stopwatch.GetTimestamp();
+                    int fbW = result.FramebufferWidth;
+                    int fbH = result.FramebufferHeight;
 
-                    if (!ok)
+                    if (!result.Presented)
                     {
                         if (fbW > 0 && fbH > 0 && (fbW != screenDims.Width || fbH != screenDims.Height))
                         {
@@ -239,7 +231,7 @@ internal sealed class ManagedFramePresenter : IDisposable
                     else
                     {
                         copyMs = ElapsedMilliseconds(presentStart, presentEnd);
-                        copiedBytes = (long)dw * dh * 4;
+                        copiedBytes = (long)result.DirtyWidth * result.DirtyHeight * 4;
                         presented = true;
                     }
                 }

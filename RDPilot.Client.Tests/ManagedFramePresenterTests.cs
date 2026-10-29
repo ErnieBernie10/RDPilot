@@ -39,17 +39,10 @@ public sealed class ManagedFramePresenterTests
                 }
             },
             requestRedraw: () => redrawCount++,
-            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            present: (dest, destStride, destWidth, destHeight) =>
             {
                 presentCallCount++;
-                dirtyX = 0;
-                dirtyY = 0;
-                dirtyWidth = 80;
-                dirtyHeight = 40;
-                fbWidth = 80;
-                fbHeight = 40;
-
-                return presentCallCount > 1;
+                return new FramePresentResult(presentCallCount > 1, 0, 0, 80, 40, 80, 40);
             }));
 
         AvaloniaTestEnvironment.RunOnUiThread(() => presenter.EnqueueFrame(80, 40));
@@ -74,16 +67,10 @@ public sealed class ManagedFramePresenterTests
             height: 32,
             setScreen: _ => { },
             requestRedraw: () => redrawCount++,
-            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            present: (dest, destStride, destWidth, destHeight) =>
             {
                 presentCallCount++;
-                dirtyX = 0;
-                dirtyY = 0;
-                dirtyWidth = 64;
-                dirtyHeight = 32;
-                fbWidth = 64;
-                fbHeight = 32;
-                return true;
+                return new FramePresentResult(true, 0, 0, 64, 32, 64, 32);
             }));
 
         AvaloniaTestEnvironment.RunOnUiThread(() =>
@@ -112,16 +99,10 @@ public sealed class ManagedFramePresenterTests
             height: 1,
             setScreen: _ => setScreenCount++,
             requestRedraw: () => redrawCount++,
-            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            present: (dest, destStride, destWidth, destHeight) =>
             {
                 presentCallCount++;
-                dirtyX = 0;
-                dirtyY = 0;
-                dirtyWidth = 0;
-                dirtyHeight = 0;
-                fbWidth = 0;
-                fbHeight = 0;
-                return false;
+                return default;
             },
             initializeBitmap: false));
 
@@ -148,16 +129,10 @@ public sealed class ManagedFramePresenterTests
             height: 32,
             setScreen: screen => screenSizes.Add(screen is null ? null : (screen.PixelSize.Width, screen.PixelSize.Height)),
             requestRedraw: () => redrawCount++,
-            present: (IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight) =>
+            present: (dest, destStride, destWidth, destHeight) =>
             {
                 presentCallCount++;
-                dirtyX = 0;
-                dirtyY = 0;
-                dirtyWidth = 64;
-                dirtyHeight = 32;
-                fbWidth = 64;
-                fbHeight = 32;
-                return dest != IntPtr.Zero;
+                return new FramePresentResult(dest != IntPtr.Zero, 0, 0, 64, 32, 64, 32);
             }));
 
         AvaloniaTestEnvironment.RunOnUiThread(presenter.Suspend);

@@ -65,6 +65,7 @@ public sealed class MainWindowKeyboardGrabTests
     [Fact]
     public void WindowDeactivation_ReleasesTheKeyboardGrab()
     {
+        var session = SessionTestContext.CreateSession(CreateConnection(), RdpSessionStatus.Connected);
         AvaloniaTestEnvironment.RunOnUiThread(() =>
         {
             var window = new MainWindow();
@@ -73,7 +74,6 @@ public sealed class MainWindowKeyboardGrabTests
                 var vm = CreateViewModel();
                 window.DataContext = vm;
                 window.Show();
-                var session = new RdpSessionViewModel(CreateConnection(), RdpSessionStatus.Connected);
                 vm.Sessions.Add(session);
                 vm.SelectedSession = session;
                 session.IsKeyboardGrabbed = true;
@@ -94,6 +94,8 @@ public sealed class MainWindowKeyboardGrabTests
     [Fact]
     public void SwitchingTabs_DoesNotCarryTheGrabToTheNewSession()
     {
+        var first = SessionTestContext.CreateSession(CreateConnection("Alpha"), RdpSessionStatus.Connected);
+        var second = SessionTestContext.CreateSession(CreateConnection("Beta"), RdpSessionStatus.Connected);
         AvaloniaTestEnvironment.RunOnUiThread(() =>
         {
             var window = new MainWindow();
@@ -102,8 +104,6 @@ public sealed class MainWindowKeyboardGrabTests
                 var vm = CreateViewModel();
                 window.DataContext = vm;
                 window.Show();
-                var first = new RdpSessionViewModel(CreateConnection("Alpha"), RdpSessionStatus.Connected);
-                var second = new RdpSessionViewModel(CreateConnection("Beta"), RdpSessionStatus.Connected);
                 vm.Sessions.Add(first);
                 vm.Sessions.Add(second);
                 vm.SelectedSession = first;
