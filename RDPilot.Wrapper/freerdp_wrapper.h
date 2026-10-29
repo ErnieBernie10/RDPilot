@@ -74,7 +74,6 @@ FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_text(rdp_session* sessi
 FREERDP_WRAPPER_API void rdp_session_clipboard_clear_local_files(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_clipboard_add_local_file(rdp_session* session, const char* file_path);
 FREERDP_WRAPPER_API void rdp_session_clipboard_commit_local_files(rdp_session* session);
-FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count);
 /* Queues a CB_FILECONTENTS_REQUEST for file `list_index` of the server clipboard identified by
  * `generation`. `stream_id` is chosen by the caller, must be unique among its outstanding
  * requests, and comes back in ClipboardFileContentsCallback. Returns false when the request was
