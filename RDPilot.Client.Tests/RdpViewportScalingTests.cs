@@ -144,7 +144,7 @@ public sealed class RdpViewportScalingTests
             RenderScaling = request.RenderScaling;
             Width = request.Width;
             Height = request.Height;
-            return new RdpSessionViewModel(request.Connection, RdpSessionStatus.Connected);
+            return SessionTestContext.CreateSession(request.Connection, RdpSessionStatus.Connected);
         }
     }
 

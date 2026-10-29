@@ -22,7 +22,7 @@ public sealed class MainWindowViewModelTests
         var store = new ConnectionStore(secretStore);
         var connection = CreateConnection("Direct Connect");
         await store.SaveAsync(connection, "pw", true, null, false);
-        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connecting);
+        var session = SessionTestContext.CreateSession(connection, RdpSessionStatus.Connecting);
         var vm = new MainWindowViewModel(store, new QueueSessionFactory([session]));
         await vm.LoadConnectionsAsync();
 
@@ -40,8 +40,8 @@ public sealed class MainWindowViewModelTests
         var secrets = new FakeSecretStore();
         var store = new ConnectionStore(secrets);
         var profile = CreateConnection("Duplicate");
-        var first = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
-        var second = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var first = SessionTestContext.CreateSession(profile, RdpSessionStatus.Connecting);
+        var second = SessionTestContext.CreateSession(profile, RdpSessionStatus.Connecting);
         var vm = new MainWindowViewModel(store, new QueueSessionFactory([first, second]));
         await vm.LoadConnectionsAsync();
         vm.SelectedConnection = profile;
@@ -75,9 +75,9 @@ public sealed class MainWindowViewModelTests
         var secrets = new FakeSecretStore();
         var store = new ConnectionStore(secrets);
         var profile = CreateConnection("Closing");
-        var old = new RdpSessionViewModel(profile, RdpSessionStatus.Failed);
-        var neighbor = new RdpSessionViewModel(CreateConnection("Neighbor"), RdpSessionStatus.Connected);
-        var replacement = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var old = SessionTestContext.CreateSession(profile, RdpSessionStatus.Failed);
+        var neighbor = SessionTestContext.CreateSession(CreateConnection("Neighbor"), RdpSessionStatus.Connected);
+        var replacement = SessionTestContext.CreateSession(profile, RdpSessionStatus.Connecting);
         var vm = new MainWindowViewModel(store, new QueueSessionFactory([old, neighbor, replacement]));
         await vm.LoadConnectionsAsync();
         vm.SelectedConnection = profile;
@@ -102,9 +102,9 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secrets = new FakeSecretStore();
         var profile = CreateConnection("Reconnect Background");
-        var old = new RdpSessionViewModel(profile, RdpSessionStatus.Failed);
-        var neighbor = new RdpSessionViewModel(CreateConnection("Active"), RdpSessionStatus.Connected);
-        var replacement = new RdpSessionViewModel(profile, RdpSessionStatus.Connecting);
+        var old = SessionTestContext.CreateSession(profile, RdpSessionStatus.Failed);
+        var neighbor = SessionTestContext.CreateSession(CreateConnection("Active"), RdpSessionStatus.Connected);
+        var replacement = SessionTestContext.CreateSession(profile, RdpSessionStatus.Connecting);
         var vm = new MainWindowViewModel(new ConnectionStore(secrets), new QueueSessionFactory([old, neighbor, replacement]));
         await vm.LoadConnectionsAsync();
         vm.SelectedConnection = profile;
@@ -160,7 +160,7 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Grabbable"), RdpSessionStatus.Connected)]);
+        var factory = new QueueSessionFactory([SessionTestContext.CreateSession(CreateConnection("Grabbable"), RdpSessionStatus.Connected)]);
         var vm = new MainWindowViewModel(store, factory);
         await vm.LoadConnectionsAsync();
         await ConnectAsync(vm, CreateConnection("Grabbable"), secretStore);
@@ -181,7 +181,7 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Ungrabbable"), RdpSessionStatus.Connected)]);
+        var factory = new QueueSessionFactory([SessionTestContext.CreateSession(CreateConnection("Ungrabbable"), RdpSessionStatus.Connected)]);
         var vm = new MainWindowViewModel(store, factory);
         await vm.LoadConnectionsAsync();
         await ConnectAsync(vm, CreateConnection("Ungrabbable"), secretStore);
@@ -220,7 +220,10 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var factory = new QueueSessionFactory([new RdpSessionViewModel(CreateConnection("Not Live"), RdpSessionStatus.Connected)]);
+        using var context = new SessionTestContext(connection: CreateConnection("Not Live"));
+        context.ConnectStatus();
+        context.Dispose();
+        var factory = new QueueSessionFactory([context.ViewModel]);
         var vm = new MainWindowViewModel(store, factory);
         await vm.LoadConnectionsAsync();
         await ConnectAsync(vm, CreateConnection("Not Live"), secretStore);
@@ -241,8 +244,8 @@ public sealed class MainWindowViewModelTests
         var factory = new QueueSessionFactory(
             new[]
             {
-                new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected),
-                new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected)
+                SessionTestContext.CreateSession(CreateConnection("One"), RdpSessionStatus.Connected),
+                SessionTestContext.CreateSession(CreateConnection("Two"), RdpSessionStatus.Connected)
             });
 
         var vm = new MainWindowViewModel(store, factory);
@@ -270,8 +273,8 @@ public sealed class MainWindowViewModelTests
         var factory = new QueueSessionFactory(
             new[]
             {
-                new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected),
-                new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected)
+                SessionTestContext.CreateSession(CreateConnection("One"), RdpSessionStatus.Connected),
+                SessionTestContext.CreateSession(CreateConnection("Two"), RdpSessionStatus.Connected)
             });
 
         var vm = new MainWindowViewModel(store, factory);
@@ -297,9 +300,8 @@ public sealed class MainWindowViewModelTests
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
         var originalConnection = CreateConnection("Reconnect Me");
-        var oldSession = new RdpSessionViewModel(originalConnection, RdpSessionStatus.Failed,
-            new RdpSessionError(1, "FREERDP_ERROR_CONNECT_FAILED", "Connection failed.", RdpSessionErrorKind.TimeoutOrTransport));
-        var replacement = new RdpSessionViewModel(originalConnection, RdpSessionStatus.Connecting);
+        var oldSession = SessionTestContext.CreateSession(originalConnection, RdpSessionStatus.Failed);
+        var replacement = SessionTestContext.CreateSession(originalConnection, RdpSessionStatus.Connecting);
         var factory = new QueueSessionFactory(new[] { replacement });
 
         var vm = new MainWindowViewModel(store, factory);
@@ -318,14 +320,13 @@ public sealed class MainWindowViewModelTests
     [Fact]
     public void SessionStatus_UpdatesDisconnectAndReconnectState()
     {
-        var connection = CreateConnection("State Test");
-        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connecting);
+        using var context = new SessionTestContext(connection: CreateConnection("State Test"));
+        var session = context.ViewModel;
 
         Assert.True(session.CanDisconnect);
         Assert.False(session.CanReconnect);
 
-        session.SetTestStatus(RdpSessionStatus.Failed,
-            new RdpSessionError(1, "FREERDP_ERROR_CONNECT_FAILED", "Connection failed.", RdpSessionErrorKind.TimeoutOrTransport));
+        context.FailStatus(1, "FREERDP_ERROR_CONNECT_FAILED", "Connection failed.");
 
         Assert.False(session.CanDisconnect);
         Assert.True(session.CanReconnect);
@@ -501,7 +502,7 @@ public sealed class MainWindowViewModelTests
             FontSmoothing = false,
             BitmapCache = false
         };
-        var session = new RdpSessionViewModel(connection, RdpSessionStatus.Connected);
+        var session = SessionTestContext.CreateSession(connection, RdpSessionStatus.Connected);
         var factory = new QueueSessionFactory(new[] { session });
         var vm = new MainWindowViewModel(store, settingsStore, factory);
         await vm.LoadConnectionsAsync();
@@ -526,27 +527,27 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
-        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
-        var factory = new QueueSessionFactory(new[] { first, second });
+        using var first = new SessionTestContext(connection: CreateConnection("One"));
+        using var second = new SessionTestContext(connection: CreateConnection("Two"));
+        first.ConnectStatus();
+        second.ConnectStatus();
+        var factory = new QueueSessionFactory(new[] { first.ViewModel, second.ViewModel });
 
         var vm = new MainWindowViewModel(store, factory);
         await vm.LoadConnectionsAsync();
 
-        await ConnectAsync(vm, first.Connection, secretStore);
-        await ConnectAsync(vm, second.Connection, secretStore);
-        vm.SelectedSession = first;
+        await ConnectAsync(vm, first.ViewModel.Connection, secretStore);
+        await ConnectAsync(vm, second.ViewModel.Connection, secretStore);
+        vm.SelectedSession = first.ViewModel;
 
-        first.SetTestStatus(RdpSessionStatus.Disconnected);
+        first.DisconnectStatus();
 
         Assert.False(vm.IsConnected);
         Assert.False(vm.SelectedSessionCanDisconnect);
         Assert.True(vm.SelectedSessionCanReconnect);
         Assert.Equal("Disconnected from One.", vm.StatusMessage);
 
-        second.SetTestStatus(
-            RdpSessionStatus.Failed,
-            new RdpSessionError(1, "FREERDP_ERROR_CONNECT_FAILED", "background failure", RdpSessionErrorKind.TimeoutOrTransport));
+        second.FailStatus(1, "FREERDP_ERROR_CONNECT_FAILED", "background failure");
 
         Assert.False(vm.IsConnected);
         Assert.False(vm.SelectedSessionCanDisconnect);
@@ -560,8 +561,8 @@ public sealed class MainWindowViewModelTests
         using var env = new TestConfigHome();
         var secretStore = new FakeSecretStore();
         var store = new ConnectionStore(secretStore);
-        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
-        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var first = SessionTestContext.CreateSession(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = SessionTestContext.CreateSession(CreateConnection("Two"), RdpSessionStatus.Connected);
         var factory = new QueueSessionFactory(new[] { first, second });
 
         var vm = new MainWindowViewModel(store, factory);

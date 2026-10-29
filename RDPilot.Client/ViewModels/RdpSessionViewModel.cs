@@ -94,26 +94,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Status = error == null ? RdpSessionStatus.Connecting : RdpSessionStatus.Failed;
     }
 
-    internal RdpSessionViewModel(
-        SavedConnection connection,
-        RdpSessionStatus status,
-        RdpSessionError? error = null)
-    {
-        _runtime = new RdpSessionRuntime(connection.Host, static _ => CertificateTrustDecision.Reject);
-        Connection = connection.Clone();
-        Title = connection.Name;
-        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), _runtime.PresentInto, initializeBitmap: false);
-        _cursorCache = new RemoteCursorCache(_runtime.CopyCursor);
-        LastError = error;
-        Status = status;
-    }
-
-    internal void SetTestStatus(RdpSessionStatus status, RdpSessionError? error = null)
-    {
-        LastError = error;
-        Status = status;
-    }
-
     public SavedConnection Connection { get; }
     public string Title { get; }
     public string StatusText => Status switch
