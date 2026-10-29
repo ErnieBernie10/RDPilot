@@ -198,11 +198,11 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
-    public void UpdateResolution_ForwardsNormalizedDimensionsAndConnectTimeDpiScale()
+    public void UpdateResolution_ForwardsNormalizedDimensions()
     {
         using var context = new SessionTestContext(scaling: 1.5);
         AvaloniaTestEnvironment.RunOnUiThread(() => context.ViewModel.UpdateResolution(1601, 901, 2));
-        Assert.Equal((1600, 901, 150u), Assert.Single(context.Native.ResolutionUpdates));
+        Assert.Equal((1600, 901), Assert.Single(context.Native.ResolutionUpdates));
     }
 
     [Fact]

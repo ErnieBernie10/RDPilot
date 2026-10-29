@@ -128,7 +128,7 @@ public sealed class RdpSessionRuntimeTests
         Assert.Equal([((ushort)0, (ushort)0x1E)], native.KeyboardEvents);
         Assert.Equal([((ushort)0x0800, (ushort)3, (ushort)4)], native.MouseEvents);
         Assert.Equal([1, 2, 3], Assert.Single(native.ClipboardBitmaps).Data);
-        Assert.Equal((1600, 901, 100u), Assert.Single(native.ResolutionUpdates));
+        Assert.Equal((1600, 901), Assert.Single(native.ResolutionUpdates));
         Assert.Empty(native.ClipboardTexts);
         Assert.Equal(0, native.FullFrameCount);
     }
@@ -229,7 +229,7 @@ public sealed class RdpSessionRuntimeTests
         public int FreeCount { get; private set; }
         public void Free() => FreeCount++;
         public void Disconnect() { }
-        public void UpdateResolution(int width, int height, uint dpiScalePercent) { }
+        public void UpdateResolution(int width, int height) { }
         public void SendMouseEvent(ushort flags, ushort x, ushort y) { }
         public void SendKeyboardEvent(ushort flags, ushort code) { }
         public void SetLocalClipboardText(string? text) { }

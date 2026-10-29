@@ -116,11 +116,9 @@ bool wrapper_display_process_pending(rdp_session* session)
     return true;
 }
 
-void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent)
+void rdp_session_update_resolution(rdp_session* session, int width, int height)
 {
     if (!session || width <= 0 || height <= 0) return;
-    /* DPI stays locked at connect time; managed debounce chooses when this target arrives. */
-    (void)dpi_scale_percent;
     EnterCriticalSection(&session->resize_lock);
     if ((UINT32)width != session->target_width || (UINT32)height != session->target_height)
     {

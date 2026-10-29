@@ -165,7 +165,7 @@ internal static class NativeWrapper
     internal static extern void rdp_session_free(IntPtr session);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rdp_session_update_resolution(IntPtr session, int width, int height, uint dpiScalePercent);
+    internal static extern void rdp_session_update_resolution(IntPtr session, int width, int height);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void rdp_session_send_mouse_event(IntPtr session, ushort flags, ushort x, ushort y);

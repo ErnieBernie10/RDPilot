@@ -21,7 +21,6 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
     private int _initializing;
     private int _disposeStarted;
     private bool _started;
-    private uint _dpiScalePercent = 100;
     private readonly string _host;
 
     internal RdpSessionRuntime(string host, Func<RdpCertificatePrompt, CertificateTrustDecision> decideCertificate,
@@ -50,7 +49,6 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         {
             if (_started || IsDisposeStarted) throw new InvalidOperationException("This runtime cannot be started again.");
             _started = true;
-            _dpiScalePercent = request.DpiScalePercent;
             Volatile.Write(ref _initializing, 1);
         }
         try
@@ -117,7 +115,7 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         var session = ActiveSession;
         if (session == null || width <= 0 || height <= 0) return;
         (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
-        session.UpdateResolution(width, height, _dpiScalePercent);
+        session.UpdateResolution(width, height);
     }
 
     internal void RequestFullFrame() => ActiveSession?.RequestFullFrame();

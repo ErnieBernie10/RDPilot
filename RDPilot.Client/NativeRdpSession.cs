@@ -10,7 +10,7 @@ internal interface INativeRdpSession
 
     void Disconnect();
     void Free();
-    void UpdateResolution(int width, int height, uint dpiScalePercent);
+    void UpdateResolution(int width, int height);
     void SendMouseEvent(ushort flags, ushort x, ushort y);
     void SendKeyboardEvent(ushort flags, ushort code);
     void SetLocalClipboardText(string? text);
@@ -78,8 +78,8 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public void Free() => NativeWrapper.rdp_session_free(Handle);
 
-    public void UpdateResolution(int width, int height, uint dpiScalePercent) =>
-        NativeWrapper.rdp_session_update_resolution(Handle, width, height, dpiScalePercent);
+    public void UpdateResolution(int width, int height) =>
+        NativeWrapper.rdp_session_update_resolution(Handle, width, height);
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y) =>
         NativeWrapper.rdp_session_send_mouse_event(Handle, flags, x, y);

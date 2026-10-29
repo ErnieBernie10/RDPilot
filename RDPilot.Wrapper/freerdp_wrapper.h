@@ -67,7 +67,7 @@ FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const cha
                                                      CursorCallback cursor_callback, ClipboardFileContentsCallback clipboard_file_contents_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);
-FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent);
+FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height);
 FREERDP_WRAPPER_API void rdp_session_send_mouse_event(rdp_session* session, uint16_t flags, uint16_t x, uint16_t y);
 FREERDP_WRAPPER_API void rdp_session_send_keyboard_event(rdp_session* session, uint16_t flags, uint16_t code);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text);
