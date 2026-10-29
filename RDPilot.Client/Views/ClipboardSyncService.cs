@@ -1,5 +1,6 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
-using Avalonia.Media.Imaging;
+using System.Security.Cryptography;
 
 namespace RDPilot.Client.Views;
 
@@ -81,9 +82,9 @@ internal sealed class ClipboardSyncService
         return TryRememberSignature(signature);
     }
 
-    public bool TryRememberBitmap(Bitmap bitmap, out string signature)
+    public bool TryRememberBitmap(byte[] dib, out string signature)
     {
-        signature = $"bitmap:{bitmap.PixelSize.Width}x{bitmap.PixelSize.Height}:{bitmap.Format}:{bitmap.AlphaFormat}";
+        signature = $"bitmap:{Convert.ToHexString(SHA256.HashData(dib))}";
         return TryRememberSignature(signature);
     }
 

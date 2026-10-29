@@ -287,10 +287,10 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
             var bitmap = await data.TryGetBitmapAsync();
             if (!IsCurrent(session, generation) || !_sync.ShouldPollLocalClipboard) return;
             _readErrorReported = false;
-            if (bitmap != null && _sync.TryRememberBitmap(bitmap, out _))
+            if (bitmap != null)
             {
                 var dib = _convertBitmapToDib(bitmap);
-                if (dib != null)
+                if (dib != null && _sync.TryRememberBitmap(dib, out _))
                 {
                     CancelDownload();
                     session.SetLocalClipboardBitmap(dib, (uint)bitmap.PixelSize.Width, (uint)bitmap.PixelSize.Height);
