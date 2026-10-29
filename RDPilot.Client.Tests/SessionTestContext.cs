@@ -25,7 +25,7 @@ internal sealed class SessionTestContext : IDisposable
                 duringConnect?.Invoke(callbacks);
                 return Native;
             });
-        ViewModel = AvaloniaTestEnvironment.RunOnUiThread(() =>
+        ViewModel =AvaloniaTestEnvironment.RunOnUiThread(() =>
         {
             var viewModel = new RdpSessionViewModel(Request, Runtime);
             viewModel.RemoteClipboardTextReceived += (_, text) => ClipboardTexts.Add(text);

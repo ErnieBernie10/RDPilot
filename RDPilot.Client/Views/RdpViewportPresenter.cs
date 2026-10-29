@@ -1,18 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
-using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
-internal sealed class RdpViewportPresenter : IDisposable
+internal sealed class RdpViewportPresenter
 {
     private readonly Func<MainWindowViewModel?> _getViewModel;
     private readonly Func<Size> _getViewportSize;
@@ -20,7 +14,6 @@ internal sealed class RdpViewportPresenter : IDisposable
     private readonly ViewportResolutionService _viewportResolutionService;
     private readonly ViewportResolutionUpdateScheduler _viewportResolutionUpdateScheduler;
     private readonly PointerInputSender _pointerInput;
-    private readonly ViewportClipboardCoordinator _clipboard;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly HashSet<ushort> _pressedGrabbedScancodes = new();
     private bool _rdpKeyboardActive;
@@ -29,13 +22,9 @@ internal sealed class RdpViewportPresenter : IDisposable
 
     public RdpViewportPresenter(
         Func<MainWindowViewModel?> getViewModel,
-        Func<IClipboard?> getClipboard,
-        Func<string[], Task<IStorageItem[]>> createStorageItems,
         Func<Size> getViewportSize,
         Action invalidateViewport,
-        Func<Bitmap, byte[]?> convertBitmapToDib,
         ViewportResolutionService viewportResolutionService,
-        ClipboardSyncService clipboardSyncService,
         ViewportResolutionUpdateScheduler viewportResolutionUpdateScheduler,
         PointerInputSender pointerInput)
     {
@@ -43,8 +32,6 @@ internal sealed class RdpViewportPresenter : IDisposable
         _getViewportSize = getViewportSize;
         _invalidateViewport = invalidateViewport;
         _viewportResolutionService = viewportResolutionService;
-        _clipboard = new ViewportClipboardCoordinator(getViewModel, getClipboard, createStorageItems, convertBitmapToDib, clipboardSyncService,
-            OperatingSystem.IsWindows() ? new WindowsVirtualFileClipboard() : null);
         _viewportResolutionUpdateScheduler = viewportResolutionUpdateScheduler;
         _pointerInput = pointerInput;
     }
@@ -53,16 +40,6 @@ internal sealed class RdpViewportPresenter : IDisposable
     {
         _invalidateViewport();
     }
-
-    public Task PollClipboardAsync() => _clipboard.PollClipboardAsync();
-
-    public void StartClipboardPolling() => _clipboard.Start();
-
-    public void StopClipboardPolling() => _clipboard.Stop();
-
-    public void ClipboardSessionChanged() => _clipboard.SessionChanged();
-
-    public void Dispose() => _clipboard.Dispose();
 
     public void HandleScaleChanged(double scale, bool isMinimized)
     {

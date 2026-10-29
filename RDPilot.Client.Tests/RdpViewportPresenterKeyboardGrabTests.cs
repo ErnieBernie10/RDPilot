@@ -126,16 +126,11 @@ public sealed class RdpViewportPresenterKeyboardGrabTests : IDisposable
 
         var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new RdpViewportPresenter(
             () => vm,
-            () => null,
-            _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
             () => new Size(1280, 720),
             () => { },
-            _ => null,
             new ViewportResolutionService(),
-            new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(),
             new PointerInputSender(() => vm.SelectedSession)));
-        _owned.Add(presenter);
 
         return (presenter, nativeSession.KeyboardEvents, new object());
     }

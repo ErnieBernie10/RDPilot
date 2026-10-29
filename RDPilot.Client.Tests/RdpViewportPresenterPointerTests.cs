@@ -65,16 +65,11 @@ public sealed class RdpViewportPresenterPointerTests : IDisposable
 
         var presenter = AvaloniaTestEnvironment.RunOnUiThread(() => new RdpViewportPresenter(
             () => vm,
-            () => null,
-            _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
             () => new Size(1280, 720),
             () => { },
-            _ => null,
             new ViewportResolutionService(),
-            new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(),
             new PointerInputSender(() => vm.SelectedSession, _posted.Enqueue, TimeSpan.FromSeconds(10))));
-        _owned.Add(presenter);
 
         return (presenter, context.Native.MouseEvents);
     }

@@ -1,106 +1,101 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
-namespace RDPilot.Client.Views;
+namespace RDPilot.Client.Services;
 
 /// <summary>Synchronizes the selected session with the host clipboard and owns its polling lifetime.</summary>
-internal sealed class ViewportClipboardCoordinator : IDisposable
+internal sealed class ClipboardSync : IDisposable
 {
-    private readonly Func<MainWindowViewModel?> _getViewModel;
     private readonly Func<IClipboard?> _getClipboard;
     private readonly Func<string[], Task<IStorageItem[]>> _createStorageItems;
     private readonly Func<Bitmap, byte[]?> _convertBitmapToDib;
-    private readonly ClipboardSyncService _sync;
     private readonly IRemoteFileClipboard? _remoteFiles;
     private readonly Func<RemoteFileOffer, CancellationToken, Task<string[]>> _downloadFiles;
-    private CancellationTokenSource? _download;
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private ISelectedSessionSource? _source;
+    private RdpSessionViewModel? _session;
+    private CancellationTokenSource? _download;
+    private string? _lastSignature;
+    private int _remoteUpdatesInProgress;
+    private int _emptyReads;
     private bool _polling;
     private bool _readErrorReported;
     private string? _lastInvalidFilePath;
     private int _generation;
     private bool _attached;
     private bool _disposed;
-    private MainWindowViewModel? _subscribedViewModel;
-    private RdpSessionViewModel? _subscribedSession;
 
-    internal ViewportClipboardCoordinator(Func<MainWindowViewModel?> getViewModel, Func<IClipboard?> getClipboard,
-        Func<string[], Task<IStorageItem[]>> createStorageItems, Func<Bitmap, byte[]?> convertBitmapToDib,
-        ClipboardSyncService sync, IRemoteFileClipboard? remoteFiles = null,
+    internal ClipboardSync(Func<IClipboard?> getClipboard, Func<string[], Task<IStorageItem[]>> createStorageItems,
+        Func<Bitmap, byte[]?> convertBitmapToDib, IRemoteFileClipboard? remoteFiles = null,
         Func<RemoteFileOffer, CancellationToken, Task<string[]>>? downloadFiles = null)
     {
-        _getViewModel = getViewModel;
         _getClipboard = getClipboard;
         _createStorageItems = createStorageItems;
         _convertBitmapToDib = convertBitmapToDib;
-        _sync = sync;
         _remoteFiles = remoteFiles;
         _downloadFiles = downloadFiles ?? ((offer, token) => RemoteFileDownloader.DownloadAsync(offer, AppDataPaths.ClipboardCacheDirectory, token));
         _pollTimer.Tick += OnPollTimerTick;
+    }
+
+    private bool ShouldPollLocalClipboard => _remoteUpdatesInProgress == 0;
+
+    internal void UseSource(ISelectedSessionSource? source)
+    {
+        if (!ReferenceEquals(source, _source))
+        {
+            if (_source != null) _source.SelectedSessionChanged -= OnSelectedSessionChanged;
+            _source = source;
+            if (source != null) source.SelectedSessionChanged += OnSelectedSessionChanged;
+        }
+        SelectionChanged();
     }
 
     internal void Start()
     {
         if (_disposed) return;
         _attached = true;
-        SubscribeViewModel();
-        SubscribeSession(_getViewModel()?.SelectedSession);
+        SelectionChanged();
         _pollTimer.Start();
     }
 
     internal void Stop()
     {
         _attached = false;
-        _generation++;
-        CancelDownload();
+        SelectionChanged();
         _pollTimer.Stop();
-        if (_subscribedViewModel != null)
-        {
-            _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-            _subscribedViewModel = null;
-        }
-        SubscribeSession(null);
-        _sync.UseSession(null);
     }
 
-    internal void SessionChanged()
+    private void OnSelectedSessionChanged(object? sender, EventArgs e) => SelectionChanged();
+
+    private void SelectionChanged()
     {
         _generation++;
         CancelDownload();
-        SubscribeViewModel();
-        var session = _attached && !_disposed ? _getViewModel()?.SelectedSession : null;
-        SubscribeSession(session);
-        _sync.UseSession(session);
-    }
-
-    private void SubscribeSession(RdpSessionViewModel? session)
-    {
-        if (ReferenceEquals(session, _subscribedSession)) return;
-        if (_subscribedSession != null)
+        var session = _attached && !_disposed ? _source?.SelectedSession : null;
+        if (ReferenceEquals(session, _session)) return;
+        if (_session != null)
         {
-            _subscribedSession.RemoteClipboardTextReceived -= OnRemoteTextReceived;
-            _subscribedSession.RemoteClipboardFilesReceived -= OnRemoteFilesReceived;
+            _session.RemoteClipboardTextReceived -= OnRemoteTextReceived;
+            _session.RemoteClipboardFilesReceived -= OnRemoteFilesReceived;
         }
-        _subscribedSession = session;
+        _session = session;
         if (session != null)
         {
             session.RemoteClipboardTextReceived += OnRemoteTextReceived;
             session.RemoteClipboardFilesReceived += OnRemoteFilesReceived;
         }
+        ClearSignature();
     }
 
     private void OnRemoteTextReceived(object? sender, string text)
@@ -113,25 +108,10 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         if (sender is RdpSessionViewModel session) Dispatcher.UIThread.Post(() => _ = HandleRemoteFileOfferAsync(session, offer));
     }
 
-    private void SubscribeViewModel()
-    {
-        var viewModel = _attached ? _getViewModel() : null;
-        if (ReferenceEquals(viewModel, _subscribedViewModel)) return;
-        if (_subscribedViewModel != null) _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        _subscribedViewModel = viewModel;
-        if (viewModel != null) viewModel.PropertyChanged += OnViewModelPropertyChanged;
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(MainWindowViewModel.SelectedSession)) SessionChanged();
-    }
-
     private void OnPollTimerTick(object? sender, EventArgs e) => _ = PollClipboardAsync();
 
     private bool IsCurrent(RdpSessionViewModel session, int generation) =>
-        !_disposed && _attached && generation == _generation &&
-        ReferenceEquals(session, _getViewModel()?.SelectedSession);
+        generation == _generation && ReferenceEquals(session, _session);
 
     internal async Task HandleRemoteTextAsync(RdpSessionViewModel session, string text)
     {
@@ -140,18 +120,17 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         try
         {
             _generation++;
-            _sync.UseSession(session);
-            _sync.BeginRemoteTextUpdate(text);
+            BeginRemoteUpdate(TextSignature(text));
             await clipboard.SetTextAsync(text);
         }
         catch (Exception ex)
         {
-            _sync.ClearSignature();
+            ClearSignature();
             Trace.TraceWarning("Unable to set remote clipboard text: {0}", ex);
         }
         finally
         {
-            _sync.EndRemoteUpdate();
+            EndRemoteUpdate();
         }
     }
 
@@ -161,17 +140,16 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         CancelDownload();
         _generation++;
         var generation = _generation;
-        _sync.UseSession(session);
         if (_remoteFiles != null)
         {
-            _sync.BeginRemoteUpdate();
+            BeginRemoteUpdate(null);
             try
             {
                 if (await _remoteFiles.OfferAsync(offer)) return;
             }
             finally
             {
-                _sync.EndRemoteUpdate();
+                EndRemoteUpdate();
             }
             Trace.TraceWarning("Unable to offer remote clipboard files as virtual files; downloading them instead.");
             if (!IsCurrent(session, generation)) return;
@@ -195,7 +173,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
             download.Dispose();
         }
 
-        if (IsCurrent(session, generation)) await HandleRemoteFilesAsync(session, paths);
+        if (IsCurrent(session, generation)) await PublishRemoteFilesAsync(session, paths);
     }
 
     private void CancelDownload()
@@ -205,16 +183,15 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         download?.Cancel();
     }
 
-    internal async Task HandleRemoteFilesAsync(RdpSessionViewModel session, string[] paths)
+    private async Task PublishRemoteFilesAsync(RdpSessionViewModel session, string[] paths)
     {
-        if (paths.Length == 0 || !IsCurrent(session, _generation) || _getClipboard() is not { } clipboard) return;
+        if (paths.Length == 0 || _getClipboard() is not { } clipboard) return;
         IStorageItem[]? items = null;
         try
         {
             _generation++;
             var generation = _generation;
-            _sync.UseSession(session);
-            _sync.BeginRemoteFilesUpdate(paths);
+            BeginRemoteUpdate(FilesSignature(paths));
             items = await _createStorageItems(paths);
             if (!IsCurrent(session, generation))
             {
@@ -227,44 +204,43 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         catch (Exception ex)
         {
             if (items != null) foreach (var item in items) item.Dispose();
-            _sync.ClearSignature();
+            ClearSignature();
             Trace.TraceWarning("Unable to set remote clipboard files: {0}", ex);
         }
         finally
         {
-            _sync.EndRemoteUpdate();
+            EndRemoteUpdate();
         }
     }
 
     internal async Task PollClipboardAsync()
     {
-        var session = _getViewModel()?.SelectedSession;
+        var session = _session;
         if (session?.IsConnected != true)
         {
-            _sync.UseSession(null);
+            ClearSignature();
             return;
         }
 
-        _sync.UseSession(session);
         var clipboard = _getClipboard();
-        if (_polling || !_sync.ShouldPollLocalClipboard || clipboard == null || !_attached || _remoteFiles?.OwnsClipboard == true) return;
+        if (_polling || !ShouldPollLocalClipboard || clipboard == null || _remoteFiles?.OwnsClipboard == true) return;
 
         _polling = true;
         var generation = _generation;
         try
         {
             var data = await clipboard.TryGetDataAsync();
-            if (!IsCurrent(session, generation) || !_sync.ShouldPollLocalClipboard) return;
+            if (!IsCurrent(session, generation) || !ShouldPollLocalClipboard) return;
             if (data == null)
             {
                 _readErrorReported = false;
                 // Announcing an empty clipboard takes ownership away from the server and fails a download in progress.
-                if (_download == null && _sync.ObserveEmptyClipboard()) session.SetLocalClipboardText("");
+                if (_download == null && ObserveEmptyClipboard()) session.SetLocalClipboardText("");
                 return;
             }
 
             var files = await data.TryGetFilesAsync();
-            if (!IsCurrent(session, generation) || !_sync.ShouldPollLocalClipboard)
+            if (!IsCurrent(session, generation) || !ShouldPollLocalClipboard)
             {
                 if (files != null) foreach (var item in files) item.Dispose();
                 return;
@@ -293,7 +269,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
                 if (paths.Count > 0)
                 {
                     _readErrorReported = false;
-                    if (_sync.TryRememberFiles(paths.ToArray(), out _))
+                    if (Remember(FilesSignature(paths.ToArray())))
                     {
                         CancelDownload();
                         session.SetLocalClipboardFiles(paths.ToArray());
@@ -303,11 +279,11 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
             }
 
             var text = await data.TryGetTextAsync();
-            if (!IsCurrent(session, generation) || !_sync.ShouldPollLocalClipboard) return;
+            if (!IsCurrent(session, generation) || !ShouldPollLocalClipboard) return;
             if (!string.IsNullOrEmpty(text))
             {
                 _readErrorReported = false;
-                if (_sync.TryRememberText(text, out _))
+                if (Remember(TextSignature(text)))
                 {
                     CancelDownload();
                     session.SetLocalClipboardText(text);
@@ -316,12 +292,12 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
             }
 
             var bitmap = await data.TryGetBitmapAsync();
-            if (!IsCurrent(session, generation) || !_sync.ShouldPollLocalClipboard) return;
+            if (!IsCurrent(session, generation) || !ShouldPollLocalClipboard) return;
             _readErrorReported = false;
             if (bitmap != null)
             {
                 var dib = _convertBitmapToDib(bitmap);
-                if (dib != null && _sync.TryRememberBitmap(dib, out _))
+                if (dib != null && Remember(BitmapSignature(dib)))
                 {
                     CancelDownload();
                     session.SetLocalClipboardBitmap(dib, (uint)bitmap.PixelSize.Width, (uint)bitmap.PixelSize.Height);
@@ -329,7 +305,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
                 return;
             }
 
-            if (bitmap == null && _download == null && _sync.ObserveEmptyClipboard()) session.SetLocalClipboardText("");
+            if (bitmap == null && _download == null && ObserveEmptyClipboard()) session.SetLocalClipboardText("");
         }
         catch (Exception ex)
         {
@@ -345,11 +321,52 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         }
     }
 
+    private void BeginRemoteUpdate(string? signature)
+    {
+        _remoteUpdatesInProgress++;
+        _lastSignature = signature;
+        _emptyReads = 0;
+    }
+
+    private void EndRemoteUpdate()
+    {
+        if (_remoteUpdatesInProgress > 0) _remoteUpdatesInProgress--;
+    }
+
+    private bool ClearSignature()
+    {
+        _emptyReads = 0;
+        if (_lastSignature == null) return false;
+        _lastSignature = null;
+        return true;
+    }
+
+    private bool ObserveEmptyClipboard()
+    {
+        // Clipboard reads can briefly return empty while another application owns it.
+        if (++_emptyReads < 2) return false;
+        return ClearSignature();
+    }
+
+    private bool Remember(string signature)
+    {
+        _emptyReads = 0;
+        if (signature == _lastSignature) return false;
+        _lastSignature = signature;
+        return true;
+    }
+
+    private static string TextSignature(string text) => $"text:{text}";
+    private static string FilesSignature(string[] filePaths) => $"files:{string.Join("\n", filePaths)}";
+    private static string BitmapSignature(byte[] dib) => $"bitmap:{Convert.ToHexString(SHA256.HashData(dib))}";
+
     public void Dispose()
     {
         if (_disposed) return;
         Stop();
         _disposed = true;
+        if (_source != null) _source.SelectedSessionChanged -= OnSelectedSessionChanged;
+        _source = null;
         _pollTimer.Tick -= OnPollTimerTick;
         _remoteFiles?.Dispose();
     }
