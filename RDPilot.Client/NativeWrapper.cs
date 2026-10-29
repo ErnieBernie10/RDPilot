@@ -1,9 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -44,31 +41,6 @@ internal static class NativeWrapper
         }
 
         return AppContext.BaseDirectory;
-    }
-
-    public static string ResolveDirectConnectHost(string host)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return host;
-        }
-
-        if (IPAddress.TryParse(host, out _))
-        {
-            return host;
-        }
-
-        try
-        {
-            var addresses = Dns.GetHostAddresses(host);
-            return addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetwork)?.ToString()
-                ?? addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetworkV6)?.ToString()
-                ?? host;
-        }
-        catch (SocketException)
-        {
-            return host;
-        }
     }
 
     public static uint GetCurrentKeyboardLayout()
@@ -123,33 +95,41 @@ internal static class NativeWrapper
         IntPtr previousIssuer,
         IntPtr previousFingerprint);
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RdpSessionConfig
+    {
+        public uint Size;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? Host;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? ConnectHost;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? Domain;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? User;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? Password;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? GatewayHost;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? GatewayDomain;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? GatewayUser;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string? GatewayPassword;
+        public ushort Port;
+        public int Width;
+        public int Height;
+        public int ColorDepth;
+        public uint ConnectionType;
+        public uint KeyboardLayout;
+        public uint DesktopScalePercent;
+        public uint DeviceScalePercent;
+        [MarshalAs(UnmanagedType.U1)] public bool NetworkAutoDetect;
+        [MarshalAs(UnmanagedType.U1)] public bool UseNetworkLevelAuthentication;
+        [MarshalAs(UnmanagedType.U1)] public bool Compression;
+        [MarshalAs(UnmanagedType.U1)] public bool BitmapCache;
+        [MarshalAs(UnmanagedType.U1)] public bool FontSmoothing;
+        [MarshalAs(UnmanagedType.U1)] public bool DesktopWallpaper;
+        [MarshalAs(UnmanagedType.U1)] public bool Themes;
+        [MarshalAs(UnmanagedType.U1)] public bool MenuAnimations;
+        [MarshalAs(UnmanagedType.U1)] public bool FullWindowDrag;
+    }
+
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr rdp_session_connect(
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string host,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string connectHost,
-            ushort port,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string domain,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string user,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string password,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayHost,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayDomain,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayUser,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? gatewayPassword,
-            int width, int height,
-            int colorDepth,
-            [MarshalAs(UnmanagedType.I1)] bool compression,
-            [MarshalAs(UnmanagedType.I1)] bool fontSmoothing,
-            [MarshalAs(UnmanagedType.I1)] bool bitmapCache,
-            [MarshalAs(UnmanagedType.I1)] bool desktopWallpaper,
-            [MarshalAs(UnmanagedType.I1)] bool themes,
-            [MarshalAs(UnmanagedType.I1)] bool menuAnimations,
-            [MarshalAs(UnmanagedType.I1)] bool fullWindowDrag,
-            int connectionType,
-            [MarshalAs(UnmanagedType.I1)] bool networkAutoDetect,
-            [MarshalAs(UnmanagedType.I1)] bool useNetworkLevelAuthentication,
-            uint keyboardLayout,
-            uint dpiScalePercent,
-            uint deviceScalePercent,
+            in RdpSessionConfig config,
             FrameCallback frameCallback,
             ClipboardTextCallback clipboardCallback,
             ClipboardFilesCallback clipboardFilesCallback,

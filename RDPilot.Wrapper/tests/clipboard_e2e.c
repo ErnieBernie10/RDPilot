@@ -1186,10 +1186,22 @@ int main(int argc, char** argv)
     HANDLE lt = CreateThread(NULL, 0, listener_thread, listener, 0, NULL);
     (void)lt;
 
-    g.session = rdp_session_connect("127.0.0.1", "127.0.0.1", port, "", "", "", NULL, NULL, NULL, NULL,
-                                    1024, 768, 32, true, false, true, false, false, false, false, 0, false,
-                                    false, 0, 100, 100,
-                                    on_frame, on_clip_text, on_clip_files, on_status, on_cert, on_cursor, on_file_contents);
+    rdp_session_config config = { 0 };
+    config.size = sizeof(config);
+    config.host = "127.0.0.1";
+    config.connect_host = "127.0.0.1";
+    config.port = port;
+    config.domain = "";
+    config.user = "";
+    config.password = "";
+    config.width = 1024;
+    config.height = 768;
+    config.color_depth = 32;
+    config.compression = 1;
+    config.bitmap_cache = 1;
+    config.desktop_scale_percent = 100;
+    config.device_scale_percent = 100;
+    g.session = rdp_session_connect(&config, on_frame, on_clip_text, on_clip_files, on_status, on_cert, on_cursor, on_file_contents);
     if (!g.session)
     {
         fprintf(stderr, "rdp_session_connect returned NULL\n");

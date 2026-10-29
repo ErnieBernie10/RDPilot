@@ -1,3 +1,8 @@
+using System;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+
 namespace RDPilot.Client.Models;
 
 internal static class RdpSessionOptions
@@ -47,6 +52,26 @@ internal static class RdpSessionOptions
         return !string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password);
     }
 
+    public static string ResolveDirectConnectHost(string host, RdpConnectEnvironment environment)
+    {
+        if (!environment.PreResolvesDirectConnectHost || IPAddress.TryParse(host, out _))
+        {
+            return host;
+        }
+
+        try
+        {
+            var addresses = environment.GetHostAddresses(host);
+            return addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetwork)?.ToString()
+                ?? addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetworkV6)?.ToString()
+                ?? host;
+        }
+        catch (SocketException)
+        {
+            return host;
+        }
+    }
+
     public const uint MinDpiScalePercent = 100;
     public const uint MaxDpiScalePercent = 500;
 
@@ -55,11 +80,9 @@ internal static class RdpSessionOptions
     // device factor must be exactly 100, 140, or 180. The server ignores *both* if *either* is out
     // of range, so they are normalized separately and the real percentage is preserved for the
     // desktop factor - snapping 150% up to 180% there renders the remote ~20% too large.
-    public static uint ClampDpiScalePercent(uint percent)
+    public static uint ClampDpiScalePercent(double percent)
     {
-        if (percent < MinDpiScalePercent) return MinDpiScalePercent;
-        if (percent > MaxDpiScalePercent) return MaxDpiScalePercent;
-        return percent;
+        return (uint)Math.Clamp(Math.Round(percent), MinDpiScalePercent, MaxDpiScalePercent);
     }
 
     // Snapped to the nearest legal step rather than rounded up. The midpoints are 120 and 160, so
