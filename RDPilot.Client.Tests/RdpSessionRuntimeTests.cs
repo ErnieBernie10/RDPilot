@@ -29,7 +29,7 @@ public sealed class RdpSessionRuntimeTests
             });
         runtime.StatusReceived += (code, error) =>
         {
-            status = code == 1 ? RdpSessionStatus.Connected : null;
+            status = code;
             Assert.Null(error);
         };
 
@@ -142,7 +142,7 @@ public sealed class RdpSessionRuntimeTests
         runtime.Dispose();
         release.SetResult(native);
 
-        Assert.Equal(IntPtr.Zero, await start);
+        Assert.Equal("WRAPPER_SESSION_CREATE_FAILED", (await start)?.NativeName);
         Assert.Equal(1, native.FreeCount);
         Assert.False(runtime.HasHandle);
     }

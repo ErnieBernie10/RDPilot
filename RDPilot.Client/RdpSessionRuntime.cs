@@ -37,13 +37,13 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
     internal event Action<int, int>? FrameReceived;
     internal event Action<string>? ClipboardTextReceived;
     internal event Action<RemoteFileOffer>? ClipboardFilesReceived;
-    internal event Action<int, RdpSessionError?>? StatusReceived;
+    internal event Action<RdpSessionStatus, RdpSessionError?>? StatusReceived;
     internal event Action<RemoteCursorDescriptor>? CursorReceived;
 
     internal bool HasHandle => !IsDisposeStarted && Volatile.Read(ref _handle) != IntPtr.Zero;
     internal bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
 
-    internal IntPtr Start(RdpSessionStartRequest request)
+    internal RdpSessionError? Start(RdpSessionStartRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         lock (_lifetimeLock)
@@ -54,21 +54,30 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         }
         try
         {
-            var session = _connect(request, _callbacks);
+            INativeRdpSession session;
+            try
+            {
+                session = _connect(request, _callbacks);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+            {
+                return new RdpSessionError(0, "WRAPPER_NATIVE_LOAD_FAILED", ex.Message, RdpSessionErrorKind.Unknown);
+            }
+
             lock (_lifetimeLock)
             {
                 if (!IsDisposeStarted)
                 {
                     _session = session;
                     Volatile.Write(ref _handle, session.Handle);
-                    return session.Handle;
+                    if (session.Handle != IntPtr.Zero) return null;
                 }
             }
 
             // Dispose can win while the connector is running. Never publish a handle afterwards.
-            if (session.Handle != IntPtr.Zero) session.Free();
+            if (IsDisposeStarted && session.Handle != IntPtr.Zero) session.Free();
             GC.KeepAlive(_callbacks);
-            return IntPtr.Zero;
+            return new RdpSessionError(0, "WRAPPER_SESSION_CREATE_FAILED", "Failed to start the RDP session.", RdpSessionErrorKind.Unknown);
         }
         finally
         {
@@ -148,11 +157,19 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
     private void OnStatus(IntPtr handle, int status, uint errorCode, IntPtr errorName, IntPtr errorMessage)
     {
         if (!IsActiveOrInitializing(handle)) return;
-        var error = status == 2
+        RdpSessionStatus? value = status switch
+        {
+            1 => RdpSessionStatus.Connected,
+            2 => RdpSessionStatus.Failed,
+            3 => RdpSessionStatus.Disconnected,
+            _ => null
+        };
+        if (value is not { } typed) return;
+        var error = typed == RdpSessionStatus.Failed
             ? RdpSessionError.Create(errorCode, Marshal.PtrToStringUTF8(errorName), Marshal.PtrToStringUTF8(errorMessage))
             : null;
         // The view model posts to the UI thread and rechecks lifetime before applying the payload.
-        StatusReceived?.Invoke(status, error);
+        StatusReceived?.Invoke(typed, error);
     }
 
     private void OnCursor(IntPtr handle, int kind, uint cursorId, int width, int height, int hotX, int hotY)
