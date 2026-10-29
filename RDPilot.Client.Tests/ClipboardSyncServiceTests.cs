@@ -27,6 +27,14 @@ public sealed class ClipboardSyncServiceTests
     }
 
     [Fact]
+    public void TryRememberBitmap_DistinguishesSameSizeImagesByContent()
+    {
+        Assert.True(_service.TryRememberBitmap([1, 2, 3, 4], out _));
+        Assert.False(_service.TryRememberBitmap([1, 2, 3, 4], out _));
+        Assert.True(_service.TryRememberBitmap([1, 2, 3, 5], out _));
+    }
+
+    [Fact]
     public void BeginRemoteFilesUpdate_SuppressesLocalPolling()
     {
         Assert.True(_service.ShouldPollLocalClipboard);
