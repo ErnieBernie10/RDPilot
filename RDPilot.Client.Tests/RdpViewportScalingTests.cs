@@ -109,7 +109,7 @@ public sealed class RdpViewportScalingTests
                 post,
                 quietDelay: TimeSpan.FromMilliseconds(10),
                 minimumInterval: TimeSpan.FromMilliseconds(10)),
-            new PointerMoveScheduler());
+            new PointerInputSender(() => vm.SelectedSession));
     }
 
     private static (MainWindowViewModel ViewModel, CapturingSessionFactory Factory) CreateViewModel()

@@ -33,7 +33,7 @@ public partial class RdpViewportView : UserControl
             new ViewportResolutionService(),
             new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(action => Dispatcher.UIThread.Post(action)),
-            new PointerMoveScheduler(action => Dispatcher.UIThread.Post(action)));
+            new PointerInputSender(() => (DataContext as MainWindowViewModel)?.SelectedSession, action => Dispatcher.UIThread.Post(action)));
 
         DataContextChanged += OnDataContextChanged;
         AttachedToVisualTree += (_, _) => AttachToHostWindow();
