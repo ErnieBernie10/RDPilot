@@ -392,16 +392,6 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (renderScaling > 0) _renderScaling = renderScaling;
     }
 
-    public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
-    {
-        SelectedSession?.SendMouseEventScaled(flags, dipX, dipY);
-    }
-
-    public void SendKeyboardEvent(ushort flags, ushort code)
-    {
-        SelectedSession?.SendKeyboardEvent(flags, code);
-    }
-
     private void OnSessionRequestRedraw(object? sender, EventArgs e)
     {
         if (sender is RdpSessionViewModel session && ReferenceEquals(session, SelectedSession))

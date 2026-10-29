@@ -193,21 +193,16 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _runtime.Resize(width, height);
     }
 
-    public void SendMouseEvent(ushort flags, ushort x, ushort y)
+    internal double RenderScaling => _renderScaling;
+
+    internal void Send(PointerInput input)
     {
-        if (_runtime.Send(new PointerInput(flags, x, y))) _framePresenter.MarkInputSent();
+        if (_runtime.Send(input)) _framePresenter.MarkInputSent();
     }
 
-    public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
+    internal void Send(KeyInput input)
     {
-        ushort px = (ushort)Math.Clamp(dipX * _renderScaling, 0, 65535);
-        ushort py = (ushort)Math.Clamp(dipY * _renderScaling, 0, 65535);
-        SendMouseEvent(flags, px, py);
-    }
-
-    public void SendKeyboardEvent(ushort flags, ushort code)
-    {
-        if (_runtime.Send(new KeyInput(flags, code))) _framePresenter.MarkInputSent();
+        if (_runtime.Send(input)) _framePresenter.MarkInputSent();
     }
 
     /// <summary>
@@ -222,12 +217,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         const ushort release = 0x8000;
         const ushort extended = 0x0100;
 
-        SendKeyboardEvent(0, leftCtrl);
-        SendKeyboardEvent(0, leftAlt);
-        SendKeyboardEvent(extended, delete);
-        SendKeyboardEvent(release | extended, delete);
-        SendKeyboardEvent(release, leftAlt);
-        SendKeyboardEvent(release, leftCtrl);
+        Send(new KeyInput(0, leftCtrl));
+        Send(new KeyInput(0, leftAlt));
+        Send(new KeyInput(extended, delete));
+        Send(new KeyInput(release | extended, delete));
+        Send(new KeyInput(release, leftAlt));
+        Send(new KeyInput(release, leftCtrl));
     }
 
     public void SetLocalClipboardText(string text) => _runtime.OfferText(text);

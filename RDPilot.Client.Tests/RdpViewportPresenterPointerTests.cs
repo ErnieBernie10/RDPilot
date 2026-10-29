@@ -73,7 +73,7 @@ public sealed class RdpViewportPresenterPointerTests : IDisposable
             new ViewportResolutionService(),
             new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(),
-            new PointerMoveScheduler(_posted.Enqueue, TimeSpan.FromSeconds(10))));
+            new PointerInputSender(() => vm.SelectedSession, _posted.Enqueue, TimeSpan.FromSeconds(10))));
         _owned.Add(presenter);
 
         return (presenter, context.Native.MouseEvents);

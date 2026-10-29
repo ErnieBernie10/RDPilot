@@ -134,7 +134,7 @@ public sealed class RdpViewportPresenterKeyboardGrabTests : IDisposable
             new ViewportResolutionService(),
             new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(),
-            new PointerMoveScheduler()));
+            new PointerInputSender(() => vm.SelectedSession)));
         _owned.Add(presenter);
 
         return (presenter, nativeSession.KeyboardEvents, new object());
