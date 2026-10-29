@@ -38,7 +38,7 @@ Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no 
 
 **Managed-owned (safe C#, no `unsafe` blocks):**
 - Resize debounce/coalescing: `ViewportResolutionUpdateScheduler` (quiet-period + min-interval).
-- Pointer-move coalescing/throttling: `PointerMoveScheduler` (latest-only, ~125 Hz min interval).
+- Pointer-move coalescing/throttling: `PointerInputSender` (latest-only, ~125 Hz min interval).
 - Option normalization: `RdpSessionOptions` (color depth, connection type, DPI scale clamping, resolution clamping).
 - Clipboard file-list shaping: C# sends paths via native `clear/add/commit` primitives.
 - All callback marshaling uses safe `Marshal.PtrToStringUTF8` / `Marshal.ReadIntPtr`.
@@ -74,7 +74,8 @@ Current resize behavior (managed-owned policy):
 Input behavior (managed-owned policy):
 
 - Do not call FreeRDP input APIs directly from Avalonia/UI event handlers.
-- `PointerMoveScheduler` coalesces mouse moves latest-only and throttles to ~125 Hz (8 ms min interval). Pending moves are flushed before button/wheel events so clicks carry a near-current position.
+- `PointerInputSender` owns all pointer input (move, press, release, wheel) for the selected session and scales DIPs to desktop pixels with the session's render scaling. Moves are coalesced latest-only and throttled to ~125 Hz (8 ms min interval); the throttled send is posted to the UI thread. Press/release/wheel send the pending move synchronously first, so native always receives the move before the button. Never route that flush through `Post`: a posted move lands after the button and drags the remote pointer back.
+- Keyboard input goes from `RdpViewportPresenter` straight to `SelectedSession.Send(KeyInput)`; `MainWindowViewModel` does not forward input.
 - Native input is a simple ordered FIFO queue drained on the RDP thread. No coalescing or throttling policy in native code.
 - The RDP loop is the canonical FreeRDP event-driven form (matches `wfreerdp`/`xfreerdp`): `freerdp_get_event_handles` → `WaitForManyObjects(..., INPUT_LOOP_TIMEOUT_MS=10)` → `freerdp_check_event_handles` (single call). Network data wakes the loop immediately; idle polls are capped at ~100 Hz.
 - Current low-latency profile uses 16-bit color, compression, bitmap cache, WAN connection type, disabled audio/device redirection, and disabled desktop visual effects.
@@ -212,7 +213,7 @@ Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Ava
 - For race-style tests, preserve the real ordering. Example: call the callback on the non-UI test thread so it queues UI work, then dispose/mutate state, then call `RunPendingDispatcherJobs()` and assert the queued work was dropped.
 - Do not call `Dispatcher.UIThread.RunJobs()` or `Dispatcher.UIThread.MainLoop()` directly in tests. On the Avalonia 12.x headless platform these can hang when used from the wrong thread or outside the headless session flow.
 - Do not add test-only hooks, fake `Post` delegates, or production behavior changes just to make tests pass. Fix the test harness to use the real headless UI thread instead.
-- Keep pure logic tests free of Avalonia when possible. `PointerMoveScheduler`, `ViewportResolutionUpdateScheduler`, `RdpSessionOptions`, input mappers, and other non-UI helpers should be tested without the headless session.
+- Keep pure logic tests free of Avalonia when possible. `ViewportResolutionUpdateScheduler`, `RdpSessionOptions`, input mappers, and other non-UI helpers should be tested without the headless session.
 - For `ManagedFramePresenter` tests specifically, create the presenter on the UI thread and invoke `EnqueueFrame` on the UI thread for normal presentation/coalescing cases. For dispose-before-present races, queue work from the test thread, dispose on the UI thread, then flush posted jobs.
 - For `RdpSessionViewModel` callback tests, distinguish between synchronous UI-thread execution and posted UI-thread work. `OnStatusChanged` posts; clipboard text/file callbacks do not. Structure tests accordingly.
 
