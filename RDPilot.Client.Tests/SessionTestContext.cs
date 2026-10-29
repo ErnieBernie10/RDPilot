@@ -71,12 +71,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
     public void SendKeyboardEvent(ushort flags, ushort code) => KeyboardEvents.Add((flags, code));
     public void SetLocalClipboardText(string? text) => ClipboardTexts.Add(text ?? "");
     public void SetLocalClipboardFiles(string[] paths) => ClipboardFiles.Add((string[])paths.Clone());
-    public void SetLocalClipboardBitmap(IntPtr data, nint size, uint width, uint height)
-    {
-        var bytes = new byte[checked((int)size)];
-        Marshal.Copy(data, bytes, 0, bytes.Length);
-        ClipboardBitmaps.Add((bytes, width, height));
-    }
+    public void SetLocalClipboardBitmap(byte[] data, uint width, uint height) => ClipboardBitmaps.Add(((byte[])data.Clone(), width, height));
     public bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size)
     {
         if (!AcceptFileContentsRequests) return false;
@@ -84,12 +79,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
         return true;
     }
     public void RequestFullFrame() => FullFrameCount++;
-    public bool Present(IntPtr dest, int stride, int width, int height, out int dirtyX, out int dirtyY,
-        out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
-    {
-        dirtyX = dirtyY = dirtyWidth = dirtyHeight = fbWidth = fbHeight = 0;
-        return false;
-    }
+    public FramePresentResult Present(IntPtr dest, int stride, int width, int height) => default;
     public bool CopyCursorImage(uint cursorId, IntPtr dest, int stride, int width, int height)
     {
         CursorRequests.Add(cursorId);

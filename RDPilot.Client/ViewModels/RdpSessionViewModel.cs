@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Input;
@@ -61,7 +60,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private int _disposeStarted;
     private int _disposed;
     private double _renderScaling = 1.0;
-    private uint _dpiScalePercent = 100;
 
     public RdpSessionViewModel(
         RdpSessionStartRequest request,
@@ -77,10 +75,13 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Connection = request.Connection;
         Title = Connection.Name;
         _renderScaling = request.RenderScaling;
-        _dpiScalePercent = request.DpiScalePercent;
-        _framePresenter = new ManagedFramePresenter(Title, request.Width, request.Height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, _renderScaling);
-        _cursorCache = new RemoteCursorCache(CopyCursorImage);
-        SubscribeRuntime();
+        _framePresenter = new ManagedFramePresenter(Title, request.Width, request.Height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), _runtime.PresentInto, _renderScaling);
+        _cursorCache = new RemoteCursorCache(_runtime.CopyCursor);
+        _runtime.FrameReceived += OnFrameReceived;
+        _runtime.ClipboardTextReceived += OnRemoteClipboardTextReceived;
+        _runtime.ClipboardFilesReceived += OnRemoteClipboardFilesReceived;
+        _runtime.StatusReceived += OnRuntimeStatusChanged;
+        _runtime.CursorReceived += OnCursorChanged;
     }
 
     /// <summary>Starts native delivery only after the session and its presentation consumers are assembled.</summary>
@@ -101,9 +102,14 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _runtime = new RdpSessionRuntime(connection.Host, static _ => CertificateTrustDecision.Reject);
         Connection = connection.Clone();
         Title = connection.Name;
-        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, initializeBitmap: false);
-        _cursorCache = new RemoteCursorCache(CopyCursorImage);
-        SubscribeRuntime();
+        _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), _runtime.PresentInto, initializeBitmap: false);
+        _cursorCache = new RemoteCursorCache(_runtime.CopyCursor);
+        LastError = error;
+        Status = status;
+    }
+
+    internal void SetTestStatus(RdpSessionStatus status, RdpSessionError? error = null)
+    {
         LastError = error;
         Status = status;
     }
@@ -142,17 +148,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (_runtime.TryGetActiveSession(out var nativeSession))
-        {
-            nativeSession.RequestFullFrame();
-        }
+        _runtime.RequestFullFrame();
         _framePresenter.Resume();
-    }
-
-    internal void SetTestStatus(RdpSessionStatus status, RdpSessionError? error = null)
-    {
-        LastError = error;
-        Status = status;
     }
 
     partial void OnStatusChanged(RdpSessionStatus value)
@@ -183,18 +180,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (!_runtime.TryGetActiveSession(out var nativeSession))
+        if (_runtime.HasHandle)
         {
-            if (!IsDisposeStarted)
-            {
-                LastError = null;
-                Status = RdpSessionStatus.Disconnected;
-            }
-            return;
+            Status = RdpSessionStatus.Disconnecting;
+            await _runtime.DisconnectAsync();
         }
 
-        Status = RdpSessionStatus.Disconnecting;
-        await Task.Run(nativeSession.Disconnect);
         if (IsDisposeStarted)
         {
             return;
@@ -206,7 +197,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     public void UpdateResolution(int width, int height, double renderScaling = 0)
     {
-        if (!_runtime.TryGetActiveSession(out var nativeSession) || width <= 0 || height <= 0)
+        if (width <= 0 || height <= 0)
         {
             return;
         }
@@ -219,31 +210,24 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(DisplayHeight));
         }
 
-        (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
-        nativeSession.UpdateResolution(width, height, _dpiScalePercent);
+        _runtime.Resize(width, height);
     }
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y)
     {
-        if (!_runtime.TryGetActiveSession(out var nativeSession)) return;
-        _framePresenter.MarkInputSent();
-        nativeSession.SendMouseEvent(flags, x, y);
+        if (_runtime.Send(new PointerInput(flags, x, y))) _framePresenter.MarkInputSent();
     }
 
     public void SendMouseEventScaled(ushort flags, double dipX, double dipY)
     {
-        if (!_runtime.TryGetActiveSession(out var nativeSession)) return;
-        _framePresenter.MarkInputSent();
         ushort px = (ushort)Math.Clamp(dipX * _renderScaling, 0, 65535);
         ushort py = (ushort)Math.Clamp(dipY * _renderScaling, 0, 65535);
-        nativeSession.SendMouseEvent(flags, px, py);
+        SendMouseEvent(flags, px, py);
     }
 
     public void SendKeyboardEvent(ushort flags, ushort code)
     {
-        if (!_runtime.TryGetActiveSession(out var nativeSession)) return;
-        _framePresenter.MarkInputSent();
-        nativeSession.SendKeyboardEvent(flags, code);
+        if (_runtime.Send(new KeyInput(flags, code))) _framePresenter.MarkInputSent();
     }
 
     /// <summary>
@@ -266,42 +250,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         SendKeyboardEvent(release, leftCtrl);
     }
 
-    public void SetLocalClipboardText(string text)
-    {
-        if (!_runtime.TryGetActiveSession(out var nativeSession)) return;
-        nativeSession.SetLocalClipboardText(text);
-    }
+    public void SetLocalClipboardText(string text) => _runtime.OfferText(text);
 
-    public void SetLocalClipboardFiles(string[] filePaths)
-    {
-        if (!_runtime.TryGetActiveSession(out var nativeSession) || filePaths == null) return;
+    public void SetLocalClipboardFiles(string[] filePaths) => _runtime.OfferFiles(filePaths);
 
-        nativeSession.SetLocalClipboardFiles(filePaths);
-    }
-
-    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
-    {
-        if (!_runtime.TryGetActiveSession(out var nativeSession) || bitmapData == null || bitmapData.Length == 0) return;
-        
-        var bitmapHandle = GCHandle.Alloc(bitmapData, GCHandleType.Pinned);
-        try
-        {
-            nativeSession.SetLocalClipboardBitmap(bitmapHandle.AddrOfPinnedObject(), bitmapData.Length, width, height);
-        }
-        finally
-        {
-            bitmapHandle.Free();
-        }
-    }
-
-    private void SubscribeRuntime()
-    {
-        _runtime.FrameReceived += OnFrameReceived;
-        _runtime.ClipboardTextReceived += OnRemoteClipboardTextReceived;
-        _runtime.ClipboardFilesReceived += OnRemoteClipboardFilesReceived;
-        _runtime.StatusReceived += OnNativeStatusChanged;
-        _runtime.CursorReceived += OnCursorChanged;
-    }
+    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height) => _runtime.OfferBitmap(bitmapData, width, height);
 
     private void OnRemoteClipboardTextReceived(string text)
     {
@@ -313,7 +266,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         if (!IsDisposeStarted) RemoteClipboardFilesReceived?.Invoke(this, offer);
     }
 
-    private void OnNativeStatusChanged(RdpSessionStatus status, RdpSessionError? error)
+    private void OnRuntimeStatusChanged(RdpSessionStatus status, RdpSessionError? error)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -326,18 +279,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private void OnFrameReceived(int width, int height)
     {
         if (!IsDisposeStarted) _framePresenter.EnqueueFrame(width, height);
-    }
-
-    private bool PresentPending(IntPtr dest, int destStride, int destWidth, int destHeight, out int dirtyX, out int dirtyY, out int dirtyWidth, out int dirtyHeight, out int fbWidth, out int fbHeight)
-    {
-        if (!_runtime.TryGetActiveSession(out var nativeSession))
-        {
-            dirtyX = dirtyY = dirtyWidth = dirtyHeight = 0;
-            fbWidth = fbHeight = 0;
-            return false;
-        }
-
-        return nativeSession.Present(dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
     }
 
     /// <summary>
@@ -381,12 +322,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         {
             RemoteCursor = resolved;
         }
-    }
-
-    private bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight)
-    {
-        return _runtime.TryGetActiveSession(out var nativeSession) &&
-            nativeSession.CopyCursorImage(cursorId, dest, destStride, destWidth, destHeight);
     }
 
     public void Dispose()

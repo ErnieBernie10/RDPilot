@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,6 +21,7 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
     private int _initializing;
     private int _disposeStarted;
     private bool _started;
+    private uint _dpiScalePercent = 100;
     private readonly string _host;
 
     internal RdpSessionRuntime(string host, Func<RdpCertificatePrompt, CertificateTrustDecision> decideCertificate,
@@ -41,7 +41,7 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
     internal event Action<RemoteCursorDescriptor>? CursorReceived;
 
     internal bool HasHandle => !IsDisposeStarted && Volatile.Read(ref _handle) != IntPtr.Zero;
-    internal bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
+    private bool IsDisposeStarted => Volatile.Read(ref _disposeStarted) != 0;
 
     internal RdpSessionError? Start(RdpSessionStartRequest request)
     {
@@ -50,6 +50,7 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         {
             if (_started || IsDisposeStarted) throw new InvalidOperationException("This runtime cannot be started again.");
             _started = true;
+            _dpiScalePercent = request.DpiScalePercent;
             Volatile.Write(ref _initializing, 1);
         }
         try
@@ -85,10 +86,61 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         }
     }
 
-    internal bool TryGetActiveSession([NotNullWhen(true)] out INativeRdpSession? session)
+    internal bool Send(KeyInput input)
     {
-        session = _session;
-        return HasHandle && session != null;
+        var session = ActiveSession;
+        session?.SendKeyboardEvent(input.Flags, input.ScanCode);
+        return session != null;
+    }
+
+    internal bool Send(PointerInput input)
+    {
+        var session = ActiveSession;
+        session?.SendMouseEvent(input.Flags, input.X, input.Y);
+        return session != null;
+    }
+
+    internal void OfferText(string text) => ActiveSession?.SetLocalClipboardText(text);
+
+    internal void OfferFiles(string[] filePaths)
+    {
+        if (filePaths != null) ActiveSession?.SetLocalClipboardFiles(filePaths);
+    }
+
+    internal void OfferBitmap(byte[] bitmapData, uint width, uint height)
+    {
+        if (bitmapData is { Length: > 0 }) ActiveSession?.SetLocalClipboardBitmap(bitmapData, width, height);
+    }
+
+    internal void Resize(int width, int height)
+    {
+        var session = ActiveSession;
+        if (session == null || width <= 0 || height <= 0) return;
+        (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
+        session.UpdateResolution(width, height, _dpiScalePercent);
+    }
+
+    internal void RequestFullFrame() => ActiveSession?.RequestFullFrame();
+
+    internal FramePresentResult PresentInto(IntPtr dest, int destStride, int destWidth, int destHeight) =>
+        ActiveSession?.Present(dest, destStride, destWidth, destHeight) ?? default;
+
+    internal bool CopyCursor(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight) =>
+        ActiveSession?.CopyCursorImage(cursorId, dest, destStride, destWidth, destHeight) == true;
+
+    internal Task DisconnectAsync()
+    {
+        var session = ActiveSession;
+        return session == null ? Task.CompletedTask : Task.Run(session.Disconnect);
+    }
+
+    private INativeRdpSession? ActiveSession
+    {
+        get
+        {
+            var session = _session;
+            return HasHandle ? session : null;
+        }
     }
 
     private bool IsActive(IntPtr handle) => HasHandle && handle == Volatile.Read(ref _handle);
@@ -119,7 +171,8 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
 
     public Task<byte[]?> RequestFileContentsAsync(uint generation, uint listIndex, bool sizeOnly, long offset, int size, CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested || !TryGetActiveSession(out var session)) return Task.FromResult<byte[]?>(null);
+        var session = ActiveSession;
+        if (cancellationToken.IsCancellationRequested || session == null) return Task.FromResult<byte[]?>(null);
         var streamId = (uint)Interlocked.Increment(ref _nextFileContentsStreamId);
         var request = new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _fileContentsRequests[streamId] = request;
@@ -210,6 +263,13 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
         GC.KeepAlive(_callbacks);
     }
 }
+
+internal readonly record struct KeyInput(ushort Flags, ushort ScanCode);
+
+internal readonly record struct PointerInput(ushort Flags, ushort X, ushort Y);
+
+internal readonly record struct FramePresentResult(
+    bool Presented, int DirtyX, int DirtyY, int DirtyWidth, int DirtyHeight, int FramebufferWidth, int FramebufferHeight);
 
 internal readonly record struct RemoteCursorDescriptor(RemoteCursorKind Kind, uint CursorId, int Width, int Height, int HotX, int HotY);
 

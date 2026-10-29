@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using RDPilot.Client.Models;
 
 namespace RDPilot.Client;
@@ -14,21 +15,10 @@ internal interface INativeRdpSession
     void SendKeyboardEvent(ushort flags, ushort code);
     void SetLocalClipboardText(string? text);
     void SetLocalClipboardFiles(string[] filePaths);
-    void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height);
+    void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height);
     bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size);
     void RequestFullFrame();
-    bool Present(
-        IntPtr dest,
-        int destStride,
-        int destWidth,
-        int destHeight,
-        out int dirtyX,
-        out int dirtyY,
-        out int dirtyWidth,
-        out int dirtyHeight,
-        out int fbWidth,
-        out int fbHeight);
-
+    FramePresentResult Present(IntPtr dest, int destStride, int destWidth, int destHeight);
     bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight);
 }
 
@@ -114,26 +104,30 @@ internal sealed class NativeRdpSession : INativeRdpSession
         NativeWrapper.rdp_session_clipboard_commit_local_files(Handle);
     }
 
-    public void SetLocalClipboardBitmap(IntPtr bitmapData, nint bitmapDataSize, uint width, uint height) =>
-        NativeWrapper.rdp_session_clipboard_set_local_bitmap(Handle, bitmapData, bitmapDataSize, width, height);
+    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
+    {
+        var bitmapHandle = GCHandle.Alloc(bitmapData, GCHandleType.Pinned);
+        try
+        {
+            NativeWrapper.rdp_session_clipboard_set_local_bitmap(Handle, bitmapHandle.AddrOfPinnedObject(), bitmapData.Length, width, height);
+        }
+        finally
+        {
+            bitmapHandle.Free();
+        }
+    }
 
     public bool RequestRemoteFileContents(uint generation, uint streamId, uint listIndex, bool sizeOnly, ulong offset, uint size) =>
         NativeWrapper.rdp_session_clipboard_request_remote_file_contents(Handle, generation, streamId, listIndex, sizeOnly, offset, size);
 
     public void RequestFullFrame() => NativeWrapper.rdp_session_request_full_frame(Handle);
 
-    public bool Present(
-        IntPtr dest,
-        int destStride,
-        int destWidth,
-        int destHeight,
-        out int dirtyX,
-        out int dirtyY,
-        out int dirtyWidth,
-        out int dirtyHeight,
-        out int fbWidth,
-        out int fbHeight) =>
-        NativeWrapper.rdp_session_present(Handle, dest, destStride, destWidth, destHeight, out dirtyX, out dirtyY, out dirtyWidth, out dirtyHeight, out fbWidth, out fbHeight);
+    public FramePresentResult Present(IntPtr dest, int destStride, int destWidth, int destHeight)
+    {
+        var presented = NativeWrapper.rdp_session_present(Handle, dest, destStride, destWidth, destHeight,
+            out var dirtyX, out var dirtyY, out var dirtyWidth, out var dirtyHeight, out var fbWidth, out var fbHeight);
+        return new FramePresentResult(presented, dirtyX, dirtyY, dirtyWidth, dirtyHeight, fbWidth, fbHeight);
+    }
 
     public bool CopyCursorImage(uint cursorId, IntPtr dest, int destStride, int destWidth, int destHeight) =>
         NativeWrapper.rdp_session_copy_cursor_image(Handle, cursorId, dest, destStride, destWidth, destHeight);
