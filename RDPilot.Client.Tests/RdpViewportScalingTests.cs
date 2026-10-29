@@ -98,13 +98,9 @@ public sealed class RdpViewportScalingTests
     {
         return new RdpViewportPresenter(
             () => vm,
-            () => null,
-            _ => Task.FromResult<Avalonia.Platform.Storage.IStorageItem[]>([]),
             () => viewportSize,
             () => { },
-            _ => null,
             new ViewportResolutionService(),
-            new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(
                 post,
                 quietDelay: TimeSpan.FromMilliseconds(10),

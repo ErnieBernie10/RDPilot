@@ -10,7 +10,7 @@ using RDPilot.Client.Services;
 
 namespace RDPilot.Client.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase, IDisposable
+public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource, IDisposable
 {
     [ObservableProperty] private SavedConnection? _selectedConnection;
     [ObservableProperty] private RdpSessionViewModel? _selectedSession;
@@ -80,6 +80,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public string SettingsFilePath => _settingsStore.SettingsFilePath;
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
+    public event EventHandler? SelectedSessionChanged;
 
     internal MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
@@ -239,6 +240,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             newValue.UpdateResolution(_requestedWidth, _requestedHeight, _renderScaling);
             StatusMessage = $"Active session: {newValue.Title}.";
         }
+        SelectedSessionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
