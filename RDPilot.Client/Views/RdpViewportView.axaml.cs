@@ -56,8 +56,6 @@ public partial class RdpViewportView : UserControl
         if (_subscribedViewModel != null)
         {
             _subscribedViewModel.SessionRedrawRequested -= OnSessionRedrawRequested;
-            _subscribedViewModel.RemoteClipboardTextReceived -= OnRemoteClipboardTextReceived;
-            _subscribedViewModel.RemoteClipboardFilesReceived -= OnRemoteClipboardFilesReceived;
         }
 
         _subscribedViewModel = DataContext as MainWindowViewModel;
@@ -65,8 +63,6 @@ public partial class RdpViewportView : UserControl
         if (_subscribedViewModel != null)
         {
             _subscribedViewModel.SessionRedrawRequested += OnSessionRedrawRequested;
-            _subscribedViewModel.RemoteClipboardTextReceived += OnRemoteClipboardTextReceived;
-            _subscribedViewModel.RemoteClipboardFilesReceived += OnRemoteClipboardFilesReceived;
             QueueViewportResolutionUpdate();
         }
     }
@@ -133,24 +129,6 @@ public partial class RdpViewportView : UserControl
     private void OnSessionRedrawRequested(object? sender, RdpSessionViewModel e)
     {
         _presenter.HandleSessionRedrawRequested();
-    }
-
-    private void OnRemoteClipboardTextReceived(object? sender, (RdpSessionViewModel Session, string Text) e)
-    {
-        Dispatcher.UIThread.Post(async () =>
-        {
-            if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
-                await _presenter.HandleRemoteClipboardTextReceivedAsync(e.Session, e.Text);
-        });
-    }
-
-    private void OnRemoteClipboardFilesReceived(object? sender, (RdpSessionViewModel Session, RemoteFileOffer Offer) e)
-    {
-        Dispatcher.UIThread.Post(async () =>
-        {
-            if (ReferenceEquals(e.Session, (DataContext as MainWindowViewModel)?.SelectedSession))
-                await _presenter.HandleRemoteClipboardFilesReceivedAsync(e.Session, e.Offer);
-        });
     }
 
     private async Task<IStorageItem[]> CreateStorageItemsAsync(string[] filePaths)

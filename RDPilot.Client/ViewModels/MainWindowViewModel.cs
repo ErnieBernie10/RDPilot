@@ -80,8 +80,6 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public string SettingsFilePath => _settingsStore.SettingsFilePath;
     public string SecretStoreDescription => _connectionStore.SecretStoreDescription;
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
-    public event EventHandler<(RdpSessionViewModel Session, string Text)>? RemoteClipboardTextReceived;
-    public event EventHandler<(RdpSessionViewModel Session, RemoteFileOffer Offer)>? RemoteClipboardFilesReceived;
 
     internal MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
     {
@@ -404,34 +402,11 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         SelectedSession?.SendKeyboardEvent(flags, code);
     }
 
-    public void SetLocalClipboardText(string text)
-    {
-        SelectedSession?.SetLocalClipboardText(text);
-    }
-
-    public void SetLocalClipboardFiles(string[] filePaths)
-    {
-        SelectedSession?.SetLocalClipboardFiles(filePaths);
-    }
-
-    public void SetLocalClipboardBitmap(byte[] bitmapData, uint width, uint height)
-    {
-        SelectedSession?.SetLocalClipboardBitmap(bitmapData, width, height);
-    }
-
     private void OnSessionRequestRedraw(object? sender, EventArgs e)
     {
         if (sender is RdpSessionViewModel session && ReferenceEquals(session, SelectedSession))
         {
             SessionRedrawRequested?.Invoke(this, session);
-        }
-    }
-
-    private void OnRemoteClipboardTextReceived(RdpSessionViewModel session, string text)
-    {
-        if (ReferenceEquals(session, SelectedSession))
-        {
-            RemoteClipboardTextReceived?.Invoke(this, (session, text));
         }
     }
 
@@ -446,14 +421,6 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         SelectedConnection = connection;
         await ConnectAsync();
-    }
-
-    private void OnRemoteClipboardFilesReceived(RdpSessionViewModel session, RemoteFileOffer offer)
-    {
-        if (ReferenceEquals(session, SelectedSession))
-        {
-            RemoteClipboardFilesReceived?.Invoke(this, (session, offer));
-        }
     }
 
     private async Task<RdpSessionViewModel?> OpenSessionAsync(SavedConnection connection, string action)
@@ -474,10 +441,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         StatusMessage = $"{action} {connection.Name}...";
         var qualitySettings = RdpQualityDefaults.Resolve(_settings.QualitySettings, connection.QualityOverrides);
         var request = new RdpSessionStartRequest(connection, password, gatewayPassword, _requestedWidth, _requestedHeight, _renderScaling, qualitySettings);
-        return _sessionFactory.Create(
-            request,
-            OnRemoteClipboardTextReceived,
-            OnRemoteClipboardFilesReceived);
+        return _sessionFactory.Create(request);
     }
 
     private void SubscribeSession(RdpSessionViewModel session)

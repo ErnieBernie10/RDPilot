@@ -277,7 +277,6 @@ public sealed class RemoteFileClipboardTests : IDisposable
 
     private sealed class NoSessionFactory : IRdpSessionFactory
     {
-        public RdpSessionViewModel Create(Models.RdpSessionStartRequest request, Action<RdpSessionViewModel, string> text,
-            Action<RdpSessionViewModel, RemoteFileOffer> files) => throw new NotSupportedException();
+        public RdpSessionViewModel Create(Models.RdpSessionStartRequest request) => throw new NotSupportedException();
     }
 }

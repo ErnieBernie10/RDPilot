@@ -167,7 +167,7 @@ Connection management UI:
 - `Connect` creates a new tab/session even when another tab for the same saved connection already exists.
 - Switching tabs must not disconnect background sessions. Input, resize, and local clipboard updates should route only to `SelectedSession`.
 - `ViewportClipboardCoordinator` owns selected-session clipboard polling and invalidates in-flight work on tab changes/detach. `FullscreenWindowController` owns fullscreen layout and toolbar reveal timing; `MainWindow` remains responsible for platform keyboard-grab lifecycle.
-- The clipboard coordinator subscribes to the shell's `SelectedSession` changes while attached and increments a generation on every transition, including A → B → A. Data-context identity checks alone cannot reject stale async work when the original tab becomes selected again.
+- The clipboard coordinator subscribes to the shell's `SelectedSession` changes while attached, listens to remote clipboard events on the selected session only (no forwarding through `MainWindowViewModel` or the view), and increments a generation on every transition, including A → B → A. Data-context identity checks alone cannot reject stale async work when the original tab becomes selected again.
 - `ConnectionStore` stores non-secret metadata in per-user `connections.json` via `AppDataPaths`.
 - `connection.local.json` is only a local development/import convenience and must remain ignored by Git.
 

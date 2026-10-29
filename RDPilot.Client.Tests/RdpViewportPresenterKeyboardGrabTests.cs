@@ -147,10 +147,7 @@ public sealed class RdpViewportPresenterKeyboardGrabTests : IDisposable
 
     private sealed class NoSessionFactory : IRdpSessionFactory
     {
-        public RdpSessionViewModel Create(
-            RdpSessionStartRequest request,
-            Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-            Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
+        public RdpSessionViewModel Create(RdpSessionStartRequest request)
         {
             throw new NotSupportedException("Sessions are created directly in these tests.");
         }
