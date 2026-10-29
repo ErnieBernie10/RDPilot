@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -296,6 +297,46 @@ public sealed class ViewportClipboardCoordinatorTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task RemoteText_ReachesClipboardOnlyFromSelectedSession()
+    {
+        await AvaloniaTestEnvironment.RunOnUiThreadAsync(async () =>
+        {
+            var window = new Window();
+            window.Show();
+            try
+            {
+                using var first = new SessionTestContext("First");
+                using var second = new SessionTestContext("Second", handle: new IntPtr(0x5678));
+                using var vm = await CreateShellAsync(first.ViewModel);
+                await window.Clipboard!.SetTextAsync("keep this");
+                using var coordinator = CreateCoordinator(vm, window);
+                coordinator.Start();
+
+                await RaiseRemoteTextAsync(second, "background");
+                Assert.Equal("keep this", await window.Clipboard!.TryGetTextAsync());
+
+                await RaiseRemoteTextAsync(first, "selected");
+                Assert.Equal("selected", await window.Clipboard!.TryGetTextAsync());
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    private static async Task RaiseRemoteTextAsync(SessionTestContext context, string text)
+    {
+        var pointer = Marshal.StringToCoTaskMemUTF8(text);
+        try
+        {
+            context.Callbacks!.ClipboardText(context.Native.Handle, pointer);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(pointer);
+        }
+        await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background);
+    }
+
     private static ViewportClipboardCoordinator CreateCoordinator(MainWindowViewModel vm, Window window) =>
         new(() => vm, () => window.Clipboard, _ => Task.FromResult<IStorageItem[]>([]), _ => null, new ClipboardSyncService());
 
@@ -318,8 +359,7 @@ public sealed class ViewportClipboardCoordinatorTests : IDisposable
 
     private sealed class NoSessionFactory : IRdpSessionFactory
     {
-        public RdpSessionViewModel Create(RdpSessionStartRequest request, Action<RdpSessionViewModel, string> text,
-            Action<RdpSessionViewModel, RemoteFileOffer> files) => throw new NotSupportedException();
+        public RdpSessionViewModel Create(RdpSessionStartRequest request) => throw new NotSupportedException();
     }
 
     private sealed class TemporaryFile : IDisposable

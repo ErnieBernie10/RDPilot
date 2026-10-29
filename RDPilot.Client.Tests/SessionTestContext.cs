@@ -24,8 +24,13 @@ internal sealed class SessionTestContext : IDisposable
                 duringConnect?.Invoke(callbacks);
                 return Native;
             });
-        ViewModel = AvaloniaTestEnvironment.RunOnUiThread(() => new RdpSessionViewModel(Request,
-            (_, text) => ClipboardTexts.Add(text), (_, paths) => ClipboardFiles.Add(paths), Runtime));
+        ViewModel = AvaloniaTestEnvironment.RunOnUiThread(() =>
+        {
+            var viewModel = new RdpSessionViewModel(Request, Runtime);
+            viewModel.RemoteClipboardTextReceived += (_, text) => ClipboardTexts.Add(text);
+            viewModel.RemoteClipboardFilesReceived += (_, offer) => ClipboardFiles.Add(offer);
+            return viewModel;
+        });
         if (start) AvaloniaTestEnvironment.RunOnUiThread(() => ViewModel.Start(Request));
     }
 

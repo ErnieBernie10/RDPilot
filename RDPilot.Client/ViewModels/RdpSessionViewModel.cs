@@ -53,8 +53,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private Cursor? _remoteCursor;
 
     private readonly RdpSessionRuntime _runtime;
-    private readonly Action<RdpSessionViewModel, string> _remoteClipboardTextReceived;
-    private readonly Action<RdpSessionViewModel, RemoteFileOffer> _remoteClipboardFilesReceived;
     private readonly ManagedFramePresenter _framePresenter;
     private readonly RemoteCursorCache _cursorCache;
     private readonly object _cursorLock = new();
@@ -62,26 +60,17 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     private int _cursorApplyQueued;
     private int _disposeStarted;
     private int _disposed;
-    private int _requestedWidth;
-    private int _requestedHeight;
     private double _renderScaling = 1.0;
     private uint _dpiScalePercent = 100;
 
     public RdpSessionViewModel(
         RdpSessionStartRequest request,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived,
         Func<RdpCertificatePrompt, CertificateTrustDecision> certificateTrustDecision)
-        : this(request, remoteClipboardTextReceived, remoteClipboardFilesReceived,
-            new RdpSessionRuntime((request ?? throw new ArgumentNullException(nameof(request))).Connection.Host, certificateTrustDecision))
+        : this(request, new RdpSessionRuntime((request ?? throw new ArgumentNullException(nameof(request))).Connection.Host, certificateTrustDecision))
     {
     }
 
-    internal RdpSessionViewModel(
-        RdpSessionStartRequest request,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived,
-        RdpSessionRuntime runtime)
+    internal RdpSessionViewModel(RdpSessionStartRequest request, RdpSessionRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(request);
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
@@ -89,10 +78,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         Title = Connection.Name;
         _renderScaling = request.RenderScaling;
         _dpiScalePercent = request.DpiScalePercent;
-        _requestedWidth = request.Width;
-        _requestedHeight = request.Height;
-        _remoteClipboardTextReceived = remoteClipboardTextReceived;
-        _remoteClipboardFilesReceived = remoteClipboardFilesReceived;
         _framePresenter = new ManagedFramePresenter(Title, request.Width, request.Height, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, _renderScaling);
         _cursorCache = new RemoteCursorCache(CopyCursorImage);
         SubscribeRuntime();
@@ -132,8 +117,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         _runtime = new RdpSessionRuntime(connection.Host, static _ => CertificateTrustDecision.Reject);
         Connection = connection.Clone();
         Title = connection.Name;
-        _remoteClipboardTextReceived = static (_, _) => { };
-        _remoteClipboardFilesReceived = static (_, _) => { };
         _framePresenter = new ManagedFramePresenter(Title, 1, 1, screen => Screen = screen, () => RequestRedraw?.Invoke(this, EventArgs.Empty), PresentPending, initializeBitmap: false);
         _cursorCache = new RemoteCursorCache(CopyCursorImage);
         SubscribeRuntime();
@@ -160,6 +143,8 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public bool CanDisconnect => Status is RdpSessionStatus.Connecting or RdpSessionStatus.Connected;
     public bool CanReconnect => Status is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected;
     public event EventHandler? RequestRedraw;
+    public event EventHandler<string>? RemoteClipboardTextReceived;
+    public event EventHandler<RemoteFileOffer>? RemoteClipboardFilesReceived;
 
     internal void SuspendPresentation()
     {
@@ -251,8 +236,6 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         }
 
         (width, height) = RdpSessionOptions.NormalizeResolution(width, height);
-        _requestedWidth = width;
-        _requestedHeight = height;
         nativeSession.UpdateResolution(width, height, _dpiScalePercent);
     }
 
@@ -338,12 +321,12 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private void OnRemoteClipboardTextReceived(string text)
     {
-        if (!IsDisposeStarted) _remoteClipboardTextReceived(this, text);
+        if (!IsDisposeStarted) RemoteClipboardTextReceived?.Invoke(this, text);
     }
 
     private void OnRemoteClipboardFilesReceived(RemoteFileOffer offer)
     {
-        if (!IsDisposeStarted) _remoteClipboardFilesReceived(this, offer);
+        if (!IsDisposeStarted) RemoteClipboardFilesReceived?.Invoke(this, offer);
     }
 
     private void OnNativeStatusChanged(int status, RdpSessionError? error)

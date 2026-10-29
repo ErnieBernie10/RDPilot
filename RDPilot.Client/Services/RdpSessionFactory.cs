@@ -1,4 +1,3 @@
-using System;
 using RDPilot.Client.Models;
 using RDPilot.Client.ViewModels;
 
@@ -20,16 +19,9 @@ public sealed class RdpSessionFactory : IRdpSessionFactory
         _certificatePromptService = certificatePromptService;
     }
 
-    public RdpSessionViewModel Create(
-        RdpSessionStartRequest request,
-        Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-        Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
+    public RdpSessionViewModel Create(RdpSessionStartRequest request)
     {
-        var session = new RdpSessionViewModel(
-            request,
-            remoteClipboardTextReceived,
-            remoteClipboardFilesReceived,
-            DecideCertificateTrust);
+        var session = new RdpSessionViewModel(request, DecideCertificateTrust);
         // Construction roots callbacks and subscribes presentation before native delivery begins.
         try
         {

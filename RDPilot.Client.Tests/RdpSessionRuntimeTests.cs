@@ -160,7 +160,7 @@ public sealed class RdpSessionRuntimeTests
                     return new FakeNativeSession(SessionHandle);
                 });
             var request = CreateRequest();
-            var viewModel = new RdpSessionViewModel(request, static (_, _) => { }, static (_, _) => { }, runtime);
+            var viewModel = new RdpSessionViewModel(request, runtime);
             viewModel.Start(request);
             return viewModel;
         });

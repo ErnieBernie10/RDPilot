@@ -139,10 +139,7 @@ public sealed class RdpViewportScalingTests
         public int Width { get; private set; }
         public int Height { get; private set; }
 
-        public RdpSessionViewModel Create(
-            RdpSessionStartRequest request,
-            Action<RdpSessionViewModel, string> remoteClipboardTextReceived,
-            Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
+        public RdpSessionViewModel Create(RdpSessionStartRequest request)
         {
             RenderScaling = request.RenderScaling;
             Width = request.Width;

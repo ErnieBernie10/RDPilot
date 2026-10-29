@@ -54,10 +54,6 @@ internal sealed class RdpViewportPresenter : IDisposable
         _invalidateViewport();
     }
 
-    public Task HandleRemoteClipboardTextReceivedAsync(RdpSessionViewModel session, string text) => _clipboard.HandleRemoteTextAsync(session, text);
-
-    public Task HandleRemoteClipboardFilesReceivedAsync(RdpSessionViewModel session, RemoteFileOffer offer) => _clipboard.HandleRemoteFileOfferAsync(session, offer);
-
     public Task PollClipboardAsync() => _clipboard.PollClipboardAsync();
 
     public void StartClipboardPolling() => _clipboard.Start();

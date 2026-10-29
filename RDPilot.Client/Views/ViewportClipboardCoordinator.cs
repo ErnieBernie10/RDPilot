@@ -36,6 +36,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
     private bool _attached;
     private bool _disposed;
     private MainWindowViewModel? _subscribedViewModel;
+    private RdpSessionViewModel? _subscribedSession;
 
     internal ViewportClipboardCoordinator(Func<MainWindowViewModel?> getViewModel, Func<IClipboard?> getClipboard,
         Func<string[], Task<IStorageItem[]>> createStorageItems, Func<Bitmap, byte[]?> convertBitmapToDib,
@@ -57,6 +58,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         if (_disposed) return;
         _attached = true;
         SubscribeViewModel();
+        SubscribeSession(_getViewModel()?.SelectedSession);
         _pollTimer.Start();
     }
 
@@ -71,6 +73,7 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
             _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _subscribedViewModel = null;
         }
+        SubscribeSession(null);
         _sync.UseSession(null);
     }
 
@@ -79,7 +82,35 @@ internal sealed class ViewportClipboardCoordinator : IDisposable
         _generation++;
         CancelDownload();
         SubscribeViewModel();
-        _sync.UseSession(_attached && !_disposed ? _getViewModel()?.SelectedSession : null);
+        var session = _attached && !_disposed ? _getViewModel()?.SelectedSession : null;
+        SubscribeSession(session);
+        _sync.UseSession(session);
+    }
+
+    private void SubscribeSession(RdpSessionViewModel? session)
+    {
+        if (ReferenceEquals(session, _subscribedSession)) return;
+        if (_subscribedSession != null)
+        {
+            _subscribedSession.RemoteClipboardTextReceived -= OnRemoteTextReceived;
+            _subscribedSession.RemoteClipboardFilesReceived -= OnRemoteFilesReceived;
+        }
+        _subscribedSession = session;
+        if (session != null)
+        {
+            session.RemoteClipboardTextReceived += OnRemoteTextReceived;
+            session.RemoteClipboardFilesReceived += OnRemoteFilesReceived;
+        }
+    }
+
+    private void OnRemoteTextReceived(object? sender, string text)
+    {
+        if (sender is RdpSessionViewModel session) Dispatcher.UIThread.Post(() => _ = HandleRemoteTextAsync(session, text));
+    }
+
+    private void OnRemoteFilesReceived(object? sender, RemoteFileOffer offer)
+    {
+        if (sender is RdpSessionViewModel session) Dispatcher.UIThread.Post(() => _ = HandleRemoteFileOfferAsync(session, offer));
     }
 
     private void SubscribeViewModel()

@@ -587,65 +587,6 @@ public sealed class MainWindowViewModelTests
         Assert.Same(first, raisedSession);
     }
 
-    [Fact]
-    public async Task RemoteClipboardTextReceived_RaisesOnlyForSelectedSession()
-    {
-        using var env = new TestConfigHome();
-        var secretStore = new FakeSecretStore();
-        var store = new ConnectionStore(secretStore);
-        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
-        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
-        var factory = new QueueSessionFactory(new[] { first, second });
-
-        var vm = new MainWindowViewModel(store, factory);
-        await vm.LoadConnectionsAsync();
-
-        await ConnectAsync(vm, first.Connection, secretStore);
-        await ConnectAsync(vm, second.Connection, secretStore);
-        vm.SelectedSession = first;
-
-        var received = new List<(RdpSessionViewModel Session, string Text)>();
-        vm.RemoteClipboardTextReceived += (_, value) => received.Add(value);
-
-        InvokePrivate(vm, "OnRemoteClipboardTextReceived", second, "background");
-        Assert.Empty(received);
-
-        InvokePrivate(vm, "OnRemoteClipboardTextReceived", first, "selected");
-        var clipboardEvent = Assert.Single(received);
-        Assert.Same(first, clipboardEvent.Session);
-        Assert.Equal("selected", clipboardEvent.Text);
-    }
-
-    [Fact]
-    public async Task RemoteClipboardFilesReceived_RaisesOnlyForSelectedSession()
-    {
-        using var env = new TestConfigHome();
-        var secretStore = new FakeSecretStore();
-        var store = new ConnectionStore(secretStore);
-        var first = new RdpSessionViewModel(CreateConnection("One"), RdpSessionStatus.Connected);
-        var second = new RdpSessionViewModel(CreateConnection("Two"), RdpSessionStatus.Connected);
-        var factory = new QueueSessionFactory(new[] { first, second });
-
-        var vm = new MainWindowViewModel(store, factory);
-        await vm.LoadConnectionsAsync();
-
-        await ConnectAsync(vm, first.Connection, secretStore);
-        await ConnectAsync(vm, second.Connection, secretStore);
-        vm.SelectedSession = first;
-
-        var received = new List<(RdpSessionViewModel Session, RemoteFileOffer Offer)>();
-        vm.RemoteClipboardFilesReceived += (_, value) => received.Add(value);
-
-        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", second, TestFileDescriptors.Offer(("background.txt", 1, false)));
-        Assert.Empty(received);
-
-        var selected = TestFileDescriptors.Offer(("selected.txt", 1, false));
-        InvokePrivate(vm, "OnRemoteClipboardFilesReceived", first, selected);
-        var clipboardEvent = Assert.Single(received);
-        Assert.Same(first, clipboardEvent.Session);
-        Assert.Same(selected, clipboardEvent.Offer);
-    }
-
     private static void InvokePrivate(object target, string methodName, params object?[] args)
     {
         var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -690,7 +631,7 @@ public sealed class MainWindowViewModelTests
             _sessions = new Queue<RdpSessionViewModel>(sessions);
         }
 
-        public RdpSessionViewModel Create(RdpSessionStartRequest request, Action<RdpSessionViewModel, string> remoteClipboardTextReceived, Action<RdpSessionViewModel, RemoteFileOffer> remoteClipboardFilesReceived)
+        public RdpSessionViewModel Create(RdpSessionStartRequest request)
         {
             ColorDepth = request.Quality.ColorDepth;
             Compression = request.Quality.Compression;
