@@ -88,25 +88,9 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public void Start(RdpSessionStartRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        try
-        {
-            _runtime.Start(request);
-        }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-        {
-            LastError = new RdpSessionError(0, "WRAPPER_NATIVE_LOAD_FAILED", ex.Message, RdpSessionErrorKind.Unknown);
-            Status = RdpSessionStatus.Failed;
-            return;
-        }
-        if (!_runtime.HasHandle)
-        {
-            LastError = new RdpSessionError(0, "WRAPPER_SESSION_CREATE_FAILED", "Failed to start the RDP session.", RdpSessionErrorKind.Unknown);
-            Status = RdpSessionStatus.Failed;
-        }
-        else
-        {
-            Status = RdpSessionStatus.Connecting;
-        }
+        var error = _runtime.Start(request);
+        LastError = error;
+        Status = error == null ? RdpSessionStatus.Connecting : RdpSessionStatus.Failed;
     }
 
     internal RdpSessionViewModel(
@@ -329,21 +313,13 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
         if (!IsDisposeStarted) RemoteClipboardFilesReceived?.Invoke(this, offer);
     }
 
-    private void OnNativeStatusChanged(int status, RdpSessionError? error)
+    private void OnNativeStatusChanged(RdpSessionStatus status, RdpSessionError? error)
     {
-        var statusValue = status switch
-        {
-            1 => RdpSessionStatus.Connected,
-            2 => RdpSessionStatus.Failed,
-            3 => RdpSessionStatus.Disconnected,
-            _ => Status
-        };
-
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (!_runtime.HasHandle || IsDisposeStarted) return;
             LastError = error;
-            Status = statusValue;
+            Status = status;
         });
     }
 
