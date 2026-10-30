@@ -154,9 +154,9 @@ struct rdp_session {
     input_event input_queue[INPUT_QUEUE_CAPACITY];
     UINT32 input_queue_count;
     UINT32 input_dropped;
-    /* Both pre-normalized by C#: dpi_scale_percent is the true desktop scale (100-500),
+    /* Both pre-normalized by C#: desktop_scale_percent is the true desktop scale (100-500),
      * device_scale_percent is one of 100/140/180. See RdpSessionOptions. */
-    UINT32 dpi_scale_percent;
+    UINT32 desktop_scale_percent;
     UINT32 device_scale_percent;
     CRITICAL_SECTION clipboard_lock;
     char* local_clipboard_text;
@@ -222,33 +222,13 @@ typedef struct {
     rdp_session* session;
 } wrapper_context;
 
+/* The RDP thread's own copy of the caller's config; its strings are owned and freed with it. */
 typedef struct {
     rdp_session* session;
-    char host[256];
-    char connect_host[256];
-    UINT16 port;
-    char domain[256];
-    char user[256];
-    char password[256];
-    char gateway_host[256];
-    char gateway_domain[256];
-    char gateway_user[256];
-    char gateway_password[256];
-    int width;
-    int height;
-    int color_depth;
-    bool compression;
-    bool font_smoothing;
-    bool bitmap_cache;
-    bool desktop_wallpaper;
-    bool themes;
-    bool menu_animations;
-    bool full_window_drag;
-    int connection_type;
-    bool network_auto_detect;
-    bool use_network_level_authentication;
-    UINT32 keyboard_layout;
+    rdp_session_config config;
 } connection_params;
+
+void free_connection_params(connection_params* params);
 
 typedef struct {
     UINT32 code;

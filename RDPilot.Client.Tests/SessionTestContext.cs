@@ -89,7 +89,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
     internal int DisconnectCount { get; private set; }
     internal int FreeCount { get; private set; }
     internal int FullFrameCount { get; private set; }
-    internal List<(int Width, int Height, uint Dpi)> ResolutionUpdates { get; } = [];
+    internal List<(int Width, int Height)> ResolutionUpdates { get; } = [];
     internal List<(ushort Flags, ushort X, ushort Y)> MouseEvents { get; } = [];
     internal List<(ushort Flags, ushort Code)> KeyboardEvents { get; } = [];
     internal List<string> ClipboardTexts { get; } = [];
@@ -101,7 +101,7 @@ internal sealed class RecordingNativeSession(IntPtr handle) : INativeRdpSession
 
     public void Disconnect() => DisconnectCount++;
     public void Free() => FreeCount++;
-    public void UpdateResolution(int width, int height, uint dpiScalePercent) => ResolutionUpdates.Add((width, height, dpiScalePercent));
+    public void UpdateResolution(int width, int height) => ResolutionUpdates.Add((width, height));
     public void SendMouseEvent(ushort flags, ushort x, ushort y) => MouseEvents.Add((flags, x, y));
     public void SendKeyboardEvent(ushort flags, ushort code) => KeyboardEvents.Add((flags, code));
     public void SetLocalClipboardText(string? text) => ClipboardTexts.Add(text ?? "");

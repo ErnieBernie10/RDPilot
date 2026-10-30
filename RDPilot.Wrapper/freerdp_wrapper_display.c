@@ -43,7 +43,7 @@ void wrapper_display_detach(rdp_session* session)
 
 void wrapper_display_configure(rdp_session* session, rdpSettings* settings, UINT32 width, UINT32 height)
 {
-    freerdp_settings_set_uint32(settings, FreeRDP_DesktopScaleFactor, session->dpi_scale_percent);
+    freerdp_settings_set_uint32(settings, FreeRDP_DesktopScaleFactor, session->desktop_scale_percent);
     freerdp_settings_set_uint32(settings, FreeRDP_DeviceScaleFactor, session->device_scale_percent);
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth, width);
     freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight, height);
@@ -57,10 +57,10 @@ void wrapper_display_configure(rdp_session* session, rdpSettings* settings, UINT
     monitors[0].y = 0;
     monitors[0].width = width;
     monitors[0].height = height;
-    monitors[0].attributes.physicalWidth = physical_size_mm(width, session->dpi_scale_percent);
-    monitors[0].attributes.physicalHeight = physical_size_mm(height, session->dpi_scale_percent);
+    monitors[0].attributes.physicalWidth = physical_size_mm(width, session->desktop_scale_percent);
+    monitors[0].attributes.physicalHeight = physical_size_mm(height, session->desktop_scale_percent);
     monitors[0].attributes.orientation = ORIENTATION_LANDSCAPE;
-    monitors[0].attributes.desktopScaleFactor = session->dpi_scale_percent;
+    monitors[0].attributes.desktopScaleFactor = session->desktop_scale_percent;
     monitors[0].attributes.deviceScaleFactor = session->device_scale_percent;
     monitors[0].is_primary = TRUE;
     freerdp_settings_set_pointer_len(settings, FreeRDP_MonitorDefArray, monitors, 1);
@@ -96,10 +96,10 @@ bool wrapper_display_process_pending(rdp_session* session)
     layout.Left = 0;
     layout.Width = width;
     layout.Height = height;
-    layout.PhysicalWidth = physical_size_mm(width, session->dpi_scale_percent);
-    layout.PhysicalHeight = physical_size_mm(height, session->dpi_scale_percent);
+    layout.PhysicalWidth = physical_size_mm(width, session->desktop_scale_percent);
+    layout.PhysicalHeight = physical_size_mm(height, session->desktop_scale_percent);
     layout.Orientation = ORIENTATION_LANDSCAPE;
-    layout.DesktopScaleFactor = session->dpi_scale_percent;
+    layout.DesktopScaleFactor = session->desktop_scale_percent;
     layout.DeviceScaleFactor = session->device_scale_percent;
     UINT rc = session->disp->SendMonitorLayout(session->disp, 1, &layout);
     if (rc != CHANNEL_RC_OK)
@@ -116,11 +116,9 @@ bool wrapper_display_process_pending(rdp_session* session)
     return true;
 }
 
-void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent)
+void rdp_session_update_resolution(rdp_session* session, int width, int height)
 {
     if (!session || width <= 0 || height <= 0) return;
-    /* DPI stays locked at connect time; managed debounce chooses when this target arrives. */
-    (void)dpi_scale_percent;
     EnterCriticalSection(&session->resize_lock);
     if ((UINT32)width != session->target_width || (UINT32)height != session->target_height)
     {

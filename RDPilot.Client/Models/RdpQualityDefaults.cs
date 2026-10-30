@@ -17,7 +17,7 @@ public static class RdpQualityDefaults
     {
         var defaults = Current;
         return new RdpEffectiveQualitySettings(
-            NormalizeColorDepth(overrides?.ColorDepth ?? global?.ColorDepth ?? defaults.ColorDepth),
+            RdpSessionOptions.NormalizeColorDepth(overrides?.ColorDepth ?? global?.ColorDepth ?? defaults.ColorDepth),
             overrides?.FontSmoothing ?? global?.FontSmoothing ?? defaults.FontSmoothing,
             overrides?.DesktopWallpaper ?? global?.DesktopWallpaper ?? defaults.DesktopWallpaper,
             overrides?.Themes ?? global?.Themes ?? defaults.Themes,
@@ -26,10 +26,5 @@ public static class RdpQualityDefaults
             overrides?.Compression ?? global?.Compression ?? defaults.Compression,
             overrides?.BitmapCache ?? global?.BitmapCache ?? defaults.BitmapCache,
             overrides?.ConnectionType ?? global?.ConnectionType ?? defaults.ConnectionType);
-    }
-
-    private static int NormalizeColorDepth(int colorDepth)
-    {
-        return RdpSessionOptions.NormalizeColorDepth(colorDepth);
     }
 }

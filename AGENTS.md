@@ -39,7 +39,7 @@ Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no 
 **Managed-owned (safe C#, no `unsafe` blocks):**
 - Resize debounce/coalescing: `ViewportResolutionUpdateScheduler` (quiet-period + min-interval).
 - Pointer-move coalescing/throttling: `PointerInputSender` (latest-only, ~125 Hz min interval).
-- Option normalization: `RdpSessionOptions` (color depth, connection type, DPI scale clamping, resolution clamping).
+- Option normalization: `RdpSessionOptions` (color depth, connection type, DPI scale clamping, resolution clamping, port, NLA, direct-connect host pre-resolution). `RdpSessionStartRequest.CreateConnectPlan` is the single place that computes every connect-time wire value; DNS and keyboard-layout lookups come in through `RdpConnectEnvironment` so it is testable off Windows. `NativeRdpSession.Connect` only copies the plan into the `rdp_session_config` struct.
 - Clipboard file-list shaping: C# sends paths via native `clear/add/commit` primitives.
 - All callback marshaling uses safe `Marshal.PtrToStringUTF8` / `Marshal.ReadIntPtr`.
 
@@ -48,7 +48,7 @@ Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no 
 - CLIPRDR protocol handling (text, files, bitmap format negotiation).
 - RDP-thread input delivery via a simple ordered queue (no coalescing/throttling policy).
 - RDP-thread resolution application via `SendMonitorLayout` (no debounce policy).
-- Direct FreeRDP settings writes (values are pre-normalized by C#).
+- Direct FreeRDP settings writes (values are pre-normalized by C#). `rdp_session_connect` takes one `rdp_session_config` (leading `size`, UTF-8 string pointers, fixed-width scalars, `uint8_t` flags) plus the callbacks; append new fields at the end and keep `NativeWrapper.RdpSessionConfig` in the same order.
 
 Do not reintroduce `unsafe` into `RDPilot.Client.csproj`. Do not reintroduce policy logic (debounce, coalescing, normalization) into the native wrapper.
 
@@ -221,7 +221,7 @@ Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Ava
 ## HiDPI Notes
 
 - The host's render scaling is read from `Window.RenderScaling` (a `TopLevel` property). The view (`RdpViewportView`) computes physical pixel dimensions = DIP viewport size × render scaling, and passes them to the native wrapper as `DesktopWidth`/`DesktopHeight`.
-- The two scale factors have **different valid ranges** and are normalized separately in `RdpSessionOptions`: `ClampDpiScalePercent` keeps the real percentage for `desktopScaleFactor` (100–500), `ToDeviceScalePercent` snaps `deviceScaleFactor` to the nearest of 100/140/180. Both cross the boundary as explicit `rdp_session_connect` arguments; native does not reinterpret them. Snapping *both* is what makes a 150% display render ~20% too large, and an out-of-range device factor makes the server discard the desktop factor too.
+- The two scale factors have **different valid ranges** and are normalized separately in `RdpSessionOptions`: `ClampDpiScalePercent` keeps the real percentage for `desktopScaleFactor` (100–500), `ToDeviceScalePercent` snaps `deviceScaleFactor` to the nearest of 100/140/180. Both cross the boundary as `rdp_session_config` fields; native does not reinterpret them. Snapping *both* is what makes a 150% display render ~20% too large, and an out-of-range device factor makes the server discard the desktop factor too.
 - DPI scale is **locked at connect time** — `rdp_session_update_resolution` does NOT change the DPI factors. The Windows RDP server does not reliably handle mid-session `desktopScaleFactor` changes (UWP processes like the Start Menu don't reflow). Only the pixel resolution changes dynamically when the window moves between monitors with different DPI. This matches mstsc behaviour.
 - Because of that lock, the scale must reach `MainWindowViewModel` **before** the first session is created. `RdpViewportPresenter` therefore reports scale and size independently: `UpdateRenderScaling` always fires, `UpdateResolution` only once there is a viewport big enough to measure. Do not fold them back together — the viewport `ScrollViewer` is collapsed until a session is live, so gating the scale on a measurable size strands every first connect at 100%.
 - Viewport size is measured from `ViewportHost` (the always-visible `Grid`), not from the collapsed `RdpScrollViewer`. Both report the same size once a session is up.

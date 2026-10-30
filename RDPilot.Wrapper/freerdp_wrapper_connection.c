@@ -94,7 +94,7 @@ static void shutdown_instance(rdp_session* session)
     cleanup_instance(session);
 }
 
-static bool setup_instance(rdp_session* session, const connection_params* params, bool use_gateway)
+static bool setup_instance(rdp_session* session, const rdp_session_config* config, bool use_gateway)
 {
     session->instance = freerdp_new();
     if (!session->instance) {
@@ -115,22 +115,22 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     register_pointer_class(session->instance->context);
 
     rdpSettings* settings = session->instance->context->settings;
-    const char* server_hostname = use_gateway ? params->host : params->connect_host;
+    const char* server_hostname = use_gateway ? config->host : config->connect_host;
     freerdp_settings_set_string(settings, FreeRDP_ServerHostname, server_hostname);
-    freerdp_settings_set_string(settings, FreeRDP_UserSpecifiedServerName, params->host);
-    freerdp_settings_set_string(settings, FreeRDP_CertificateName, params->host);
-    freerdp_settings_set_uint32(settings, FreeRDP_ServerPort, params->port);
-    freerdp_settings_set_string(settings, FreeRDP_Domain, params->domain);
-    freerdp_settings_set_string(settings, FreeRDP_Username, params->user);
-    freerdp_settings_set_string(settings, FreeRDP_Password, params->password);
+    freerdp_settings_set_string(settings, FreeRDP_UserSpecifiedServerName, config->host);
+    freerdp_settings_set_string(settings, FreeRDP_CertificateName, config->host);
+    freerdp_settings_set_uint32(settings, FreeRDP_ServerPort, config->port);
+    freerdp_settings_set_string(settings, FreeRDP_Domain, config->domain);
+    freerdp_settings_set_string(settings, FreeRDP_Username, config->user);
+    freerdp_settings_set_string(settings, FreeRDP_Password, config->password);
     freerdp_settings_set_uint32(settings, FreeRDP_TcpConnectTimeout, CONNECT_TIMEOUT_MS);
     freerdp_settings_set_uint32(settings, FreeRDP_AutoReconnectMaxRetries, 0);
-    if (use_gateway && params->gateway_host[0] != '\0') {
+    if (use_gateway) {
         freerdp_settings_set_bool(settings, FreeRDP_GatewayEnabled, TRUE);
-        freerdp_settings_set_string(settings, FreeRDP_GatewayHostname, params->gateway_host);
-        freerdp_settings_set_string(settings, FreeRDP_GatewayDomain, params->gateway_domain);
-        freerdp_settings_set_string(settings, FreeRDP_GatewayUsername, params->gateway_user);
-        freerdp_settings_set_string(settings, FreeRDP_GatewayPassword, params->gateway_password);
+        freerdp_settings_set_string(settings, FreeRDP_GatewayHostname, config->gateway_host);
+        freerdp_settings_set_string(settings, FreeRDP_GatewayDomain, config->gateway_domain);
+        freerdp_settings_set_string(settings, FreeRDP_GatewayUsername, config->gateway_user);
+        freerdp_settings_set_string(settings, FreeRDP_GatewayPassword, config->gateway_password);
         freerdp_settings_set_bool(settings, FreeRDP_GatewayUseSameCredentials, FALSE);
         freerdp_settings_set_bool(settings, FreeRDP_GatewayHttpTransport, TRUE);
         freerdp_settings_set_bool(settings, FreeRDP_GatewayBypassLocal, FALSE);
@@ -153,45 +153,45 @@ static bool setup_instance(rdp_session* session, const connection_params* params
     freerdp_settings_set_uint32(settings, FreeRDP_ClipboardFeatureMask,
                                 CLIPRDR_FLAG_LOCAL_TO_REMOTE | CLIPRDR_FLAG_REMOTE_TO_LOCAL |
                                 CLIPRDR_FLAG_LOCAL_TO_REMOTE_FILES | CLIPRDR_FLAG_REMOTE_TO_LOCAL_FILES);
-    freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, params->use_network_level_authentication ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, config->use_network_level_authentication ? TRUE : FALSE);
     /* HYBRID_EX is NLA too. FreeRDP enables it by default, so leaving it on makes a credential-less
      * connect still request CredSSP; a server that supports NLA without requiring it (the setup
      * for logging in on the remote logon screen) then picks HYBRID_EX and the connect fails with
      * SEC_E_NO_CREDENTIALS instead of falling back to TLS. */
-    freerdp_settings_set_bool(settings, FreeRDP_ExtSecurity, params->use_network_level_authentication ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_ExtSecurity, config->use_network_level_authentication ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_MstscCookieMode, TRUE);
-    if (params->keyboard_layout != 0) freerdp_settings_set_uint32(settings, FreeRDP_KeyboardLayout, params->keyboard_layout);
+    if (config->keyboard_layout != 0) freerdp_settings_set_uint32(settings, FreeRDP_KeyboardLayout, config->keyboard_layout);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardType, WINPR_KBD_TYPE_IBM_ENHANCED);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardSubType, 0);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardFunctionKey, 12);
     freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
-    freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, params->compression ? TRUE : FALSE);
-    freerdp_settings_set_bool(settings, FreeRDP_BitmapCacheEnabled, params->bitmap_cache ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, config->compression ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_BitmapCacheEnabled, config->bitmap_cache ? TRUE : FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_BitmapCachePersistEnabled, FALSE);
-    freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, (UINT32)params->connection_type);
-    freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, params->network_auto_detect ? TRUE : FALSE);
-    freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, params->desktop_wallpaper ? FALSE : TRUE);
-    freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, params->full_window_drag ? FALSE : TRUE);
-    freerdp_settings_set_bool(settings, FreeRDP_DisableMenuAnims, params->menu_animations ? FALSE : TRUE);
-    freerdp_settings_set_bool(settings, FreeRDP_DisableThemes, params->themes ? FALSE : TRUE);
-    freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, params->font_smoothing ? TRUE : FALSE);
+    freerdp_settings_set_uint32(settings, FreeRDP_ConnectionType, (UINT32)config->connection_type);
+    freerdp_settings_set_bool(settings, FreeRDP_NetworkAutoDetect, config->network_auto_detect ? TRUE : FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableWallpaper, config->desktop_wallpaper ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableFullWindowDrag, config->full_window_drag ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableMenuAnims, config->menu_animations ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_DisableThemes, config->themes ? FALSE : TRUE);
+    freerdp_settings_set_bool(settings, FreeRDP_AllowFontSmoothing, config->font_smoothing ? TRUE : FALSE);
     freerdp_performance_flags_make(settings);
     freerdp_settings_set_string(settings, FreeRDP_ClientHostname, "RDPilot");
-    freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, (UINT32)params->color_depth);
-    wrapper_display_configure(session, settings, (UINT32)params->width, (UINT32)params->height);
+    freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, (UINT32)config->color_depth);
+    wrapper_display_configure(session, settings, (UINT32)config->width, (UINT32)config->height);
     freerdp_settings_set_bool(settings, FreeRDP_Fullscreen, FALSE);
     wrapper_channels_subscribe(session->instance->context);
     wrapper_graphics_subscribe_reset(session->instance->context);
     return true;
 }
 
-static bool connect_attempt(rdp_session* session, const connection_params* params, bool use_gateway, connection_error* error)
+static bool connect_attempt(rdp_session* session, const rdp_session_config* config, bool use_gateway, connection_error* error)
 {
     if (error) memset(error, 0, sizeof(connection_error));
-    if (!setup_instance(session, params, use_gateway))
+    if (!setup_instance(session, config, use_gateway))
     {
         if (error)
         {
@@ -217,21 +217,22 @@ DWORD WINAPI wrapper_connection_thread(LPVOID lpParam) {
     if (freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0) != CHANNEL_RC_OK)
     {
         fprintf(stderr, "Failed to register FreeRDP static addin provider\n");
-        free(params);
+        free_connection_params(params);
         session->running = false;
         connection_error error = { 0, "WRAPPER_ADDIN_PROVIDER_FAILED", "Failed to register FreeRDP static addin provider." };
         emit_status(session, 2, &error);
         return 1;
     }
-    bool has_gateway = params->gateway_host[0] != '\0';
+    const rdp_session_config* config = &params->config;
+    bool has_gateway = config->gateway_host && config->gateway_host[0] != '\0';
     connection_error error;
     connection_error direct_error = { 0 };
-    bool connected = connect_attempt(session, params, false, &error);
+    bool connected = connect_attempt(session, config, false, &error);
     if (!connected) direct_error = error;
-    if (!connected && has_gateway && session->running) connected = connect_attempt(session, params, true, &error);
+    if (!connected && has_gateway && session->running) connected = connect_attempt(session, config, true, &error);
     if (!connected) {
         fprintf(stderr, "Failed to connect\n");
-        free(params);
+        free_connection_params(params);
         session->running = false;
         if (has_gateway && direct_error.name && error.name)
         {
@@ -249,7 +250,7 @@ DWORD WINAPI wrapper_connection_thread(LPVOID lpParam) {
     }
     emit_status(session, 1, NULL);
     wrapper_graphics_initialize(session);
-    free(params);
+    free_connection_params(params);
 
     while (session->running) {
         ULONGLONG loop_start = GetTickCount64();

@@ -57,24 +57,52 @@ typedef void (*ClipboardFileContentsCallback)(rdp_session* session, uint32_t str
 typedef void (*StatusCallback)(rdp_session* session, int status, uint32_t error_code, const char* error_name, const char* error_message);
 typedef int (*CertificateDecisionCallback)(rdp_session* session, const char* host, uint16_t port, const char* common_name, const char* subject, const char* issuer, const char* fingerprint, int is_changed, const char* previous_subject, const char* previous_issuer, const char* previous_fingerprint);
 
-FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const char* host, const char* connect_host, uint16_t port, const char* domain, const char* user, const char* password,
-                                                     const char* gateway_host, const char* gateway_domain, const char* gateway_user, const char* gateway_password,
-                                                     int width, int height, int color_depth, bool compression, bool font_smoothing, bool bitmap_cache,
-                                                     bool desktop_wallpaper, bool themes, bool menu_animations, bool full_window_drag, int connection_type, bool network_auto_detect,
-                                                     bool use_network_level_authentication,
-                                                     uint32_t keyboard_layout, uint32_t dpi_scale_percent, uint32_t device_scale_percent,
+/* Connection settings for rdp_session_connect. Every value is written to FreeRDP as given; the
+ * host normalizes them. `size` must be at least sizeof(rdp_session_config); new fields are only
+ * ever appended. Strings are UTF-8, may be NULL, and are copied before rdp_session_connect
+ * returns. Flags are 0 or 1. */
+typedef struct {
+    uint32_t size;
+    const char* host;
+    const char* connect_host;
+    const char* domain;
+    const char* user;
+    const char* password;
+    const char* gateway_host;
+    const char* gateway_domain;
+    const char* gateway_user;
+    const char* gateway_password;
+    uint16_t port;
+    int32_t width;
+    int32_t height;
+    int32_t color_depth;
+    uint32_t connection_type;
+    uint32_t keyboard_layout;
+    uint32_t desktop_scale_percent;
+    uint32_t device_scale_percent;
+    uint8_t network_auto_detect;
+    uint8_t use_network_level_authentication;
+    uint8_t compression;
+    uint8_t bitmap_cache;
+    uint8_t font_smoothing;
+    uint8_t desktop_wallpaper;
+    uint8_t themes;
+    uint8_t menu_animations;
+    uint8_t full_window_drag;
+} rdp_session_config;
+
+FREERDP_WRAPPER_API rdp_session* rdp_session_connect(const rdp_session_config* config,
                                                      FrameCallback frame_callback, ClipboardTextCallback clipboard_text_callback, ClipboardFilesCallback clipboard_files_callback, StatusCallback status_callback, CertificateDecisionCallback certificate_decision_callback,
                                                      CursorCallback cursor_callback, ClipboardFileContentsCallback clipboard_file_contents_callback);
 FREERDP_WRAPPER_API void rdp_session_disconnect(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_free(rdp_session* session);
-FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height, uint32_t dpi_scale_percent);
+FREERDP_WRAPPER_API void rdp_session_update_resolution(rdp_session* session, int width, int height);
 FREERDP_WRAPPER_API void rdp_session_send_mouse_event(rdp_session* session, uint16_t flags, uint16_t x, uint16_t y);
 FREERDP_WRAPPER_API void rdp_session_send_keyboard_event(rdp_session* session, uint16_t flags, uint16_t code);
 FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text);
 FREERDP_WRAPPER_API void rdp_session_clipboard_clear_local_files(rdp_session* session);
 FREERDP_WRAPPER_API void rdp_session_clipboard_add_local_file(rdp_session* session, const char* file_path);
 FREERDP_WRAPPER_API void rdp_session_clipboard_commit_local_files(rdp_session* session);
-FREERDP_WRAPPER_API void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count);
 /* Queues a CB_FILECONTENTS_REQUEST for file `list_index` of the server clipboard identified by
  * `generation`. `stream_id` is chosen by the caller, must be unique among its outstanding
  * requests, and comes back in ClipboardFileContentsCallback. Returns false when the request was

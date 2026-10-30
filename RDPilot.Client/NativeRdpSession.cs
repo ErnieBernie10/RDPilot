@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using System.Runtime.InteropServices;
 using RDPilot.Client.Models;
 
@@ -10,7 +11,7 @@ internal interface INativeRdpSession
 
     void Disconnect();
     void Free();
-    void UpdateResolution(int width, int height, uint dpiScalePercent);
+    void UpdateResolution(int width, int height);
     void SendMouseEvent(ushort flags, ushort x, ushort y);
     void SendKeyboardEvent(ushort flags, ushort code);
     void SetLocalClipboardText(string? text);
@@ -31,38 +32,44 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public IntPtr Handle { get; }
 
+    private static readonly RdpConnectEnvironment PlatformEnvironment =
+        new(OperatingSystem.IsWindows(), Dns.GetHostAddresses, NativeWrapper.GetCurrentKeyboardLayout);
+
     public static INativeRdpSession Connect(RdpSessionStartRequest request, NativeSessionCallbacks callbacks)
     {
-        var connection = request.Connection;
-        var quality = request.Quality;
-        var network = RdpSessionOptions.NormalizeNetworkSettings(quality.ConnectionType);
+        var plan = request.CreateConnectPlan(PlatformEnvironment);
+        var config = new NativeWrapper.RdpSessionConfig
+        {
+            Size = (uint)Marshal.SizeOf<NativeWrapper.RdpSessionConfig>(),
+            Host = plan.Host,
+            ConnectHost = plan.ConnectHost,
+            Domain = plan.Domain,
+            User = plan.Username,
+            Password = plan.Password,
+            GatewayHost = plan.GatewayHost,
+            GatewayDomain = plan.GatewayDomain,
+            GatewayUser = plan.GatewayUsername,
+            GatewayPassword = plan.GatewayPassword,
+            Port = plan.Port,
+            Width = plan.Width,
+            Height = plan.Height,
+            ColorDepth = plan.ColorDepth,
+            ConnectionType = plan.ConnectionType,
+            KeyboardLayout = plan.KeyboardLayout,
+            DesktopScalePercent = plan.DesktopScalePercent,
+            DeviceScalePercent = plan.DeviceScalePercent,
+            NetworkAutoDetect = plan.NetworkAutoDetect,
+            UseNetworkLevelAuthentication = plan.UseNetworkLevelAuthentication,
+            Compression = plan.Compression,
+            BitmapCache = plan.BitmapCache,
+            FontSmoothing = plan.FontSmoothing,
+            DesktopWallpaper = plan.DesktopWallpaper,
+            Themes = plan.Themes,
+            MenuAnimations = plan.MenuAnimations,
+            FullWindowDrag = plan.FullWindowDrag
+        };
         var handle = NativeWrapper.rdp_session_connect(
-            connection.Host,
-            NativeWrapper.ResolveDirectConnectHost(connection.Host),
-            RdpSessionOptions.NormalizePort(connection.Port),
-            connection.Domain,
-            connection.Username,
-            request.Password,
-            connection.GatewayHost,
-            connection.GatewayDomain,
-            connection.GatewayUsername,
-            request.GatewayPassword,
-            request.Width,
-            request.Height,
-            quality.ColorDepth,
-            quality.Compression,
-            quality.FontSmoothing,
-            quality.BitmapCache,
-            quality.DesktopWallpaper,
-            quality.Themes,
-            quality.MenuAnimations,
-            quality.FullWindowDrag,
-            network.ConnectionType,
-            network.NetworkAutoDetect,
-            RdpSessionOptions.ShouldUseNetworkLevelAuthentication(connection.Username, request.Password),
-            NativeWrapper.GetCurrentKeyboardLayout(),
-            request.DpiScalePercent,
-            request.DeviceScalePercent,
+            in config,
             callbacks.Frame,
             callbacks.ClipboardText,
             callbacks.ClipboardFiles,
@@ -78,8 +85,8 @@ internal sealed class NativeRdpSession : INativeRdpSession
 
     public void Free() => NativeWrapper.rdp_session_free(Handle);
 
-    public void UpdateResolution(int width, int height, uint dpiScalePercent) =>
-        NativeWrapper.rdp_session_update_resolution(Handle, width, height, dpiScalePercent);
+    public void UpdateResolution(int width, int height) =>
+        NativeWrapper.rdp_session_update_resolution(Handle, width, height);
 
     public void SendMouseEvent(ushort flags, ushort x, ushort y) =>
         NativeWrapper.rdp_session_send_mouse_event(Handle, flags, x, y);

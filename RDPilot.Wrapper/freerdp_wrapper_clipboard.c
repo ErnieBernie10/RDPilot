@@ -1233,22 +1233,6 @@ void rdp_session_clipboard_commit_local_files(rdp_session* session) {
     LeaveCriticalSection(&session->clipboard_lock);
 }
 
-void rdp_session_clipboard_set_local_files(rdp_session* session, const char** file_paths, size_t file_count) {
-    if (!session) return;
-
-    rdp_session_clipboard_clear_local_files(session);
-
-    if (file_paths && file_count > 0)
-    {
-        for (size_t i = 0; i < file_count; i++)
-        {
-            rdp_session_clipboard_add_local_file(session, file_paths[i]);
-        }
-    }
-
-    rdp_session_clipboard_commit_local_files(session);
-}
-
 void rdp_session_clipboard_set_local_text(rdp_session* session, const char* text) {
     if (!session) return;
 
