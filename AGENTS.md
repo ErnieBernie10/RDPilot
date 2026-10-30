@@ -38,7 +38,7 @@ Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no 
 
 **Managed-owned (safe C#, no `unsafe` blocks):**
 - Resize debounce/coalescing: `ViewportResolutionUpdateScheduler` (quiet-period + min-interval).
-- Pointer-move coalescing/throttling: `PointerMoveScheduler` (latest-only, ~125 Hz min interval).
+- Pointer-move coalescing/throttling: `PointerInputSender` (latest-only, ~125 Hz min interval).
 - Option normalization: `RdpSessionOptions` (color depth, connection type, DPI scale clamping, resolution clamping).
 - Clipboard file-list shaping: C# sends paths via native `clear/add/commit` primitives.
 - All callback marshaling uses safe `Marshal.PtrToStringUTF8` / `Marshal.ReadIntPtr`.
@@ -74,7 +74,8 @@ Current resize behavior (managed-owned policy):
 Input behavior (managed-owned policy):
 
 - Do not call FreeRDP input APIs directly from Avalonia/UI event handlers.
-- `PointerMoveScheduler` coalesces mouse moves latest-only and throttles to ~125 Hz (8 ms min interval). Pending moves are flushed before button/wheel events so clicks carry a near-current position.
+- `PointerInputSender` owns all pointer input (move, press, release, wheel) for the selected session and scales DIPs to desktop pixels with the session's render scaling. Moves are coalesced latest-only and throttled to ~125 Hz (8 ms min interval); the throttled send is posted to the UI thread. Press/release/wheel send the pending move synchronously first, so native always receives the move before the button. Never route that flush through `Post`: a posted move lands after the button and drags the remote pointer back.
+- Keyboard input goes from `RdpViewportPresenter` straight to `SelectedSession.Send(KeyInput)`; `MainWindowViewModel` does not forward input.
 - Native input is a simple ordered FIFO queue drained on the RDP thread. No coalescing or throttling policy in native code.
 - The RDP loop is the canonical FreeRDP event-driven form (matches `wfreerdp`/`xfreerdp`): `freerdp_get_event_handles` → `WaitForManyObjects(..., INPUT_LOOP_TIMEOUT_MS=10)` → `freerdp_check_event_handles` (single call). Network data wakes the loop immediately; idle polls are capped at ~100 Hz.
 - Current low-latency profile uses 16-bit color, compression, bitmap cache, WAN connection type, disabled audio/device redirection, and disabled desktop visual effects.
@@ -138,6 +139,7 @@ Clipboard redirection currently supports text and file copy/paste in both direct
 - Text uses `CF_UNICODETEXT`.
 - Local-to-remote files use `FileGroupDescriptorW` / `FileContents` streaming on `cliprdr` and currently advertise long format names with file paths omitted (matches the working `wfreerdp` behavior used during implementation). C# sends file paths through native `rdp_session_clipboard_clear_local_files` / `rdp_session_clipboard_add_local_file` / `rdp_session_clipboard_commit_local_files` primitives (no managed pointer-array construction).
 - C# owns interaction with Avalonia's `TopLevel.Clipboard`; native calls back with remote UTF-8 text and C# writes it to the local OS clipboard.
+- `Services/ClipboardSync` is the one managed clipboard module: polling, echo suppression (bitmaps by a hash of the converted DIB, so same-size images with different content are still sent), empty-read debounce, download cancellation and remote-to-local writes. It subscribes directly to the selected session's `RemoteClipboardTextReceived` / `RemoteClipboardFilesReceived` (raised on the RDP thread, posted to the UI thread) and follows selection through `ISelectedSessionSource` (implemented by `MainWindowViewModel`). Do not relay clipboard data through the shell, view or presenter again.
 - Local-to-remote clipboard uses an Avalonia-side polling timer. Text is cached as the latest non-empty string in native code so the RDP thread can answer remote paste requests synchronously; file offers are rebuilt from the current Avalonia clipboard file list.
 - Empty local clipboard reads are ignored because Avalonia/platform clipboard reads may transiently return empty values and should not clear the remote clipboard offer.
 - Remote-to-local files are read on demand, never downloaded eagerly by native. Native fetches only the server's `FileGroupDescriptorW` and hands it to C# verbatim with its `remote_generation` (`ClipboardFilesCallback`). C# reads contents through `rdp_session_clipboard_request_remote_file_contents` (caller-chosen stream id, answered exactly once by `ClipboardFileContentsCallback`, including on clipboard change or channel close). `RdpSessionRuntime` matches answers to requests by stream id; `RemoteFileReader` keeps a window of 8 × 256 KiB range requests in flight, because one request per round trip caps throughput at about 1 MB/s.
@@ -166,8 +168,8 @@ Connection management UI:
 - Session constructors must not connect. `RdpSessionFactory` calls explicit `Start(request)` only after presentation and runtime subscriptions are assembled; credentials are not retained by the view model. Runtime disposal during startup must free any subsequently returned handle instead of publishing it.
 - `Connect` creates a new tab/session even when another tab for the same saved connection already exists.
 - Switching tabs must not disconnect background sessions. Input, resize, and local clipboard updates should route only to `SelectedSession`.
-- `ViewportClipboardCoordinator` owns selected-session clipboard polling and invalidates in-flight work on tab changes/detach. `FullscreenWindowController` owns fullscreen layout and toolbar reveal timing; `MainWindow` remains responsible for platform keyboard-grab lifecycle.
-- The clipboard coordinator subscribes to the shell's `SelectedSession` changes while attached, listens to remote clipboard events on the selected session only (no forwarding through `MainWindowViewModel` or the view), and increments a generation on every transition, including A → B → A. Data-context identity checks alone cannot reject stale async work when the original tab becomes selected again.
+- `RdpViewportView` owns the `ClipboardSync` lifetime (start on attach, stop on detach, `UseSource` on data-context change); it invalidates in-flight work on tab changes/detach. `FullscreenWindowController` owns fullscreen layout and toolbar reveal timing; `MainWindow` remains responsible for platform keyboard-grab lifecycle.
+- `ClipboardSync` increments a generation on every selection transition, including A → B → A, and checks session identity plus generation in its single `IsCurrent`. Identity checks alone cannot reject stale async work when the original tab becomes selected again.
 - `ConnectionStore` stores non-secret metadata in per-user `connections.json` via `AppDataPaths`.
 - `connection.local.json` is only a local development/import convenience and must remain ignored by Git.
 
@@ -212,7 +214,7 @@ Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Ava
 - For race-style tests, preserve the real ordering. Example: call the callback on the non-UI test thread so it queues UI work, then dispose/mutate state, then call `RunPendingDispatcherJobs()` and assert the queued work was dropped.
 - Do not call `Dispatcher.UIThread.RunJobs()` or `Dispatcher.UIThread.MainLoop()` directly in tests. On the Avalonia 12.x headless platform these can hang when used from the wrong thread or outside the headless session flow.
 - Do not add test-only hooks, fake `Post` delegates, or production behavior changes just to make tests pass. Fix the test harness to use the real headless UI thread instead.
-- Keep pure logic tests free of Avalonia when possible. `PointerMoveScheduler`, `ViewportResolutionUpdateScheduler`, `RdpSessionOptions`, input mappers, and other non-UI helpers should be tested without the headless session.
+- Keep pure logic tests free of Avalonia when possible. `ViewportResolutionUpdateScheduler`, `RdpSessionOptions`, input mappers, and other non-UI helpers should be tested without the headless session.
 - For `ManagedFramePresenter` tests specifically, create the presenter on the UI thread and invoke `EnqueueFrame` on the UI thread for normal presentation/coalescing cases. For dispose-before-present races, queue work from the test thread, dispose on the UI thread, then flush posted jobs.
 - For `RdpSessionViewModel` callback tests, distinguish between synchronous UI-thread execution and posted UI-thread work. `OnStatusChanged` posts; clipboard text/file callbacks do not. Structure tests accordingly.
 

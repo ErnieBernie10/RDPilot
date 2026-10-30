@@ -4,19 +4,20 @@ using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
-[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "The presenter is disposed when its host window closes; detach stops its timers for reusable views.")]
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "The clipboard sync is disposed when its host window closes; detach stops its timer for reusable views.")]
 public partial class RdpViewportView : UserControl
 {
     private readonly RdpViewportPresenter _presenter;
+    private readonly ClipboardSync _clipboard;
     private MainWindowViewModel? _subscribedViewModel;
     private Window? _hostWindow;
 
@@ -25,15 +26,16 @@ public partial class RdpViewportView : UserControl
         InitializeComponent();
         _presenter = new RdpViewportPresenter(
             () => DataContext as MainWindowViewModel,
-            () => TopLevel.GetTopLevel(this)?.Clipboard,
-            CreateStorageItemsAsync,
             () => ViewportHost.Bounds.Size,
             () => RdpImage.InvalidateVisual(),
-            ConvertBitmapToDib,
             new ViewportResolutionService(),
-            new ClipboardSyncService(),
             new ViewportResolutionUpdateScheduler(action => Dispatcher.UIThread.Post(action)),
-            new PointerMoveScheduler(action => Dispatcher.UIThread.Post(action)));
+            new PointerInputSender(() => (DataContext as MainWindowViewModel)?.SelectedSession, action => Dispatcher.UIThread.Post(action)));
+        _clipboard = new ClipboardSync(
+            () => TopLevel.GetTopLevel(this)?.Clipboard,
+            CreateStorageItemsAsync,
+            ConvertBitmapToDib,
+            OperatingSystem.IsWindows() ? new WindowsVirtualFileClipboard() : null);
 
         DataContextChanged += OnDataContextChanged;
         AttachedToVisualTree += (_, _) => AttachToHostWindow();
@@ -59,7 +61,7 @@ public partial class RdpViewportView : UserControl
         }
 
         _subscribedViewModel = DataContext as MainWindowViewModel;
-        _presenter.ClipboardSessionChanged();
+        _clipboard.UseSource(_subscribedViewModel);
         if (_subscribedViewModel != null)
         {
             _subscribedViewModel.SessionRedrawRequested += OnSessionRedrawRequested;
@@ -87,13 +89,13 @@ public partial class RdpViewportView : UserControl
         _hostWindow.LayoutUpdated += OnHostWindowLayoutUpdated;
         _hostWindow.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, true);
         _hostWindow.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel, true);
-        _presenter.StartClipboardPolling();
+        _clipboard.Start();
         QueueViewportResolutionUpdate();
     }
 
     private void DetachFromHostWindow()
     {
-        _presenter.StopClipboardPolling();
+        _clipboard.Stop();
         _presenter.ReleasePressedRdpKeys();
         _presenter.ReleaseGrabbedKeys();
         _presenter.CancelViewportResolutionUpdates();
@@ -116,14 +118,14 @@ public partial class RdpViewportView : UserControl
     private void OnHostWindowClosed(object? sender, EventArgs e)
     {
         DetachFromHostWindow();
-        _presenter.Dispose();
+        _clipboard.Dispose();
     }
 
     // Coming back to the window is the moment a local copy is about to be pasted remotely; read the
     // clipboard now instead of waiting up to a full poll interval, or the paste races the poll.
     private async void OnHostWindowActivated(object? sender, EventArgs e)
     {
-        await _presenter.PollClipboardAsync();
+        await _clipboard.PollClipboardAsync();
     }
 
     private void OnSessionRedrawRequested(object? sender, RdpSessionViewModel e)

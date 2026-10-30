@@ -588,6 +588,25 @@ public sealed class MainWindowViewModelTests
         Assert.Same(first, raisedSession);
     }
 
+    [Fact]
+    public async Task SelectedSessionChanged_RaisesOnEveryTransitionAfterTheSelectionIsVisible()
+    {
+        using var env = new TestConfigHome();
+        var first = SessionTestContext.CreateSession(CreateConnection("One"), RdpSessionStatus.Connected);
+        var second = SessionTestContext.CreateSession(CreateConnection("Two"), RdpSessionStatus.Connected);
+        var vm = new MainWindowViewModel(new ConnectionStore(new FakeSecretStore()), new QueueSessionFactory(Array.Empty<RdpSessionViewModel>()));
+        await vm.LoadConnectionsAsync();
+        var observed = new List<RdpSessionViewModel?>();
+        vm.SelectedSessionChanged += (_, _) => observed.Add(vm.SelectedSession);
+
+        vm.SelectedSession = first;
+        vm.SelectedSession = second;
+        vm.SelectedSession = first;
+        vm.SelectedSession = null;
+
+        Assert.Equal(new RdpSessionViewModel?[] { first, second, first, null }, observed);
+    }
+
     private static void InvokePrivate(object target, string methodName, params object?[] args)
     {
         var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);

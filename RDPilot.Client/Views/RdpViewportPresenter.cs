@@ -1,26 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
-using RDPilot.Client.Services;
 using RDPilot.Client.ViewModels;
 
 namespace RDPilot.Client.Views;
 
-internal sealed class RdpViewportPresenter : IDisposable
+internal sealed class RdpViewportPresenter
 {
     private readonly Func<MainWindowViewModel?> _getViewModel;
     private readonly Func<Size> _getViewportSize;
     private readonly Action _invalidateViewport;
     private readonly ViewportResolutionService _viewportResolutionService;
     private readonly ViewportResolutionUpdateScheduler _viewportResolutionUpdateScheduler;
-    private readonly PointerMoveScheduler _pointerMoveScheduler;
-    private readonly ViewportClipboardCoordinator _clipboard;
+    private readonly PointerInputSender _pointerInput;
     private readonly HashSet<Key> _pressedRdpKeys = new();
     private readonly HashSet<ushort> _pressedGrabbedScancodes = new();
     private bool _rdpKeyboardActive;
@@ -29,40 +22,24 @@ internal sealed class RdpViewportPresenter : IDisposable
 
     public RdpViewportPresenter(
         Func<MainWindowViewModel?> getViewModel,
-        Func<IClipboard?> getClipboard,
-        Func<string[], Task<IStorageItem[]>> createStorageItems,
         Func<Size> getViewportSize,
         Action invalidateViewport,
-        Func<Bitmap, byte[]?> convertBitmapToDib,
         ViewportResolutionService viewportResolutionService,
-        ClipboardSyncService clipboardSyncService,
         ViewportResolutionUpdateScheduler viewportResolutionUpdateScheduler,
-        PointerMoveScheduler pointerMoveScheduler)
+        PointerInputSender pointerInput)
     {
         _getViewModel = getViewModel;
         _getViewportSize = getViewportSize;
         _invalidateViewport = invalidateViewport;
         _viewportResolutionService = viewportResolutionService;
-        _clipboard = new ViewportClipboardCoordinator(getViewModel, getClipboard, createStorageItems, convertBitmapToDib, clipboardSyncService,
-            OperatingSystem.IsWindows() ? new WindowsVirtualFileClipboard() : null);
         _viewportResolutionUpdateScheduler = viewportResolutionUpdateScheduler;
-        _pointerMoveScheduler = pointerMoveScheduler;
+        _pointerInput = pointerInput;
     }
 
     public void HandleSessionRedrawRequested()
     {
         _invalidateViewport();
     }
-
-    public Task PollClipboardAsync() => _clipboard.PollClipboardAsync();
-
-    public void StartClipboardPolling() => _clipboard.Start();
-
-    public void StopClipboardPolling() => _clipboard.Stop();
-
-    public void ClipboardSessionChanged() => _clipboard.SessionChanged();
-
-    public void Dispose() => _clipboard.Dispose();
 
     public void HandleScaleChanged(double scale, bool isMinimized)
     {
@@ -111,74 +88,16 @@ internal sealed class RdpViewportPresenter : IDisposable
     public void CancelViewportResolutionUpdates()
     {
         _viewportResolutionUpdateScheduler.Cancel();
-        _pointerMoveScheduler.Cancel();
+        _pointerInput.Cancel();
     }
 
-    public void HandlePointerMoved(double x, double y)
-    {
-        var vm = _getViewModel();
-        if (vm == null)
-        {
-            return;
-        }
+    public void HandlePointerMoved(double x, double y) => _pointerInput.Move(x, y);
 
-        _pointerMoveScheduler.Schedule(x, y, (dipX, dipY) => vm.SendMouseEventScaled(RdpPointerInputMapper.PointerMoveFlag, dipX, dipY));
-    }
+    public void HandlePointerPressed(double x, double y, PointerPointProperties properties) => _pointerInput.Press(x, y, properties);
 
-    public void HandlePointerPressed(double x, double y, PointerPointProperties properties)
-    {
-        var vm = _getViewModel();
-        if (vm == null)
-        {
-            return;
-        }
+    public void HandlePointerReleased(double x, double y, PointerUpdateKind updateKind) => _pointerInput.Release(x, y, updateKind);
 
-        _pointerMoveScheduler.Flush();
-        ushort flags = RdpPointerInputMapper.PointerDownFlag;
-        if (properties.IsLeftButtonPressed) flags |= RdpPointerInputMapper.PointerButton1Flag;
-        if (properties.IsRightButtonPressed) flags |= RdpPointerInputMapper.PointerButton2Flag;
-        if (properties.IsMiddleButtonPressed) flags |= RdpPointerInputMapper.PointerButton3Flag;
-        vm.SendMouseEventScaled(flags, x, y);
-    }
-
-    public void HandlePointerReleased(double x, double y, PointerUpdateKind updateKind)
-    {
-        var vm = _getViewModel();
-        if (vm == null)
-        {
-            return;
-        }
-
-        _pointerMoveScheduler.Flush();
-        ushort flags = 0;
-        switch (updateKind)
-        {
-            case PointerUpdateKind.LeftButtonReleased:
-                flags |= RdpPointerInputMapper.PointerButton1Flag;
-                break;
-            case PointerUpdateKind.RightButtonReleased:
-                flags |= RdpPointerInputMapper.PointerButton2Flag;
-                break;
-            case PointerUpdateKind.MiddleButtonReleased:
-                flags |= RdpPointerInputMapper.PointerButton3Flag;
-                break;
-        }
-
-        vm.SendMouseEventScaled(flags, x, y);
-    }
-
-    public void HandlePointerWheelChanged(double x, double y, Vector delta)
-    {
-        var vm = _getViewModel();
-        if (vm == null)
-        {
-            return;
-        }
-
-        _pointerMoveScheduler.Flush();
-        SendWheelDelta(vm, RdpPointerInputMapper.PointerWheelFlag, delta.Y, x, y);
-        SendWheelDelta(vm, RdpPointerInputMapper.PointerHorizontalWheelFlag, delta.X, x, y);
-    }
+    public void HandlePointerWheelChanged(double x, double y, Vector delta) => _pointerInput.Wheel(x, y, delta);
 
     public bool HandleKeyDown(object? source, object rdpImage, Key key)
     {
@@ -202,7 +121,7 @@ internal sealed class RdpViewportPresenter : IDisposable
 
         _rdpKeyboardActive = true;
         _pressedRdpKeys.Add(key);
-        vm.SendKeyboardEvent(flags, scancode);
+        SendKey(vm, flags, scancode);
         return true;
     }
 
@@ -226,7 +145,7 @@ internal sealed class RdpViewportPresenter : IDisposable
 
         ushort flags = RdpKeyboardInputMapper.BuildKeyFlags(scancode, isRelease: true, out scancode);
 
-        vm.SendKeyboardEvent(flags, scancode);
+        SendKey(vm, flags, scancode);
         _pressedRdpKeys.Remove(key);
         _rdpKeyboardActive = _pressedRdpKeys.Count > 0;
         return true;
@@ -234,7 +153,7 @@ internal sealed class RdpViewportPresenter : IDisposable
 
     public void ReleasePressedRdpKeys()
     {
-        _pointerMoveScheduler.Cancel();
+        _pointerInput.Cancel();
         var vm = _getViewModel();
         if (_pressedRdpKeys.Count == 0 || vm == null)
         {
@@ -251,7 +170,7 @@ internal sealed class RdpViewportPresenter : IDisposable
             }
 
             var flags = RdpKeyboardInputMapper.BuildKeyFlags(scancode, isRelease: true, out scancode);
-            vm.SendKeyboardEvent(flags, scancode);
+            SendKey(vm, flags, scancode);
         }
 
         _pressedRdpKeys.Clear();
@@ -292,7 +211,7 @@ internal sealed class RdpViewportPresenter : IDisposable
 
         var trackedScancode = (ushort)(scancode | (extended ? RdpKeyboardInputMapper.ExtendedScancodeBit : 0));
         var flags = RdpKeyboardInputMapper.BuildKeyFlags(trackedScancode, isUp, out var normalizedScancode);
-        vm.SendKeyboardEvent(flags, normalizedScancode);
+        SendKey(vm, flags, normalizedScancode);
 
         if (isUp)
         {
@@ -318,7 +237,7 @@ internal sealed class RdpViewportPresenter : IDisposable
         foreach (var trackedScancode in _pressedGrabbedScancodes)
         {
             var flags = RdpKeyboardInputMapper.BuildKeyFlags(trackedScancode, isRelease: true, out var normalizedScancode);
-            vm.SendKeyboardEvent(flags, normalizedScancode);
+            SendKey(vm, flags, normalizedScancode);
         }
 
         _pressedGrabbedScancodes.Clear();
@@ -334,17 +253,6 @@ internal sealed class RdpViewportPresenter : IDisposable
         return ReferenceEquals(source, rdpImage) || _rdpKeyboardActive;
     }
 
-    private static void SendWheelDelta(MainWindowViewModel vm, ushort wheelFlag, double delta, double dipX, double dipY)
-    {
-        if (delta == 0)
-        {
-            return;
-        }
-
-        var flags = RdpPointerInputMapper.BuildWheelFlags(wheelFlag, delta);
-        if (flags != 0)
-        {
-            vm.SendMouseEventScaled(flags, dipX, dipY);
-        }
-    }
+    private static void SendKey(MainWindowViewModel vm, ushort flags, ushort scancode) =>
+        vm.SelectedSession?.Send(new KeyInput(flags, scancode));
 }

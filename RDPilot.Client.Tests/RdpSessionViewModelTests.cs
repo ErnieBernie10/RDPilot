@@ -225,14 +225,6 @@ public sealed class RdpSessionViewModelTests
     }
 
     [Fact]
-    public void SendMouseEventScaled_ScalesCoordinatesAndForwardsFlags()
-    {
-        using var context = new SessionTestContext(scaling: 1.5);
-        context.ViewModel.SendMouseEventScaled(0x8001, 10.4, 20.8);
-        Assert.Equal(((ushort)0x8001, (ushort)15, (ushort)31), Assert.Single(context.Native.MouseEvents));
-    }
-
-    [Fact]
     public void SendCtrlAltDel_SendsBalancedDownUpSequence()
     {
         using var context = new SessionTestContext();
@@ -272,7 +264,7 @@ public sealed class RdpSessionViewModelTests
         using var context = new SessionTestContext();
         context.Dispose();
         context.Dispose();
-        context.ViewModel.SendKeyboardEvent(0, 10);
+        context.ViewModel.Send(new KeyInput(0, 10));
         Assert.Equal(1, context.Native.FreeCount);
         Assert.False(context.Runtime.HasHandle);
         Assert.Empty(context.Native.KeyboardEvents);
