@@ -2,7 +2,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO FreeRDP/FreeRDP
     REF "${VERSION}"
-    SHA512 f976355350dcd905d48ac71a9842d5c4250eaabc125672d0883250c3a84500ac40ae361e5a83c2a6f25848bfede3cf038fa4a772c420de6d88b09b191b7e5a06
+    SHA512 639698e02bebdbd6cf59e0fe7eae3bf80ded3915d3d364e0cbdd681cbb4e1b8760347911317980241adb865691513eeb9be0d2ac5c5dc16c0ccaee55c0d412a5
     HEAD_REF master
     PATCHES
         dependencies.patch
