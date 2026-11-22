@@ -49,7 +49,7 @@ responds the moment you move the mouse.
 <table>
   <tr>
     <td width="50%"><img src="docs/images/rdpilot-launcher.png" alt="Connection launcher"></td>
-    <td width="50%"><img src="docs/images/rdpilot-connections.png" alt="Connections panel over a running session"></td>
+    <td width="50%"><img src="docs/images/rdpilot-connections-panel.png" alt="Connections panel over a running session"></td>
   </tr>
   <tr>
     <td align="center">Pick a computer to connect to</td>
