@@ -43,6 +43,14 @@ public partial class RdpViewportView : UserControl
         RdpImage.LostFocus += (_, _) => _presenter.ReleasePressedRdpKeys();
     }
 
+    private async void OnAddConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            await ConnectionDialogs.AddAsync(this, vm);
+        }
+    }
+
     internal void SetKeyboardGrabActive(bool active)
     {
         _presenter.SetKeyboardGrabActive(active);

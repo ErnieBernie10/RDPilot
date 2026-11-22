@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:icons="using:FluentIcons.Avalonia"
+             xmlns:vm="using:RDPilot.Client.ViewModels"
+             xmlns:model="using:RDPilot.Client.Models"
+             xmlns:views="using:RDPilot.Client.Views"
+             x:Class="RDPilot.Client.Views.ConnectionListView"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="ListBox.ConnectionList ListBoxItem">
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpHoverBrush}"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem Button.RowConnect">
+            <Setter Property="Opacity" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem:pointerover Button.RowConnect, ListBox.ConnectionList ListBoxItem:selected Button.RowConnect">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem Button.RowMore">
+            <Setter Property="Opacity" Value="0.55"/>
+        </Style>
+        <Style Selector="ListBox.ConnectionList ListBoxItem:pointerover Button.RowMore, ListBox.ConnectionList ListBoxItem:selected Button.RowMore">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="TextBox.Search">
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Padding" Value="34,8,10,8"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="10">
+        <Panel IsVisible="{Binding HasConnections}">
+            <TextBox Classes="Search"
+                     Text="{Binding ConnectionFilter}"
+                     PlaceholderText="Filter by name, host or user"
+                     AutomationProperties.Name="Filter connections"
+                     KeyDown="OnSearchKeyDown"/>
+            <icons:FluentIcon Icon="Search" IconSize="Size16" FontSize="16"
+                              Margin="11,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                              Foreground="{DynamicResource RpMutedBrush}" IsHitTestVisible="False"/>
+        </Panel>
+
+        <ListBox x:Name="ConnectionList"
+                 Grid.Row="1"
+                 Classes="ConnectionList"
+                 ItemsSource="{Binding FilteredConnections}"
+                 SelectedItem="{Binding SelectedConnection}"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="0"
+                 AutomationProperties.Name="Saved connections"
+                 DoubleTapped="OnListDoubleTapped"
+                 KeyDown="OnListKeyDown">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="model:SavedConnection">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Background="Transparent">
+                        <Border Classes="Mark" Background="{Binding Id, Converter={x:Static views:ConnectionMarks.Brush}}">
+                            <TextBlock Text="{Binding Name, Converter={x:Static views:ConnectionMarks.Monogram}}"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Classes="Caption"
+                                       Text="{Binding ., Converter={x:Static views:ConnectionMarks.Address}}"
+                                       FontFeatures="+tnum"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Classes="accent Compact RowConnect"
+                                Padding="12,4"
+                                MinHeight="28"
+                                VerticalAlignment="Center"
+                                Content="Connect"
+                                Click="OnRowConnectClicked"/>
+                        <Button Grid.Column="3"
+                                Classes="Ghost RowMore"
+                                Width="28" Height="28" Padding="0"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                ToolTip.Tip="More actions"
+                                AutomationProperties.Name="More actions">
+                            <icons:FluentIcon Icon="MoreHorizontal" IconSize="Size16" FontSize="16"/>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="Edit" Click="OnRowEditClicked">
+                                        <MenuItem.Icon>
+                                            <icons:FluentIcon Icon="Edit" IconSize="Size16" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Delete" Click="OnRowDeleteClicked">
+                                        <MenuItem.Icon>
+                                            <icons:FluentIcon Icon="Delete" IconSize="Size16" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="1" Margin="4,16" Spacing="4" IsVisible="{Binding HasNoFilterMatches}">
+            <TextBlock Text="No connections match this filter." FontWeight="SemiBold"/>
+            <TextBlock Classes="Caption" Text="Try part of the name, host name or user name." TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="4,8" Spacing="12" IsVisible="{Binding HasNoConnections}" HorizontalAlignment="Left">
+            <TextBlock Text="No saved connections yet." FontWeight="SemiBold"/>
+            <TextBlock Classes="Muted" Text="Add the computer you want to reach by its host name or IP address." TextWrapping="Wrap"/>
+            <Button Classes="accent Compact" Click="OnAddClicked" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <icons:FluentIcon Icon="Add" IconSize="Size16" FontSize="16"/>
+                    <TextBlock Text="Add connection"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

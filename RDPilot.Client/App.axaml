@@ -3,126 +3,266 @@
              x:Class="RDPilot.Client.App"
              xmlns:local="using:RDPilot.Client"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
-  
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="RpCanvasBrush" Color="#1E1E1F"/>
+                    <SolidColorBrush x:Key="RpChromeBrush" Color="#262627"/>
+                    <SolidColorBrush x:Key="RpRaisedBrush" Color="#303032"/>
+                    <SolidColorBrush x:Key="RpHoverBrush" Color="#2B2B2D"/>
+                    <SolidColorBrush x:Key="RpLineBrush" Color="#3A3A3C"/>
+                    <SolidColorBrush x:Key="RpTextBrush" Color="#ECECEC"/>
+                    <SolidColorBrush x:Key="RpMutedBrush" Color="#9C9C9F"/>
+                    <SolidColorBrush x:Key="RpAccentBrush" Color="#4FC3E8"/>
+                    <SolidColorBrush x:Key="RpOnAccentBrush" Color="#062330"/>
+                    <SolidColorBrush x:Key="RpEngagedBrush" Color="#3CCF8E"/>
+                    <SolidColorBrush x:Key="RpCautionBrush" Color="#F0B040"/>
+                    <SolidColorBrush x:Key="RpWarningBrush" Color="#F05A5F"/>
+                    <SolidColorBrush x:Key="RpScrimBrush" Color="#99101011"/>
+                    <SolidColorBrush x:Key="AccentButtonForeground" Color="#062330"/>
+                    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#062330"/>
+                    <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#0A3242"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="RpCanvasBrush" Color="#EDEDED"/>
+                    <SolidColorBrush x:Key="RpChromeBrush" Color="#F7F7F7"/>
+                    <SolidColorBrush x:Key="RpRaisedBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="RpHoverBrush" Color="#F0F0F0"/>
+                    <SolidColorBrush x:Key="RpLineBrush" Color="#DADADA"/>
+                    <SolidColorBrush x:Key="RpTextBrush" Color="#1E1E1F"/>
+                    <SolidColorBrush x:Key="RpMutedBrush" Color="#66666A"/>
+                    <SolidColorBrush x:Key="RpAccentBrush" Color="#0B7CA3"/>
+                    <SolidColorBrush x:Key="RpOnAccentBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="RpEngagedBrush" Color="#17935A"/>
+                    <SolidColorBrush x:Key="RpCautionBrush" Color="#B07508"/>
+                    <SolidColorBrush x:Key="RpWarningBrush" Color="#CF3940"/>
+                    <SolidColorBrush x:Key="RpScrimBrush" Color="#55202022"/>
+                    <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E6F4FA"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+            <CornerRadius x:Key="OverlayCornerRadius">10</CornerRadius>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
-        <FluentTheme />
-        <Style Selector="Border.Card">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="10"/>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Dark"
+                        Accent="#4FC3E8" RegionColor="#1E1E1F"
+                        AltHigh="#1E1E1F" AltLow="#1E1E1F" AltMedium="#1E1E1F" AltMediumHigh="#1E1E1F" AltMediumLow="#1E1E1F"
+                        BaseHigh="#ECECEC" BaseLow="#3A3A3C" BaseMedium="#9C9C9F" BaseMediumHigh="#B8B8BB" BaseMediumLow="#6A6A6E"
+                        ChromeAltLow="#B8B8BB" ChromeBlackHigh="#000000" ChromeBlackLow="#B8B8BB" ChromeBlackMedium="#000000" ChromeBlackMediumLow="#000000"
+                        ChromeDisabledHigh="#3A3A3C" ChromeDisabledLow="#808084" ChromeGray="#6A6A6E" ChromeHigh="#6A6A6E"
+                        ChromeLow="#262627" ChromeMedium="#2A2A2B" ChromeMediumLow="#303032" ChromeWhite="#FFFFFF"
+                        ListLow="#303032" ListMedium="#3A3A3C" ErrorText="#F05A5F"/>
+                <ColorPaletteResources x:Key="Light"
+                        Accent="#0B7CA3" RegionColor="#F7F7F7"
+                        AltHigh="#FFFFFF" AltLow="#FFFFFF" AltMedium="#FFFFFF" AltMediumHigh="#FFFFFF" AltMediumLow="#FFFFFF"
+                        BaseHigh="#1E1E1F" BaseLow="#DADADA" BaseMedium="#7A7A7E" BaseMediumHigh="#48484C" BaseMediumLow="#66666A"
+                        ChromeAltLow="#48484C" ChromeBlackHigh="#000000" ChromeBlackLow="#DADADA" ChromeBlackMedium="#48484C" ChromeBlackMediumLow="#7A7A7E"
+                        ChromeDisabledHigh="#DADADA" ChromeDisabledLow="#9A9A9E" ChromeGray="#66666A" ChromeHigh="#DADADA"
+                        ChromeLow="#F2F2F2" ChromeMedium="#EDEDED" ChromeMediumLow="#F2F2F2" ChromeWhite="#FFFFFF"
+                        ListLow="#F0F0F0" ListMedium="#DADADA" ErrorText="#CF3940"/>
+            </FluentTheme.Palettes>
+        </FluentTheme>
+
+        <Style Selector="TextBlock.Muted">
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
         </Style>
+        <Style Selector="TextBlock.Caption">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.FieldLabel">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.PageTitle">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LetterSpacing" Value="-0.2"/>
+        </Style>
+
         <Style Selector="Border.ShellBar">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource RpChromeBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource RpLineBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="Padding" Value="8"/>
         </Style>
         <Style Selector="Border.Section">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource RpLineBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="14"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="18"/>
         </Style>
         <Style Selector="Border.ViewportCard">
-            <Setter Property="Background" Value="#0F1115"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Background" Value="{DynamicResource RpCanvasBrush}"/>
             <Setter Property="ClipToBounds" Value="True"/>
         </Style>
         <Style Selector="Border.NavigationRail">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource RpChromeBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource RpLineBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
         </Style>
         <Style Selector="Border.OverlayPanel">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource RpChromeBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource RpLineBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
-            <Setter Property="BoxShadow" Value="0 8 24 0 #66000000"/>
+            <Setter Property="BoxShadow" Value="0 12 32 0 #55000000"/>
         </Style>
+
+        <Style Selector="Border.Mark">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="CornerRadius" Value="9"/>
+        </Style>
+        <Style Selector="Border.Mark > TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.Mark.Small">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+        <Style Selector="Border.Mark.Small > TextBlock">
+            <Setter Property="FontSize" Value="9"/>
+        </Style>
+
         <Style Selector="TabControl.SessionTabs">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="28"/>
         </Style>
         <Style Selector="TabControl.SessionTabs TabItem">
-            <Setter Property="Padding" Value="7,2,4,3"/>
-            <Setter Property="Margin" Value="0,0,1,0"/>
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="10,0,6,0"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem /template/ Border#PART_SelectedPipe">
+            <Setter Property="IsVisible" Value="False"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RpHoverBrush}"/>
+        </Style>
+        <Style Selector="TabControl.SessionTabs TabItem:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
         </Style>
         <Style Selector="TabControl.SessionTabs TabItem:selected">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpTextBrush}"/>
         </Style>
-        <Style Selector="TabControl.SessionTabs TabItem:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}"/>
-        </Style>
+
         <Style Selector="Button.Compact">
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="MinHeight" Value="32"/>
+        </Style>
+        <Style Selector="Button.Danger">
+            <Setter Property="Background" Value="{DynamicResource RpWarningBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.Danger:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpWarningBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Opacity" Value="0.9"/>
+        </Style>
+        <Style Selector="Button.Ghost">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="Button.Ghost:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpHoverBrush}"/>
         </Style>
         <Style Selector="Button.RailButton">
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="MinWidth" Value="24"/>
-            <Setter Property="Height" Value="24"/>
-            <Setter Property="MinHeight" Value="24"/>
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="MinWidth" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style Selector="Button.TopBarButton">
-            <Setter Property="Padding" Value="8,2"/>
-            <Setter Property="MinHeight" Value="24"/>
+        <Style Selector="Button.RailButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpHoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpTextBrush}"/>
+        </Style>
+        <Style Selector="Button.RailButton.Active">
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpAccentBrush}"/>
+        </Style>
+        <Style Selector="Button.RailButton.Active:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpRaisedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpAccentBrush}"/>
         </Style>
         <Style Selector="Button.TabCloseButton">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="18"/>
-            <Setter Property="MinWidth" Value="18"/>
-            <Setter Property="Height" Value="18"/>
-            <Setter Property="MinHeight" Value="18"/>
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="MinWidth" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="MinHeight" Value="20"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style Selector="Button.TabCloseButton:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListMediumBrush}"/>
-        </Style>
-        <Style Selector="Button.TabCloseButton:pressed">
-            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListHighBrush}"/>
-        </Style>
-        <Style Selector="Button.IconButton">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="MinWidth" Value="32"/>
-            <Setter Property="MinHeight" Value="30"/>
+        <Style Selector="Button.TabCloseButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpLineBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpTextBrush}"/>
         </Style>
         <Style Selector="Button.FullscreenToolbarButton">
-            <Setter Property="Width" Value="28"/>
-            <Setter Property="MinWidth" Value="28"/>
-            <Setter Property="Height" Value="28"/>
-            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
             <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpMutedBrush}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.FullscreenToolbarButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RpHoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpTextBrush}"/>
         </Style>
         <Style Selector="Button.KeyboardGrabActive">
-            <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource RpAccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpOnAccentBrush}"/>
         </Style>
         <Style Selector="Button.KeyboardGrabActive:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}"/>
+            <Setter Property="Background" Value="{DynamicResource RpAccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource RpOnAccentBrush}"/>
         </Style>
         <Style Selector="Border.FullscreenSessionToolbar">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource RpChromeBrush}"/>
             <Setter Property="Opacity" Value="0.96"/>
             <Setter Property="Padding" Value="4"/>
             <Setter Property="BoxShadow" Value="0 6 18 0 #66000000"/>
@@ -130,23 +270,30 @@
         <Style Selector="Border.FullscreenRevealZone">
             <Setter Property="Background" Value="Transparent"/>
         </Style>
+
         <Style Selector="Ellipse.StatusDot">
-            <Setter Property="Width" Value="6"/>
-            <Setter Property="Height" Value="6"/>
-            <Setter Property="Fill" Value="#797775"/>
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="Height" Value="8"/>
+            <Setter Property="Fill" Value="{DynamicResource RpMutedBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style Selector="Ellipse.StatusDot.StatusConnected">
-            <Setter Property="Fill" Value="#107C10"/>
+            <Setter Property="Fill" Value="{DynamicResource RpEngagedBrush}"/>
         </Style>
         <Style Selector="Ellipse.StatusDot.StatusConnecting">
-            <Setter Property="Fill" Value="#0078D4"/>
+            <Setter Property="Fill" Value="{DynamicResource RpCautionBrush}"/>
         </Style>
         <Style Selector="Ellipse.StatusDot.StatusFailed">
-            <Setter Property="Fill" Value="#D13438"/>
+            <Setter Property="Fill" Value="{DynamicResource RpWarningBrush}"/>
         </Style>
         <Style Selector="Ellipse.StatusDot.StatusDisconnected">
-            <Setter Property="Fill" Value="#797775"/>
+            <Setter Property="Fill" Value="{DynamicResource RpMutedBrush}"/>
+        </Style>
+
+        <Style Selector="Expander.FormSection">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="CornerRadius" Value="10"/>
         </Style>
     </Application.Styles>
 </Application>

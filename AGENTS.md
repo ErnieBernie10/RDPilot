@@ -161,7 +161,9 @@ Credential-less connects set `FreeRDP_ExtSecurity` off together with `NlaSecurit
 
 Connection management UI:
 
-- `MainWindow` is a management shell with a saved-connections sidebar, selected profile summary, status bar, and RDP viewport.
+- `MainWindow` is a management shell: navigation rail, session tab strip, RDP viewport and status bar. With no session selected the viewport shows the launcher; with one selected the rail opens the connections overlay. Both host the same `ConnectionListView` (filter, rows with Connect, Edit and Delete), filtered by `MainWindowViewModel.ConnectionFilter`.
+- Colors come from the `Rp*` brushes and the Fluent palettes in `App.axaml` (Dark and Light variants); do not hard-code colors in views. Fluent's primary button class is lowercase `accent`.
+- Each connection gets a stable monogram and color from `ConnectionMarks` (keyed by connection ID), shown in the launcher, the overlay and its session tab.
 - Add/edit runs through `ConnectionEditorWindow`; keep password fields out of the main shell.
 - `MainWindowViewModel` owns saved profile loading, selected connection state, tab collection, and connect/disconnect/close-tab commands.
 - `RdpSessionRuntime` owns one native session handle, the rooted native callback delegates, callback marshalling, native free and all liveness gating. It exposes typed operations (`Send(KeyInput|PointerInput)`, `OfferText/Files/Bitmap`, `Resize`, `PresentInto`, `CopyCursor`, `DisconnectAsync`) and `RdpSessionStatus` events; native status ints never leave its callback adapter. `INativeRdpSession` is its private seam to native and is never handed out. `RdpSessionViewModel` owns bindable session state, UI-thread posting and managed frame/cursor presentation, and calls those operations without guarding them itself. Tests drive status through the fake native adapters (`SessionTestContext`), not through test-only hooks. `RdpSessionStartRequest` groups normalized, transient connection inputs (including credentials); never persist or log it.

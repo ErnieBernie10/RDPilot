@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RDPilot.Client.Views.ConfirmDialog"
+        Width="420"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="*,Auto" Background="{DynamicResource RpChromeBrush}">
+        <StackPanel Margin="24,22,24,20" Spacing="8">
+            <TextBlock x:Name="HeadingText" Classes="SectionTitle" TextWrapping="Wrap"/>
+            <TextBlock x:Name="MessageText" Classes="Muted" TextWrapping="Wrap" LineHeight="20"/>
+        </StackPanel>
+        <Border Grid.Row="1" Background="{DynamicResource RpCanvasBrush}" Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button x:Name="CancelButton" Content="Cancel" MinWidth="96" Classes="Compact" IsCancel="True" Click="OnCancelClicked"/>
+                <Button x:Name="ConfirmButton" MinWidth="96" Classes="Compact" IsDefault="True" Click="OnConfirmClicked"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

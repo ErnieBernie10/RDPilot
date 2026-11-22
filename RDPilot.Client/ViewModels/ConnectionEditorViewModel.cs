@@ -38,9 +38,11 @@ public partial class ConnectionEditorViewModel : ViewModelBase
         QualityEditor = new RdpQualitySettingsEditorViewModel(_original.QualityOverrides, allowInherit: true, globalQualitySettings);
     }
 
-    public string PasswordWatermark => _isEdit ? "Leave blank to keep existing password" : "Password optional";
-    public string GatewayPasswordWatermark => _isEdit ? "Leave blank to keep existing gateway password" : "Gateway password";
+    public string PasswordWatermark => _isEdit ? "Leave blank to keep existing password" : "Optional";
+    public string GatewayPasswordWatermark => _isEdit ? "Leave blank to keep existing gateway password" : "Optional";
     public RdpQualitySettingsEditorViewModel QualityEditor { get; }
+    public bool HasGateway => !string.IsNullOrWhiteSpace(_original.GatewayHost);
+    public bool HasQualityOverrides => _original.QualityOverrides != null;
 
     public ConnectionEditResult? BuildResult()
     {

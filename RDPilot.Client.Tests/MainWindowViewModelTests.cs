@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using RDPilot.Client.Models;
@@ -139,6 +140,69 @@ public sealed class MainWindowViewModelTests
         Assert.False(vm.CanShowConnectAction);
         Assert.True(vm.CanShowConnectionsAction);
         Assert.Equal("Open Connections to choose a saved connection.", vm.ViewportDetail);
+    }
+
+    [Fact]
+    public async Task ConnectionFilter_MatchesNameHostOrUser_AndKeepsStoreOrder()
+    {
+        using var env = new TestConfigHome();
+        var store = new ConnectionStore(new FakeSecretStore());
+        await store.SaveAsync(CreateConnection("File Server"), "pw", true, null, false);
+        await store.SaveAsync(CreateConnection("Build Agent"), "pw", true, null, false);
+        await store.SaveAsync(new SavedConnection { Name = "Kiosk", Host = "10.0.0.5", Username = "fileadmin" }, "pw", true, null, false);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([]));
+        await vm.LoadConnectionsAsync();
+
+        vm.ConnectionFilter = "file";
+
+        Assert.Equal(["File Server", "Kiosk"], vm.FilteredConnections.Select(c => c.Name));
+        Assert.False(vm.HasNoFilterMatches);
+
+        vm.ConnectionFilter = "nothing";
+
+        Assert.Empty(vm.FilteredConnections);
+        Assert.True(vm.HasNoFilterMatches);
+
+        vm.ConnectionFilter = "";
+
+        Assert.Equal(vm.Connections, vm.FilteredConnections);
+    }
+
+    [Fact]
+    public async Task ConnectTo_OpensATabForThatConnection_AndShowsTheSessionInsteadOfTheLauncher()
+    {
+        using var env = new TestConfigHome();
+        var store = new ConnectionStore(new FakeSecretStore());
+        var profile = CreateConnection("Launcher");
+        await store.SaveAsync(profile, "pw", true, null, false);
+        var session = SessionTestContext.CreateSession(profile, RdpSessionStatus.Connecting);
+        var vm = new MainWindowViewModel(store, new QueueSessionFactory([session]));
+        await vm.LoadConnectionsAsync();
+        Assert.True(vm.IsLauncherVisible);
+
+        await vm.ConnectToCommand.ExecuteAsync(vm.Connections[0]);
+
+        Assert.Same(session, vm.SelectedSession);
+        Assert.False(vm.IsLauncherVisible);
+        Assert.True(vm.IsSessionNoticeVisible);
+    }
+
+    [Fact]
+    public async Task ConnectionsOverlay_OnlyOpensOverASession()
+    {
+        using var env = new TestConfigHome();
+        var profile = CreateConnection("Overlay");
+        var vm = new MainWindowViewModel(new ConnectionStore(new FakeSecretStore()),
+            new QueueSessionFactory([SessionTestContext.CreateSession(profile, RdpSessionStatus.Connected)]));
+        await vm.LoadConnectionsAsync();
+
+        vm.ToggleConnectionsPanelCommand.Execute(null);
+        Assert.False(vm.IsConnectionsOverlayOpen);
+
+        await vm.ConnectToCommand.ExecuteAsync(profile);
+        vm.ToggleConnectionsPanelCommand.Execute(null);
+
+        Assert.True(vm.IsConnectionsOverlayOpen);
     }
 
     [Fact]

@@ -20,6 +20,7 @@ internal sealed class FullscreenWindowController : IDisposable
     private readonly Border _toolbar;
     private readonly Border _revealZone;
     private readonly RdpViewportView _viewport;
+    private readonly GridLength _railWidth;
     private readonly DispatcherTimer _toolbarHideTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
     private readonly HashSet<Key> _locallyHandledKeys = [];
     private WindowState _stateBeforeFullscreen = WindowState.Normal;
@@ -38,6 +39,7 @@ internal sealed class FullscreenWindowController : IDisposable
         _toolbar = toolbar;
         _revealZone = revealZone;
         _viewport = viewport;
+        _railWidth = shellGrid.ColumnDefinitions[0].Width;
 
         _toolbarHideTimer.Tick += OnToolbarHideTimerTick;
         _toolbar.PointerEntered += OnPointerEntered;
@@ -123,7 +125,7 @@ internal sealed class FullscreenWindowController : IDisposable
     {
         _navigationRail.IsVisible = !_isFullscreen;
         _statusBar.IsVisible = !_isFullscreen;
-        _shellGrid.ColumnDefinitions[0].Width = new GridLength(_isFullscreen ? 0 : 32);
+        _shellGrid.ColumnDefinitions[0].Width = _isFullscreen ? new GridLength(0) : _railWidth;
         _rootLayout.RowDefinitions[1].Height = _isFullscreen ? new GridLength(0) : GridLength.Auto;
         // No dead strip above the reveal zone: it must reach the screen's top edge.
         _contentGrid.Margin = _isFullscreen ? new Thickness(0) : ContentMargin;
