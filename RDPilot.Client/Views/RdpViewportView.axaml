@@ -3,7 +3,13 @@
              xmlns:icons="using:FluentIcons.Avalonia"
              xmlns:vm="using:RDPilot.Client.ViewModels"
              x:Class="RDPilot.Client.Views.RdpViewportView"
+             xmlns:views="using:RDPilot.Client.Views"
              x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.Failed">
+            <Setter Property="Foreground" Value="{DynamicResource RpWarningBrush}"/>
+        </Style>
+    </UserControl.Styles>
     <Border Classes="ViewportCard">
         <!-- The remote resolution is measured from this Grid rather than from the ScrollViewer
              below it. The ScrollViewer is collapsed until a session is live, so measuring it would
@@ -12,7 +18,7 @@
              the same size once the session is up. -->
         <Grid Name="ViewportHost" SizeChanged="OnRdpViewportSizeChanged">
             <ScrollViewer Name="RdpScrollViewer"
-                          Background="#0F1115"
+                          Background="{DynamicResource RpCanvasBrush}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
                           IsVisible="{Binding IsViewportLive}">
@@ -32,51 +38,70 @@
                        Name="RdpImage"/>
             </ScrollViewer>
 
-            <Border Classes="Card"
-                    Width="360"
-                    Padding="28"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    IsVisible="{Binding IsViewportSplashVisible}">
-                <StackPanel Spacing="12" HorizontalAlignment="Center">
-                    <icons:FluentIcon Icon="Desktop"
-                                      IconSize="Size32"
-                                      FontSize="40"
-                                      HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding ViewportHeading}"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               TextAlignment="Center"/>
-                    <TextBlock Text="{Binding ViewportDetail}"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               Opacity="0.75"/>
-                    <Button Classes="Accent"
+            <Grid IsVisible="{Binding IsLauncherVisible}"
+                  MaxWidth="680"
+                  Margin="32,56,32,24"
+                  RowDefinitions="Auto,*"
+                  RowSpacing="20">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="4" VerticalAlignment="Bottom">
+                        <TextBlock Classes="PageTitle" FontSize="26" Text="Connect to a computer"/>
+                        <TextBlock Classes="Muted" Text="Double-click a connection, or filter and press Enter." IsVisible="{Binding HasConnections}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="Compact" VerticalAlignment="Bottom" Click="OnAddConnectionClicked"
+                            IsVisible="{Binding HasConnections}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:FluentIcon Icon="Add" IconSize="Size16" FontSize="16"/>
+                            <TextBlock Text="Add connection"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <views:ConnectionListView Grid.Row="1"/>
+            </Grid>
+
+            <StackPanel IsVisible="{Binding IsSessionNoticeVisible}"
+                        MaxWidth="440"
+                        Margin="24"
+                        Spacing="14"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Border Classes="Mark"
+                        Width="56" Height="56" CornerRadius="14"
+                        HorizontalAlignment="Center"
+                        Background="{Binding SelectedSession.Connection.Id, Converter={x:Static views:ConnectionMarks.Brush}, FallbackValue={x:Null}}">
+                    <TextBlock FontSize="20" Text="{Binding SelectedSession.Title, Converter={x:Static views:ConnectionMarks.Monogram}, FallbackValue=''}"/>
+                </Border>
+                <TextBlock Text="{Binding ViewportHeading}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"/>
+                <ProgressBar IsIndeterminate="True"
+                             Width="180"
+                             MinHeight="3"
+                             HorizontalAlignment="Center"
+                             IsVisible="{Binding IsSelectedSessionConnecting}"/>
+                <TextBlock Text="{Binding ViewportDetail}"
+                           Classes="Muted"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Classes.Failed="{Binding IsSelectedSessionFailed}"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,6,0,0"
+                            IsVisible="{Binding CanShowReconnectAction}">
+                    <Button Classes="accent Compact"
                             Command="{Binding ReconnectSessionCommand}"
-                            CommandParameter="{Binding SelectedSession}"
-                            IsVisible="{Binding CanShowReconnectAction}"
-                            HorizontalAlignment="Center">
+                            CommandParameter="{Binding SelectedSession}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/>
                             <TextBlock Text="Reconnect"/>
                         </StackPanel>
                     </Button>
-                    <Button Classes="Accent"
-                            Command="{Binding ConnectCommand}"
-                            IsVisible="{Binding CanShowConnectAction}"
-                            HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <icons:FluentIcon Icon="Play" IconSize="Size16" FontSize="16"/>
-                            <TextBlock Text="Connect"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Command="{Binding ToggleConnectionsPanelCommand}"
-                            IsVisible="{Binding CanShowConnectionsAction}"
-                            HorizontalAlignment="Center">
-                        <TextBlock Text="Open connections"/>
-                    </Button>
+                    <Button Classes="Compact"
+                            Content="Close tab"
+                            Command="{Binding CloseSessionCommand}"
+                            CommandParameter="{Binding SelectedSession}"/>
                 </StackPanel>
-            </Border>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

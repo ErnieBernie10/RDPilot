@@ -21,11 +21,11 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid x:Name="RootLayout" Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="*,Auto">
-        <Grid x:Name="ShellGrid" ColumnDefinitions="32,*">
+    <Grid x:Name="RootLayout" Background="{DynamicResource RpChromeBrush}" RowDefinitions="*,Auto">
+        <Grid x:Name="ShellGrid" ColumnDefinitions="48,*">
             <views:NavigationRailView x:Name="NavigationRail" Grid.Column="0"/>
 
-            <Grid x:Name="ContentGrid" Grid.Column="1" RowDefinitions="Auto,*" Margin="2" RowSpacing="1">
+            <Grid x:Name="ContentGrid" Grid.Column="1" RowDefinitions="Auto,*" Margin="2">
                 <Border x:Name="SessionToolbarHost" VerticalAlignment="Top" ZIndex="1">
                     <Border.Transitions>
                         <Transitions>
@@ -40,7 +40,13 @@
                         VerticalAlignment="Top"
                         ZIndex="2"
                         IsVisible="False"/>
-                <views:ShellOverlayHostView Grid.RowSpan="2" IsOpen="{Binding IsConnectionsPanelOpen}" OverlayWidth="280" ZIndex="10">
+                <Border x:Name="OverlayScrim"
+                        Grid.RowSpan="2"
+                        ZIndex="9"
+                        Background="{DynamicResource RpScrimBrush}"
+                        IsVisible="{Binding IsConnectionsOverlayOpen}"
+                        PointerPressed="OnOverlayScrimPressed"/>
+                <views:ShellOverlayHostView Grid.RowSpan="2" IsOpen="{Binding IsConnectionsOverlayOpen}" OverlayWidth="340" ZIndex="10">
                     <views:ShellOverlayHostView.OverlayContent>
                         <views:ConnectionsPanelView/>
                     </views:ShellOverlayHostView.OverlayContent>
@@ -48,14 +54,15 @@
             </Grid>
         </Grid>
 
-        <Border x:Name="StatusBar" Grid.Row="1" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}" Padding="8,4" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
+        <Border x:Name="StatusBar" Grid.Row="1" Background="{DynamicResource RpChromeBrush}" Padding="14,5" BorderBrush="{DynamicResource RpLineBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                 <Ellipse Classes="StatusDot"
                          Classes.StatusConnected="{Binding IsConnected}"
                          Classes.StatusConnecting="{Binding IsSelectedSessionConnecting}"
                          Classes.StatusFailed="{Binding IsSelectedSessionFailed}"
-                         Classes.StatusDisconnected="{Binding IsSelectedSessionDisconnected}"/>
-                <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="12" VerticalAlignment="Center"/>
+                         Classes.StatusDisconnected="{Binding IsSelectedSessionDisconnected}"
+                         IsVisible="{Binding HasSelectedSession}"/>
+                <TextBlock Grid.Column="1" Classes="Caption" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </Grid>
         </Border>
     </Grid>

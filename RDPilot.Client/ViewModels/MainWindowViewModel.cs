@@ -19,6 +19,7 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
     [ObservableProperty] private bool _selectedSessionCanDisconnect;
     [ObservableProperty] private bool _selectedSessionCanReconnect;
     [ObservableProperty] private ShellPanel _activeShellPanel;
+    [ObservableProperty] private string _connectionFilter = "";
 
     /// <summary>
     /// Mirrors the selected session's grab state so the toolbar can bind to it. The view layer
@@ -46,7 +47,15 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
 
     public ObservableCollection<SavedConnection> Connections { get; } = new();
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
+    public ObservableCollection<SavedConnection> FilteredConnections { get; } = new();
+    public bool HasConnections => Connections.Count > 0;
+    public bool HasNoConnections => Connections.Count == 0;
+    public bool HasNoFilterMatches => Connections.Count > 0 && FilteredConnections.Count == 0;
     public bool IsConnectionsPanelOpen => ActiveShellPanel == ShellPanel.Connections;
+    public bool IsConnectionsOverlayOpen => IsConnectionsPanelOpen && SelectedSession != null;
+    public bool IsConnectionsViewActive => IsConnectionsPanelOpen || SelectedSession == null;
+    public bool IsLauncherVisible => SelectedSession == null;
+    public bool IsSessionNoticeVisible => SelectedSession != null && !IsViewportLive;
     public bool HasSelectedSession => SelectedSession != null;
     public bool IsViewportLive => SelectedSession?.IsConnected == true;
     public bool IsViewportSplashVisible => !IsViewportLive;
@@ -172,14 +181,15 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         }
     }
 
-    public async Task DeleteSelectedConnectionAsync()
-    {
-        if (SelectedConnection == null) return;
+    public Task DeleteSelectedConnectionAsync() =>
+        SelectedConnection == null ? Task.CompletedTask : DeleteConnectionAsync(SelectedConnection);
 
+    public async Task DeleteConnectionAsync(SavedConnection connection)
+    {
         try
         {
-            var deletedName = SelectedConnection.Name;
-            await _connectionStore.DeleteAsync(SelectedConnection);
+            var deletedName = connection.Name;
+            await _connectionStore.DeleteAsync(connection);
             await RefreshConnectionsAsync();
             SelectedConnection = null;
             StatusMessage = $"Deleted {deletedName}.";
@@ -198,6 +208,8 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         {
             Connections.Add(connection);
         }
+
+        ApplyConnectionFilter();
 
         try
         {
@@ -222,6 +234,36 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
     partial void OnActiveShellPanelChanged(ShellPanel value)
     {
         OnPropertyChanged(nameof(IsConnectionsPanelOpen));
+        OnPropertyChanged(nameof(IsConnectionsOverlayOpen));
+        OnPropertyChanged(nameof(IsConnectionsViewActive));
+    }
+
+    partial void OnConnectionFilterChanged(string value) => ApplyConnectionFilter();
+
+    private void ApplyConnectionFilter()
+    {
+        var term = ConnectionFilter.Trim();
+        var matches = Connections.Where(connection => term.Length == 0
+            || connection.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || connection.Host.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || connection.Username.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        for (var i = FilteredConnections.Count - 1; i >= 0; i--)
+        {
+            if (!matches.Contains(FilteredConnections[i])) FilteredConnections.RemoveAt(i);
+        }
+
+        for (var i = 0; i < matches.Count; i++)
+        {
+            if (i < FilteredConnections.Count && ReferenceEquals(FilteredConnections[i], matches[i])) continue;
+            var existing = FilteredConnections.IndexOf(matches[i]);
+            if (existing >= 0) FilteredConnections.Move(existing, i);
+            else FilteredConnections.Insert(i, matches[i]);
+        }
+
+        OnPropertyChanged(nameof(HasConnections));
+        OnPropertyChanged(nameof(HasNoConnections));
+        OnPropertyChanged(nameof(HasNoFilterMatches));
     }
 
     partial void OnSelectedSessionChanged(RdpSessionViewModel? oldValue, RdpSessionViewModel? newValue)
@@ -257,6 +299,15 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         SelectedSession = session;
         ActiveShellPanel = ShellPanel.None;
         StatusMessage = $"Connecting to {connection.Name}...";
+    }
+
+    [RelayCommand]
+    private async Task ConnectToAsync(SavedConnection? connection)
+    {
+        if (connection == null) return;
+
+        SelectedConnection = connection;
+        await ConnectAsync();
     }
 
     [RelayCommand]
@@ -483,6 +534,10 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         OnPropertyChanged(nameof(IsSelectedSessionDisconnected));
         OnPropertyChanged(nameof(ViewportHeading));
         OnPropertyChanged(nameof(ViewportDetail));
+        OnPropertyChanged(nameof(IsLauncherVisible));
+        OnPropertyChanged(nameof(IsSessionNoticeVisible));
+        OnPropertyChanged(nameof(IsConnectionsOverlayOpen));
+        OnPropertyChanged(nameof(IsConnectionsViewActive));
     }
 
     private void UpdateStatusMessageFromSelectedSession()

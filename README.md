@@ -1,263 +1,271 @@
-# RDPilot
-
 <p align="center">
-  <img src="RDPilot.Client/Assets/screen-alt-2-red-corner-line.svg" alt="RDPilot icon" width="96" height="96">
+  <img src="RDPilot.Client/Assets/rdpilot-app-icon.svg" alt="RDPilot icon" width="96" height="96">
 </p>
 
-RDPilot is a fast Avalonia RDP client backed by FreeRDP. It focuses on responsive remote desktop sessions, dynamic resolution, secure saved profiles, and a clean tabbed interface.
-
-RDPilot currently supports Windows and Linux.
+<h1 align="center">RDPilot</h1>
 
 <p align="center">
-  <img src="docs/images/rdpilot-connections.png" alt="RDPilot connection manager" width="1200">
+  A fast, modern Remote Desktop client for Windows and Linux, built on FreeRDP.
 </p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/ErnieBernie10/RDPilot/releases/latest"><img src="https://img.shields.io/github/v/release/ErnieBernie10/RDPilot?label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ErnieBernie10/RDPilot" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-informational" alt="Windows and Linux">
+</p>
 
-- Dynamic resolution when the client window changes size.
-- Low-latency keyboard and mouse input with mouse-move coalescing.
-- Keyboard grab (Windows only) so `Win`, `Alt+Tab`, `Ctrl+Esc` and other shell chords go to the remote session instead of the local desktop, plus a toolbar action to send `Ctrl+Alt+Del`.
-- Multiple simultaneous RDP sessions through tabs.
-- Saved connection profiles with passwords stored in the OS credential vault.
-- Text clipboard sync between local and remote sessions.
-- Per-connection and global quality settings for color depth, font smoothing, wallpaper, themes, animations, full-window drag, compression, bitmap cache, and connection type.
+<p align="center">
+  <img src="docs/images/rdpilot-session.png" alt="RDPilot with two remote desktops open in tabs" width="900">
+</p>
+
+<p align="center">
+  <a href="docs/media/rdpilot-demo.mp4"><b>▶ Watch the 30-second demo</b></a>
+</p>
+
+RDPilot keeps all your remote machines one click away. Save your connections once, open as
+many sessions as you like in tabs, and get a desktop that resizes with your window and
+responds the moment you move the mouse.
+
+## Highlights
+
+- **Tabs for every session.** Each connection opens in its own tab. Background sessions stay
+  connected while you work in another one.
+- **Saved connections, safe passwords.** Find any machine by name, host or user. Passwords go
+  into your operating system's credential vault, never into a config file.
+- **Fits your window.** The remote desktop follows the size of the RDPilot window and stays
+  sharp on high-DPI displays.
+- **Responsive input.** Mouse movement is coalesced and keystrokes are delivered in order, so
+  the session keeps up even on slower links.
+- **Copy and paste across machines.** Text and files go both ways; images go from your
+  computer to the remote one.
+- **Keyboard grab (Windows).** Send `Win`, `Alt+Tab` and other shell shortcuts to the remote
+  desktop, plus a one-click `Ctrl+Alt+Del`.
+- **Quality that suits your network.** Global defaults for color depth, wallpaper, animations,
+  compression and more, with per-connection overrides.
+- **Remote Desktop Gateway** support and certificate prompts you can trust and remember.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/rdpilot-launcher.png" alt="Connection launcher"></td>
+    <td width="50%"><img src="docs/images/rdpilot-connections.png" alt="Connections panel over a running session"></td>
+  </tr>
+  <tr>
+    <td align="center">Pick a computer to connect to</td>
+    <td align="center">Open another connection without leaving your session</td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/images/rdpilot-connection-editor.png" alt="Connection editor" width="380"></td>
+    <td width="50%" align="center"><img src="docs/images/rdpilot-settings.png" alt="Quality settings" width="380"></td>
+  </tr>
+  <tr>
+    <td align="center">Edit a connection, with optional gateway and quality overrides</td>
+    <td align="center">Default display and network settings</td>
+  </tr>
+</table>
 
 ## Install
 
-Install on Windows with winget:
+### Windows
 
 ```powershell
 winget install RDPilot.RDPilot
 ```
 
-The latest Windows installer is also available from the GitHub Releases page:
+Or download the installer from the [latest release](https://github.com/ErnieBernie10/RDPilot/releases/latest).
+It installs per user into `%LOCALAPPDATA%\Programs\RDPilot`; no administrator rights needed.
 
-```text
-https://github.com/ErnieBernie10/RDPilot/releases
-```
-
-The installer is per-user and installs to:
-
-```text
-%LOCALAPPDATA%\Programs\RDPilot
-```
-
-On Arch Linux, RDPilot is currently available from the GitHub Release package:
+### Linux (Flatpak)
 
 ```sh
-curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v0.2.0/rdpilot-0.2.0-1-x86_64.pkg.tar.zst
-sudo pacman -U rdpilot-0.2.0-1-x86_64.pkg.tar.zst
-```
-
-A prebuilt Flatpak is published on the GitHub Releases page. Download `RDPilot.flatpak` and install it with:
-
-```sh
-curl -LO https://github.com/ErnieBernie10/RDPilot/releases/download/v1.3.0/RDPilot.flatpak
+curl -LO https://github.com/ErnieBernie10/RDPilot/releases/latest/download/RDPilot.flatpak
 flatpak install --user RDPilot.flatpak
 ```
 
-Flathub submission is in progress; once it lands you'll be able to `flatpak install flathub io.github.ErnieBernie10.RDPilot` instead.
+A Flathub submission is in progress; once it lands, `flatpak install flathub io.github.ErnieBernie10.RDPilot` will work too.
 
-Alternatively, the Flatpak manifest lives in `packaging/flatpak/` and can be built and installed locally with:
+### Arch Linux
+
+Download the `rdpilot-<version>-1-x86_64.pkg.tar.zst` package from the
+[latest release](https://github.com/ErnieBernie10/RDPilot/releases/latest) and install it:
 
 ```sh
-flatpak run org.flatpak.Builder --force-clean --user --install --install-deps-from=flathub \
-  --repo=repo build-dir packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
+sudo pacman -U rdpilot-*-x86_64.pkg.tar.zst
 ```
 
-Linux is supported, but the package has not been published to the AUR yet.
+RDPilot is not on the AUR yet.
 
-## Usage
+## Getting started
 
-1. Add a saved connection from the sidebar.
-2. Enter the remote PC, username, optional domain, and optional gateway settings.
-3. Save the profile. Passwords are stored in the operating system credential store, not in the profile JSON.
-4. Click `Connect` to open a new session tab.
+1. Click **Add connection**.
+2. Enter the computer's host name or IP address, your user name and, if needed, a domain and
+   a Remote Desktop Gateway.
+3. Save. The password is stored in your operating system's credential store.
+4. Double-click the connection, or type part of its name and press Enter.
 
-Each `Connect` action opens a separate tab. Switching tabs keeps background sessions connected and routes input, resize, and clipboard updates only to the active session.
+Every connect opens a new tab, even for a computer that is already open. Switching tabs keeps
+the other sessions connected; input, resizing and the clipboard only go to the tab you are
+looking at.
 
 ### Keyboard grab
 
-The keyboard button in the session toolbar routes the whole physical keyboard to the active session, so `Win`, `Alt+Tab`, `Ctrl+Esc` and `Alt+Esc` act on the remote desktop instead of the local one. While grabbed, RDPilot's own UI is not reachable by keyboard — that is what grabbing means. There is no release hotkey; click the toolbar button again, or click any other window, which releases the grab automatically.
+The keyboard button in the session toolbar sends your whole keyboard to the remote desktop, so
+`Win`, `Alt+Tab`, `Ctrl+Esc` and `Alt+Esc` act there instead of on your own machine. While
+grabbed, RDPilot's own interface does not respond to the keyboard. To release it, click the
+button again or click any other window.
 
-Grab is per-session and never persisted: every new connection starts ungrabbed, switching tabs releases it, and disconnecting releases it.
+The grab is per session and never saved: new connections start ungrabbed, and switching tabs or
+disconnecting releases it.
 
-`Ctrl+Alt+Del` cannot be intercepted by any application, so use the toolbar button beside the grab toggle to send it to the remote session. `Win+L` likewise always locks the local machine.
+`Ctrl+Alt+Del` cannot be intercepted by any application, so use the toolbar button next to the
+grab toggle to send it. `Win+L` always locks your local machine.
 
-## Data Storage
+Keyboard grab is Windows only. On Linux the button is shown disabled: Wayland does not let
+applications grab the keyboard, and the X11 path is not implemented yet. Sending
+`Ctrl+Alt+Del` works everywhere.
 
-Saved connection metadata is stored per user:
+## Your data
 
-- Windows: `%APPDATA%/RDPilot.Client/connections.json`
-- macOS: `~/Library/Application Support/RDPilot.Client/connections.json`
-- Linux: `$XDG_CONFIG_HOME/RDPilot.Client/connections.json`, or `~/.config/RDPilot.Client/connections.json`
+Connection details (no passwords) are stored per user in `connections.json`:
 
-Passwords are stored separately:
+| Platform | Location |
+| --- | --- |
+| Windows | `%APPDATA%\RDPilot.Client\` |
+| Linux | `$XDG_CONFIG_HOME/RDPilot.Client/`, or `~/.config/RDPilot.Client/` |
+| macOS | `~/Library/Application Support/RDPilot.Client/` |
 
-- Windows: Credential Manager
-- macOS: Keychain
-- Linux: Secret Service via `secret-tool`
+Passwords live in the system credential store: Windows Credential Manager, macOS Keychain, or
+the Secret Service on Linux (through `secret-tool`).
 
-Under Flatpak, libsecret prefers its sandboxed `file` backend: it takes a per-app key from
-the `org.freedesktop.portal.Secret` portal and encrypts its own keyring inside
+Under Flatpak, libsecret prefers its sandboxed `file` backend: it takes a per-app key from the
+`org.freedesktop.portal.Secret` portal and encrypts its own keyring inside
 `~/.var/app/io.github.ErnieBernie10.RDPilot/data/keyrings/`. Those passwords are therefore
-app-private — they do not appear in `seahorse`/`kwalletmanager`, they are **not shared with
-the native package**, and `flatpak uninstall --delete-data` removes them. On desktops with
-no Secret portal backend, libsecret falls back to the ordinary Secret Service and passwords
-land in the system keyring as usual.
+app-private: they do not appear in `seahorse` or `kwalletmanager`, they are **not shared with
+the native package**, and `flatpak uninstall --delete-data` removes them. On desktops without a
+Secret portal backend, libsecret falls back to the regular Secret Service and passwords land in
+the system keyring as usual.
 
-## Notes
+## Known limitations
 
-- Keyboard grab is **not available on Linux**; the toolbar button is shown disabled there. Wayland forbids clients from grabbing the keyboard (the sanctioned `zwp_keyboard_shortcuts_inhibit_manager_v1` protocol is not exposed by the current Avalonia Wayland backend), and the X11 `XGrabKeyboard` path is not implemented yet. Sending `Ctrl+Alt+Del` works on every platform.
-- Clipboard redirection is currently text-focused.
-- Audio playback and device redirection are disabled.
-- The default rendering mode is `gfx-gdi`.
-- `classic-gdi` is kept as a fallback: `RDPILOT_RENDERING_MODE=classic-gdi`.
-- RDPGFX codec negotiation can be overridden with `RDPILOT_GFX_CODEC_POLICY=server`, `avc`, `avc420`, or `sharp`.
-- RDPGFX frame acknowledgement pacing can be tested with `RDPILOT_GFX_FRAME_ACK=on|off`. QoE acknowledgements can be enabled with `RDPILOT_GFX_QOE_ACK=on`.
-- Console diagnostics include `[PERF_NATIVE]`, `[PERF_UI]`, `[PERF_INPUT]`, and `[CLIPRDR]` logs.
-- Dependency/build modes are documented in `docs/dependencies.md`.
+- Audio playback and device redirection are not supported yet.
+- Copying images from the remote machine to your computer, and HTML or other rich clipboard
+  formats, are not supported yet.
+- Keyboard grab is Windows only (see above).
 
-## Contributing
+## Building from source
 
-RDPilot contains two main projects:
+RDPilot has two parts:
 
-- `RDPilot.Client`: .NET/Avalonia desktop client.
-- `RDPilot.Wrapper`: native C wrapper around FreeRDP 3 APIs.
+- `RDPilot.Client`: the .NET / Avalonia desktop app.
+- `RDPilot.Wrapper`: a small native C library around the FreeRDP 3 APIs.
 
-### Windows Development
+Building the client also configures and builds the native wrapper with CMake and copies it next
+to the managed output. See [`docs/dependencies.md`](docs/dependencies.md) for the full
+dependency inventory.
 
-Requirements:
+### Windows
 
-- .NET SDK 10.0 or newer
-- CMake
-- Visual Studio Build Tools with the MSVC C/C++ toolchain
-- vcpkg
-- Inno Setup 6 for installer builds
-
-Prepare vcpkg dependencies:
+Requirements: .NET SDK 10.0 or newer, CMake, Visual Studio Build Tools with the MSVC C/C++
+toolchain, vcpkg, and Inno Setup 6 for installer builds.
 
 ```powershell
-scripts/setup-windows-vcpkg.ps1
+scripts/setup-windows-vcpkg.ps1   # prepare the vcpkg dependencies
+scripts/run-windows.ps1           # build and run
+scripts/build-windows.ps1         # build only
+scripts/build-installer-windows.ps1 -AppVersion 0.1.0   # Release installer
 ```
 
-Build and run:
+The installer is written to `artifacts/installer/RDPilot-Setup-<version>-win-x64.exe`.
 
-```powershell
-scripts/run-windows.ps1
-```
+vcpkg is expected as a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg`
+next to `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to use another location.
 
-Build only:
+### Linux
 
-```powershell
-scripts/build-windows.ps1
-```
+Requirements: .NET SDK 10.0 or newer, CMake, a C compiler, pkg-config, the FreeRDP 3
+development packages (`freerdp3`, `freerdp-client3`, `winpr3`), and `secret-tool` with a
+working Secret Service session for password storage.
 
-Build a Release installer:
-
-```powershell
-scripts/build-installer-windows.ps1 -AppVersion 0.1.0
-```
-
-The installer is written to:
-
-```text
-artifacts/installer/RDPilot-Setup-<version>-win-x64.exe
-```
-
-The default vcpkg location is a sibling of this repository, for example `C:/Users/<you>/Sources/vcpkg` when this repo is `C:/Users/<you>/Sources/rdp-client`. Pass `-VcpkgRoot` to use a different location.
-
-See `docs/dependencies.md` for the current dependency inventory.
-
-### Linux Development
-
-Linux is supported. The notes below are for contributors working on Linux builds.
-
-Requirements:
-
-- .NET SDK 10.0 or newer
-- CMake
-- C compiler toolchain
-- pkg-config
-- FreeRDP 3 development packages: `freerdp3`, `freerdp-client3`, `winpr3`
-- `secret-tool` and a working Secret Service session for password storage
-
-On Arch/CachyOS:
+On Arch / CachyOS:
 
 ```sh
 sudo pacman -S dotnet-sdk cmake gcc pkgconf freerdp
 ```
 
-Build and run:
-
 ```sh
-scripts/run-linux.sh
+scripts/run-linux.sh                            # build and run
+scripts/build-linux.sh                          # build only
+scripts/build-linux.sh --configuration Release  # Release build
 ```
 
-Build only:
-
-```sh
-scripts/build-linux.sh
-```
-
-Build a Release configuration:
-
-```sh
-scripts/build-linux.sh --configuration Release
-```
-
-Equivalent direct commands:
+Or directly:
 
 ```sh
 dotnet build RDPilot.slnx
 dotnet run --project RDPilot.Client/RDPilot.Client.csproj
 ```
 
-The .NET project builds the native wrapper with CMake and copies the native library beside the managed output so `DllImport("freerdp_wrapper")` can load it. On Linux, the wrapper is built at `RDPilot.Wrapper/build/native/libfreerdp_wrapper.so`.
+The native library is built at `RDPilot.Wrapper/build/native/libfreerdp_wrapper.so`.
 
-### Release Process
+### Flatpak
 
-Release versions use `major.minor.patch` tags. The tag version is used for the .NET assembly, Inno installer, GitHub Release asset name, and winget package version.
+The manifest lives in `packaging/flatpak/`. Build and install it locally with:
 
-Create a release:
+```sh
+flatpak run org.flatpak.Builder --force-clean --user --install --install-deps-from=flathub \
+  --repo=repo build-dir packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml
+```
+
+## Advanced and troubleshooting
+
+- The default rendering mode is `gfx-gdi` (RDPGFX). The legacy path is kept as a fallback:
+  `RDPILOT_RENDERING_MODE=classic-gdi`.
+- RDPGFX codec negotiation can be overridden with `RDPILOT_GFX_CODEC_POLICY=server`, `avc`,
+  `avc420` or `sharp`. The default, `server`, lets the server choose.
+- Frame acknowledgement pacing can be tested with `RDPILOT_GFX_FRAME_ACK=on|off`; QoE
+  acknowledgements are enabled with `RDPILOT_GFX_QOE_ACK=on`.
+- `RDPILOT_CONFIG_HOME` points RDPilot at a different settings directory, which is handy for
+  testing with a separate set of connections.
+- Console diagnostics include `[PERF_NATIVE]`, `[PERF_UI]`, `[PERF_INPUT]` and `[CLIPRDR]`
+  logs.
+
+## Releasing
+
+Releases use `major.minor.patch` tags. The tag version becomes the .NET assembly version, the
+Inno installer version, the GitHub Release asset names and the winget package version.
 
 ```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The Windows Installer workflow publishes:
+The release workflows publish:
 
-```text
-RDPilot-Setup-0.1.0-win-x64.exe
-RDPilot-Setup-0.1.0-win-x64.exe.sha256
-```
+| Workflow | Assets |
+| --- | --- |
+| Windows Installer | `RDPilot-Setup-<version>-win-x64.exe` and its `.sha256` |
+| Linux Arch Package | `rdpilot-<version>-1-x86_64.pkg.tar.zst` and its `.sha256`, `PKGBUILD`, `.SRCINFO` |
+| Flatpak | `RDPilot.flatpak` |
 
-The Linux Arch Package workflow publishes:
+The generated `PKGBUILD` and `.SRCINFO` are release artifacts for now; the package is not on
+the AUR yet.
 
-```text
-rdpilot-0.1.0-1-x86_64.pkg.tar.zst
-rdpilot-0.1.0-1-x86_64.pkg.tar.zst.sha256
-PKGBUILD
-.SRCINFO
-```
+Flatpak releases also need the version bumped in
+`packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml`, a matching `<release>` entry in the
+metainfo, and the module's git source pointed at the tag. See
+[`packaging/flatpak/README.md`](packaging/flatpak/README.md).
 
-The generated `PKGBUILD` and `.SRCINFO` are release artifacts for now. The package has not been published to the AUR yet.
+### winget
 
-The Flatpak workflow publishes:
-
-```text
-RDPilot.flatpak
-```
-
-Flatpak releases additionally need the version bumped in `packaging/flatpak/io.github.ErnieBernie10.RDPilot.yaml`, a matching `<release>` entry in the metainfo, and the module's git source repointed at the tag. See `packaging/flatpak/README.md`.
-
-Submit or update winget manually with `wingetcreate` after testing the release installer.
-
-New package:
+Submit or update the winget package manually with `wingetcreate` after testing the installer.
 
 ```powershell
+# first submission
 wingetcreate new https://github.com/ErnieBernie10/RDPilot/releases/download/v0.1.0/RDPilot-Setup-0.1.0-win-x64.exe
+
+# updates
+wingetcreate update RDPilot.RDPilot --version 0.1.1 --urls https://github.com/ErnieBernie10/RDPilot/releases/download/v0.1.1/RDPilot-Setup-0.1.1-win-x64.exe
 ```
 
 Package values:
@@ -276,8 +284,6 @@ Scope: user
 Architecture: x64
 ```
 
-Update package:
+## License
 
-```powershell
-wingetcreate update RDPilot.RDPilot --version 0.1.1 --urls https://github.com/ErnieBernie10/RDPilot/releases/download/v0.1.1/RDPilot-Setup-0.1.1-win-x64.exe
-```
+RDPilot is released under the [MIT License](LICENSE).

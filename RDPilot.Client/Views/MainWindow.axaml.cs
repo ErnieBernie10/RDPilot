@@ -129,6 +129,12 @@ public partial class MainWindow : Window
         ApplyKeyboardGrabState();
     }
 
+    private void OnOverlayScrimPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _subscribedViewModel?.CloseConnectionsPanelCommand.Execute(null);
+        e.Handled = true;
+    }
+
     private void OnFullscreenToggleRequested(object? sender, EventArgs e)
     {
         _fullscreen.Toggle();

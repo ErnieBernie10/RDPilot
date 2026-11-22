@@ -2,9 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:icons="using:FluentIcons.Avalonia"
              xmlns:vm="using:RDPilot.Client.ViewModels"
+             xmlns:views="using:RDPilot.Client.Views"
              x:Class="RDPilot.Client.Views.SessionTabsView"
              x:DataType="vm:MainWindowViewModel">
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="6,4,6,4">
         <TabControl ItemsSource="{Binding Sessions}"
                     Classes="SessionTabs"
                     SelectedItem="{Binding SelectedSession}"
@@ -13,18 +14,29 @@
                     Padding="0">
             <TabControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RdpSessionViewModel">
-                    <Grid MinWidth="140" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="5" VerticalAlignment="Center">
-                        <Ellipse Classes="StatusDot"
-                                 Classes.StatusConnected="{Binding IsConnected}"
-                                 Classes.StatusConnecting="{Binding IsConnecting}"
-                                 Classes.StatusFailed="{Binding IsFailed}"
-                                 Classes.StatusDisconnected="{Binding IsDisconnected}"/>
+                    <Grid MinWidth="120" MaxWidth="220" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center"
+                          ToolTip.Tip="{Binding StatusText}">
+                        <Panel Width="24" Height="22">
+                            <Border Classes="Mark Small" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Background="{Binding Connection.Id, Converter={x:Static views:ConnectionMarks.Brush}}">
+                                <TextBlock Text="{Binding Title, Converter={x:Static views:ConnectionMarks.Monogram}}"/>
+                            </Border>
+                            <Border Width="10" Height="10" CornerRadius="5"
+                                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                    Background="{DynamicResource RpChromeBrush}">
+                                <Ellipse Classes="StatusDot" Width="6" Height="6" HorizontalAlignment="Center"
+                                         Classes.StatusConnected="{Binding IsConnected}"
+                                         Classes.StatusConnecting="{Binding IsConnecting}"
+                                         Classes.StatusFailed="{Binding IsFailed}"
+                                         Classes.StatusDisconnected="{Binding IsDisconnected}"/>
+                            </Border>
+                        </Panel>
                         <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="10" Opacity="0.58" VerticalAlignment="Center"/>
-                        <Button Grid.Column="3"
+                        <Button Grid.Column="2"
                                 Classes="TabCloseButton"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="Close tab"
+                                AutomationProperties.Name="Close tab"
                                 VerticalAlignment="Center"
                                 Click="OnTabCloseClicked">
                             <icons:FluentIcon Icon="Dismiss" IconSize="Size12" FontSize="12"/>
@@ -38,8 +50,9 @@
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
             <Button x:Name="SendCtrlAltDelButton"
+                    AutomationProperties.Name="Send Ctrl+Alt+Del"
                     Classes="IconButton FullscreenToolbarButton"
                     ToolTip.Tip="Send Ctrl+Alt+Del to the remote session"
                     IsVisible="{Binding SelectedSessionCanDisconnect}"
@@ -47,6 +60,7 @@
                 <icons:FluentIcon Icon="LockClosedKey" IconSize="Size16" FontSize="16"/>
             </Button>
             <Button x:Name="KeyboardGrabToggleButton"
+                    AutomationProperties.Name="Keyboard grab"
                     Classes="IconButton FullscreenToolbarButton"
                     Classes.KeyboardGrabActive="{Binding IsKeyboardGrabActive}"
                     ToolTip.Tip="{Binding KeyboardGrabTooltip}"
@@ -56,12 +70,14 @@
                 <icons:FluentIcon Icon="Keyboard" IconSize="Size16" FontSize="16"/>
             </Button>
             <Button x:Name="FullscreenToggleButton"
+                    AutomationProperties.Name="Fullscreen"
                     Classes="IconButton FullscreenToolbarButton"
                     ToolTip.Tip="Enter fullscreen"
                     Click="OnFullscreenToggleClicked">
                 <icons:FluentIcon Icon="FullScreenMaximize" IconSize="Size16" FontSize="16"/>
             </Button>
             <Button x:Name="ReconnectSessionButton"
+                    AutomationProperties.Name="Reconnect"
                     Classes="IconButton FullscreenToolbarButton"
                     ToolTip.Tip="Reconnect"
                     IsVisible="{Binding SelectedSessionCanReconnect}"
@@ -70,6 +86,7 @@
                 <icons:FluentIcon Icon="ArrowClockwise" IconSize="Size16" FontSize="16"/>
             </Button>
             <Button x:Name="DisconnectSessionButton"
+                    AutomationProperties.Name="Disconnect"
                     Classes="IconButton FullscreenToolbarButton"
                     ToolTip.Tip="Disconnect"
                     IsVisible="{Binding SelectedSessionCanDisconnect}"

@@ -1,102 +1,101 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:RDPilot.Client.ViewModels"
+        xmlns:views="using:RDPilot.Client.Views"
         x:Class="RDPilot.Client.Views.ConnectionEditorWindow"
         x:DataType="vm:ConnectionEditorViewModel"
         Width="600"
-        Height="780"
-        MinWidth="560"
-        MinHeight="560"
-        CanResize="False"
-        Title="Connection">
-    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="Auto,*,Auto">
-        <Border Classes="ShellBar" Padding="18,14">
-            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="SemiBold"/>
-        </Border>
+        Height="720"
+        MinWidth="520"
+        MinHeight="520"
+        Title="{Binding Title}">
+    <Grid Background="{DynamicResource RpChromeBrush}" RowDefinitions="Auto,*,Auto">
+        <TextBlock Classes="PageTitle" Text="{Binding Title}" Margin="28,24,28,8"/>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="18">
-            <StackPanel Spacing="14">
-                <Border Classes="Section">
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
-                        <TextBlock Text="Remote PC" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding Name}" PlaceholderText="Connection name"/>
-                        <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,96" ColumnSpacing="10">
-                            <TextBox Text="{Binding Host}" PlaceholderText="Host or IP address"/>
-                            <TextBox Grid.Column="1" Text="{Binding Port}" PlaceholderText="Port"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="28" Margin="28,12,28,28">
+                <StackPanel Spacing="14">
+                    <TextBlock Classes="SectionTitle" Text="Computer"/>
+                    <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Name"/>
+                                <TextBox Text="{Binding Name}" AutomationProperties.Name="Name"/>
+                            </StackPanel>
+                    <Grid ColumnDefinitions="*,110" ColumnSpacing="12">
+                        <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Host name or IP address"/>
+                                <TextBox Text="{Binding Host}" AutomationProperties.Name="Host name or IP address"/>
+                            </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="FieldLabel" Text="Port"/>
+                            <TextBox Text="{Binding Port}" AutomationProperties.Name="Port"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="14">
+                    <TextBlock Classes="SectionTitle" Text="Sign in"/>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="User name (optional)"/>
+                                <TextBox Text="{Binding Username}" AutomationProperties.Name="User name"/>
+                            </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="FieldLabel" Text="Domain (optional)"/>
+                            <TextBox Text="{Binding Domain}" AutomationProperties.Name="Domain"/>
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Password"/>
+                                <TextBox Text="{Binding Password}" PlaceholderText="{Binding PasswordWatermark}" PasswordChar="•" RevealPassword="False" AutomationProperties.Name="Password"/>
+                            </StackPanel>
+                </StackPanel>
+
+                <Expander Classes="FormSection" IsExpanded="{Binding HasGateway, Mode=OneTime}">
+                    <Expander.Header>
+                        <StackPanel Spacing="2" Margin="0,6">
+                            <TextBlock Classes="SectionTitle" Text="Remote Desktop Gateway"/>
+                            <TextBlock Classes="Caption" Text="Only needed when the computer is reached through a gateway." TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Expander.Header>
+                    <StackPanel Spacing="14" Margin="0,4">
+                        <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Gateway host"/>
+                                <TextBox Text="{Binding GatewayHost}" AutomationProperties.Name="Gateway host"/>
+                            </StackPanel>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Gateway user name"/>
+                                <TextBox Text="{Binding GatewayUsername}" AutomationProperties.Name="Gateway user name"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="FieldLabel" Text="Gateway domain"/>
+                                <TextBox Text="{Binding GatewayDomain}" AutomationProperties.Name="Gateway domain"/>
+                            </StackPanel>
                         </Grid>
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Domain}" PlaceholderText="Domain optional"/>
-                    </Grid>
-                </Border>
+                        <StackPanel>
+                                <TextBlock Classes="FieldLabel" Text="Gateway password"/>
+                                <TextBox Text="{Binding GatewayPassword}" PlaceholderText="{Binding GatewayPasswordWatermark}" PasswordChar="•" AutomationProperties.Name="Gateway password"/>
+                            </StackPanel>
+                    </StackPanel>
+                </Expander>
 
-                <Border Classes="Section">
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="16">
-                        <TextBlock Text="Credentials" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding Username}" PlaceholderText="Username optional"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Password}" PlaceholderText="{Binding PasswordWatermark}" PasswordChar="*"/>
-                    </Grid>
-                </Border>
-
-                <Border Classes="Section">
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
-                        <TextBlock Text="Gateway" FontWeight="SemiBold"/>
-                        <TextBox Grid.Column="1" Text="{Binding GatewayHost}" PlaceholderText="Gateway host optional"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GatewayDomain}" PlaceholderText="Gateway domain optional"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GatewayUsername}" PlaceholderText="Gateway username optional"/>
-                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GatewayPassword}" PlaceholderText="{Binding GatewayPasswordWatermark}" PasswordChar="*"/>
-                    </Grid>
-                </Border>
-
-                <Border Classes="Section">
-                    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
-                        <TextBlock Text="Color depth" VerticalAlignment="Center"
-                                   ToolTip.Tip="Controls the remote desktop color depth. Lower values use less bandwidth; 32-bit gives the best color quality. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding QualityEditor.ColorDepthOptions}" SelectedItem="{Binding QualityEditor.ColorDepthSelection}"/>
-
-                        <TextBlock Grid.Row="1" Text="Connection type" VerticalAlignment="Center"
-                                   ToolTip.Tip="Hints the expected network speed so the server can choose suitable visual effects and bandwidth behavior. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding QualityEditor.ConnectionTypeOptions}" SelectedItem="{Binding QualityEditor.ConnectionTypeSelection}"/>
-
-                        <TextBlock Grid.Row="2" Text="Font smoothing" VerticalAlignment="Center"
-                                   ToolTip.Tip="Enables ClearType-style text smoothing on the remote desktop. Improves text appearance but can use more bandwidth. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding QualityEditor.FontSmoothingOptions}" SelectedItem="{Binding QualityEditor.FontSmoothingSelection}"/>
-                    </Grid>
-                </Border>
-
-                <Border Classes="Section">
-                    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="16">
-                        <TextBlock Text="Compression" VerticalAlignment="Center"
-                                   ToolTip.Tip="Compresses RDP traffic to reduce bandwidth use. Usually beneficial on slower or remote networks. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding QualityEditor.CompressionOptions}" SelectedItem="{Binding QualityEditor.CompressionSelection}"/>
-
-                        <TextBlock Grid.Row="1" Text="Bitmap cache" VerticalAlignment="Center"
-                                   ToolTip.Tip="Caches remote bitmap data during the session to reduce repeated image transfers. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding QualityEditor.BitmapCacheOptions}" SelectedItem="{Binding QualityEditor.BitmapCacheSelection}"/>
-
-                        <TextBlock Grid.Row="2" Text="Desktop wallpaper" VerticalAlignment="Center"
-                                   ToolTip.Tip="Shows the remote desktop wallpaper. Disabling it usually reduces bandwidth and improves responsiveness. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding QualityEditor.DesktopWallpaperOptions}" SelectedItem="{Binding QualityEditor.DesktopWallpaperSelection}"/>
-
-                        <TextBlock Grid.Row="3" Text="Themes" VerticalAlignment="Center"
-                                   ToolTip.Tip="Shows remote Windows visual styles such as themed controls. Disabling it favors performance. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding QualityEditor.ThemesOptions}" SelectedItem="{Binding QualityEditor.ThemesSelection}"/>
-
-                        <TextBlock Grid.Row="4" Text="Menu animations" VerticalAlignment="Center"
-                                   ToolTip.Tip="Allows animated menus and UI transitions on the remote desktop. Disabling it reduces visual updates. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding QualityEditor.MenuAnimationsOptions}" SelectedItem="{Binding QualityEditor.MenuAnimationsSelection}"/>
-
-                        <TextBlock Grid.Row="5" Text="Full-window drag" VerticalAlignment="Center"
-                                   ToolTip.Tip="Shows window contents while dragging remote windows. Disabling it updates only after the drag ends. Inherit global uses the global setting."/>
-                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding QualityEditor.FullWindowDragOptions}" SelectedItem="{Binding QualityEditor.FullWindowDragSelection}"/>
-                    </Grid>
-                </Border>
+                <Expander Classes="FormSection" IsExpanded="{Binding HasQualityOverrides, Mode=OneTime}">
+                    <Expander.Header>
+                        <StackPanel Spacing="2" Margin="0,6">
+                            <TextBlock Classes="SectionTitle" Text="Display and performance"/>
+                            <TextBlock Classes="Caption" Text="Override the defaults from Settings for this connection only." TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Expander.Header>
+                    <views:QualitySettingsView DataContext="{Binding QualityEditor}" Margin="0,4"/>
+                </Expander>
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="2" Classes="ShellBar" BorderThickness="0,1,0,0" Padding="18,12">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                <TextBlock Text="{Binding ValidationMessage}" Foreground="#D13438" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                <Button Grid.Column="1" Content="Cancel" MinWidth="96" Classes="Compact" Click="OnCancelClicked"/>
-                <Button Grid.Column="2" Content="Save" MinWidth="112" Classes="Accent Compact" Click="OnSaveClicked"/>
+        <Border Grid.Row="2" Background="{DynamicResource RpCanvasBrush}" BorderBrush="{DynamicResource RpLineBrush}" BorderThickness="0,1,0,0" Padding="28,14">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource RpWarningBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                <Button Grid.Column="1" Content="Cancel" MinWidth="96" Classes="Compact" IsCancel="True" Click="OnCancelClicked"/>
+                <Button Grid.Column="2" Content="Save" MinWidth="96" Classes="accent Compact" IsDefault="True" Click="OnSaveClicked"/>
             </Grid>
         </Border>
     </Grid>

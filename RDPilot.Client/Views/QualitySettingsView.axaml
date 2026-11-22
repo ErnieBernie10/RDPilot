@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RDPilot.Client.ViewModels"
+             x:Class="RDPilot.Client.Views.QualitySettingsView"
+             x:DataType="vm:RdpQualitySettingsEditorViewModel">
+    <StackPanel Spacing="24">
+        <StackPanel Spacing="12">
+            <TextBlock Classes="SectionTitle" Text="Display"/>
+            <Grid ColumnDefinitions="*,190" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="14" ColumnSpacing="20">
+            <StackPanel Grid.Row="0" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Color depth"/>
+                <TextBlock Classes="Caption" Text="Higher depth looks better and uses more bandwidth." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Color depth"
+                      ItemsSource="{Binding ColorDepthOptions}" SelectedItem="{Binding ColorDepthSelection}"/>
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Font smoothing"/>
+                <TextBlock Classes="Caption" Text="ClearType text on the remote desktop." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Font smoothing"
+                      ItemsSource="{Binding FontSmoothingOptions}" SelectedItem="{Binding FontSmoothingSelection}"/>
+            <StackPanel Grid.Row="2" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Desktop wallpaper"/>
+                <TextBlock Classes="Caption" Text="Showing it uses more bandwidth." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Desktop wallpaper"
+                      ItemsSource="{Binding DesktopWallpaperOptions}" SelectedItem="{Binding DesktopWallpaperSelection}"/>
+            <StackPanel Grid.Row="3" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Themes"/>
+                <TextBlock Classes="Caption" Text="Windows visual styles for remote controls." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Themes"
+                      ItemsSource="{Binding ThemesOptions}" SelectedItem="{Binding ThemesSelection}"/>
+            <StackPanel Grid.Row="4" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Menu animations"/>
+                <TextBlock Classes="Caption" Text="Animated menus and transitions." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Menu animations"
+                      ItemsSource="{Binding MenuAnimationsOptions}" SelectedItem="{Binding MenuAnimationsSelection}"/>
+            <StackPanel Grid.Row="5" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Full-window drag"/>
+                <TextBlock Classes="Caption" Text="Show window contents while dragging." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Full-window drag"
+                      ItemsSource="{Binding FullWindowDragOptions}" SelectedItem="{Binding FullWindowDragSelection}"/>
+            </Grid>
+        </StackPanel>
+        <StackPanel Spacing="12">
+            <TextBlock Classes="SectionTitle" Text="Network"/>
+            <Grid ColumnDefinitions="*,190" RowDefinitions="Auto,Auto,Auto" RowSpacing="14" ColumnSpacing="20">
+            <StackPanel Grid.Row="0" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Connection type"/>
+                <TextBlock Classes="Caption" Text="Tells the server how fast your network is." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Connection type"
+                      ItemsSource="{Binding ConnectionTypeOptions}" SelectedItem="{Binding ConnectionTypeSelection}"/>
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Compression"/>
+                <TextBlock Classes="Caption" Text="Uses less bandwidth and slightly more CPU." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Compression"
+                      ItemsSource="{Binding CompressionOptions}" SelectedItem="{Binding CompressionSelection}"/>
+            <StackPanel Grid.Row="2" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Bitmap cache"/>
+                <TextBlock Classes="Caption" Text="Reuses images already sent during the session." TextWrapping="Wrap"/>
+            </StackPanel>
+            <ComboBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="Bitmap cache"
+                      ItemsSource="{Binding BitmapCacheOptions}" SelectedItem="{Binding BitmapCacheSelection}"/>
+            </Grid>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
