@@ -231,6 +231,14 @@ Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Ava
 - `Window.LayoutUpdated` is monitored for render-scaling changes (e.g. window dragged to a different-DPI monitor). The handler triggers a resolution update with the new physical pixel size while keeping the connect-time DPI scale.
 - Skia (Avalonia's default renderer) **ignores bitmap DPI** — `IBitmap.Dpi` always returns 96 DPI regardless of the `Vector` passed to the `WriteableBitmap` constructor. This is why we use explicit `Image.Width`/`Height` binding + `Stretch="Fill"` instead of relying on bitmap DPI for display sizing.
 
+## Update Notes
+
+- `AppUpdateEnvironment.Detect` picks the channel: Inno installs on Windows (`unins000.exe` beside the exe) update in-app, other Linux installs only get a "use your package manager" notice, Flatpak and local `0.1.0` builds never check.
+- The in-app update runs the same Inno installer winget installs (same `AppId`, per-user), so the Add/Remove Programs version winget reads stays in sync. Never shell out to `winget upgrade`.
+- The installer is downloaded from the latest GitHub release and must match the release's `.sha256` asset before it runs. Installer and checksum asset names are coupled to `windows-installer.yml`.
+- The updater passes `/relaunch=1`; the `.iss` restarts the app only then, because winget also installs silently.
+- Tagged releases open the winget-pkgs PR through `winget-releaser`, which needs the `WINGET_TOKEN` secret (classic PAT, `public_repo`).
+
 ## Security Notes
 
 Credentials were previously hardcoded in the view model. Do not reintroduce real credentials into source files.

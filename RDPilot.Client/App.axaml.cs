@@ -20,14 +20,18 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var launchOptions = LaunchOptions.Parse(desktop.Args ?? []);
+            var viewModel = new MainWindowViewModel(
+                launchOptions,
+                new WindowsJumpListService(),
+                new ConnectionStore(SecretStore.CreateDefault()),
+                new AppSettingsStore(),
+                new RdpSessionFactory(),
+                AppUpdateEnvironment.Detect());
+            viewModel.Updates.ShutdownRequested += (_, _) => desktop.Shutdown();
+            desktop.Exit += (_, _) => viewModel.Updates.InstallPendingOnExit();
             var mainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(
-                    launchOptions,
-                    new WindowsJumpListService(),
-                    new ConnectionStore(SecretStore.CreateDefault()),
-                    new AppSettingsStore(),
-                    new RdpSessionFactory()),
+                DataContext = viewModel,
             };
             _mainWindow = mainWindow;
             desktop.MainWindow = mainWindow;
