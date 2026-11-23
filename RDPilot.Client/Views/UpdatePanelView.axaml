@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RDPilot.Client.ViewModels"
+             x:Class="RDPilot.Client.Views.UpdatePanelView"
+             x:DataType="vm:AppUpdateViewModel"
+             Width="360">
+    <StackPanel Margin="4" Spacing="10">
+        <TextBlock Classes="SectionTitle" Text="{Binding PanelHeading}" TextWrapping="Wrap"/>
+        <TextBlock Classes="Muted" Text="{Binding PanelDetail}" TextWrapping="Wrap"/>
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadPercent}" IsVisible="{Binding IsDownloading}"/>
+        <HyperlinkButton Padding="0" Content="Release notes" NavigateUri="{Binding ReleasePageUri}" IsVisible="{Binding HasReleaseNotes}"/>
+        <HyperlinkButton Padding="0" Content="Download manually" NavigateUri="{Binding ReleasePageUri}" IsVisible="{Binding IsFailed}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Classes="Compact" Content="Later" IsVisible="{Binding CanDismiss}" Click="OnLaterClicked"/>
+            <Button Classes="Compact accent" Content="Update" Command="{Binding StartUpdateCommand}" IsVisible="{Binding CanStartUpdate}"/>
+            <Button Classes="Compact accent" Content="Try again" Command="{Binding StartUpdateCommand}" IsVisible="{Binding IsFailed}"/>
+            <Button Classes="Compact" Content="Update when I close RDPilot" Command="{Binding InstallOnExitCommand}" IsVisible="{Binding IsReadyToInstall}"/>
+            <Button Classes="Compact accent" Content="Update now" Command="{Binding InstallNowCommand}" IsVisible="{Binding IsReadyToInstall}"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

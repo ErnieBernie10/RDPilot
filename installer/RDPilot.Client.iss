@@ -58,4 +58,12 @@ Name: "{group}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"; IconFilename: "{a
 Name: "{autodesktop}\RDPilot"; Filename: "{app}\RDPilot.Client.exe"; IconFilename: "{app}\RDPilot.Client.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\RDPilot.Client.exe"; Flags: nowait; Check: ShouldRelaunchAfterUpdate
 Filename: "{app}\RDPilot.Client.exe"; Description: "Launch RDPilot"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Only the in-app updater passes /relaunch=1; winget also installs silently and must not start the app.
+function ShouldRelaunchAfterUpdate: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;

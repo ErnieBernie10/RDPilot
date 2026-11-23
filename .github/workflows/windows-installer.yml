@@ -112,3 +112,17 @@ jobs:
             Windows x64 installer for RDPilot ${{ steps.version.outputs.version }}.
 
             SHA256: `${{ steps.hash.outputs.sha256 }}`
+
+  publish-winget:
+    name: Submit winget manifest
+    needs: build-installer
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+
+    steps:
+      - name: Open winget-pkgs pull request
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: RDPilot.RDPilot
+          installers-regex: '-win-x64\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

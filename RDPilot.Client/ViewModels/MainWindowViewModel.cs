@@ -45,6 +45,7 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
     private int _requestedHeight = 720;
     private double _renderScaling = 1.0;
 
+    public AppUpdateViewModel Updates { get; }
     public ObservableCollection<SavedConnection> Connections { get; } = new();
     public ObservableCollection<RdpSessionViewModel> Sessions { get; } = new();
     public ObservableCollection<SavedConnection> FilteredConnections { get; } = new();
@@ -91,20 +92,21 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
     public event EventHandler<RdpSessionViewModel>? SessionRedrawRequested;
     public event EventHandler? SelectedSessionChanged;
 
-    internal MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory())
+    internal MainWindowViewModel() : this(new LaunchOptions(), new WindowsJumpListService(), new ConnectionStore(SecretStore.CreateDefault()), new AppSettingsStore(), new RdpSessionFactory(), AppUpdateEnvironment.Disabled)
     {
     }
 
-    internal MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), sessionFactory)
+    internal MainWindowViewModel(ConnectionStore connectionStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, new AppSettingsStore(), sessionFactory, AppUpdateEnvironment.Disabled)
     {
     }
 
-    internal MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, settingsStore, sessionFactory)
+    internal MainWindowViewModel(ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory) : this(new LaunchOptions(), new WindowsJumpListService(), connectionStore, settingsStore, sessionFactory, AppUpdateEnvironment.Disabled)
     {
     }
 
-    public MainWindowViewModel(LaunchOptions launchOptions, IJumpListService jumpListService, ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory)
+    public MainWindowViewModel(LaunchOptions launchOptions, IJumpListService jumpListService, ConnectionStore connectionStore, AppSettingsStore settingsStore, IRdpSessionFactory sessionFactory, AppUpdateEnvironment updateEnvironment)
     {
+        Updates = new AppUpdateViewModel(updateEnvironment, () => Sessions.Count(session => session.IsConnected || session.IsConnecting));
         _launchOptions = launchOptions;
         _jumpListService = jumpListService;
         _connectionStore = connectionStore;
@@ -120,6 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         try
         {
             _settings = await _settingsStore.LoadAsync();
+            Updates.SetAutomaticChecks(_settings.CheckForUpdatesAutomatically);
             await RefreshConnectionsAsync();
 
             // A saved profile is not an active choice until the user selects it.
@@ -151,6 +154,7 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         try
         {
             _settings = settings.Clone();
+            Updates.SetAutomaticChecks(_settings.CheckForUpdatesAutomatically);
             await _settingsStore.SaveAsync(_settings);
             StatusMessage = "Saved global settings.";
         }
@@ -566,6 +570,7 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
         }
 
         Sessions.Clear();
+        Updates.Dispose();
         GC.SuppressFinalize(this);
     }
 }

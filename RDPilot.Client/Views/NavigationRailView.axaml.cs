@@ -27,7 +27,7 @@ public partial class NavigationRailView : UserControl
 
         var window = new SettingsWindow
         {
-            DataContext = new SettingsViewModel(vm.CreateSettingsSnapshot()),
+            DataContext = new SettingsViewModel(vm.CreateSettingsSnapshot(), vm.Updates),
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
 
