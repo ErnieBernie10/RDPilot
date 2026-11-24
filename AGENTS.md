@@ -32,6 +32,8 @@ System dependencies currently expected on Linux:
 - pkg-config/pkgconf
 - FreeRDP 3 development files: `freerdp3`, `freerdp-client3`, `winpr3`
 
+Windows builds take FreeRDP and OpenSSL from vcpkg. `vcpkg-overlay-ports/openssl` is intentional and permanent: it pins OpenSSL 3.5 LTS (supported until 2030-04) because vcpkg ships the end-of-life 3.6 series. `vcpkg.json` registers the overlays, so every `vcpkg install` uses them; `scripts/setup-windows-vcpkg.ps1` fails if the installed OpenSSL differs from the pin. The weekly `openssl-overlay-watch.yml` keeps one `dependencies` issue open when a newer 3.5 patch is tagged, or when vcpkg itself ships 3.5.x or 4.2+ and the overlay can go. Linux, Arch and Flatpak builds use the system or runtime OpenSSL.
+
 ## Native/Managed Boundary
 
 Policy lives in safe C#. The native wrapper is a thin FreeRDP host shim with no policy decisions.

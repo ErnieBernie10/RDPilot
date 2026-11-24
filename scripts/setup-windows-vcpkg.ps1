@@ -43,6 +43,14 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "vcpkg install failed with exit code $LASTEXITCODE."
     }
+
+    $pinnedOpenSsl = (Get-Content -Raw -LiteralPath (Join-Path $OverlayPorts "openssl\vcpkg.json") | ConvertFrom-Json).version
+    $opensslHeader = Join-Path $RepoRoot "vcpkg_installed\x64-windows\include\openssl\opensslv.h"
+    $installedOpenSsl = (Select-String -LiteralPath $opensslHeader -Pattern 'OPENSSL_VERSION_STR "([^"]+)"').Matches[0].Groups[1].Value
+    if ($installedOpenSsl -ne $pinnedOpenSsl) {
+        throw "vcpkg installed OpenSSL $installedOpenSsl, but the overlay pins $pinnedOpenSsl."
+    }
+    "OpenSSL $installedOpenSsl from vcpkg-overlay-ports"
 }
 finally {
     Pop-Location

@@ -7,10 +7,10 @@ if(VCPKG_TARGET_IS_EMSCRIPTEN)
     vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 endif()
 
-# RDPilot overlay: vcpkg's openssl 3.6.5#2 port retargeted to the 3.5 LTS series, because 3.6
-# loses upstream support on 2026-11-01 and vcpkg has no 4.x or patched 3.5 port yet (#26).
-# Fetched (shallow) by commit SHA, which pins the source without a GitHub archive hash. Drop this
-# overlay once vcpkg ships a supported OpenSSL. Bump: update vcpkg.json "version" and REF below
+# RDPilot overlay: vcpkg's openssl 3.6.5#2 port retargeted to the 3.5 LTS series (supported until
+# 2030-04), because vcpkg ships the end-of-life 3.6 series (#26). Fetched (shallow) by commit SHA,
+# which pins the source without a GitHub archive hash. openssl-overlay-watch.yml flags new 3.5
+# patches. Bump: update vcpkg.json "version" and REF below
 # (git ls-remote https://github.com/openssl/openssl.git 'refs/tags/openssl-3.5.*^{}').
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH

@@ -1,0 +1,25 @@
+name: OpenSSL overlay watch
+
+# The Windows build ships OpenSSL 3.5 LTS from vcpkg-overlay-ports/openssl. This opens or updates
+# one tracking issue when a newer 3.5 patch is tagged or vcpkg ships a supported series itself.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Compare the OpenSSL pin with upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/check-openssl-overlay.sh
