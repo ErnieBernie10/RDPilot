@@ -92,8 +92,8 @@ public sealed class RemoteFileClipboardTests : IDisposable
         Assert.Equal(2, paths.Length);
         Assert.Equal("report.txt", Path.GetFileName(paths[0]));
         Assert.Equal("folder", Path.GetFileName(paths[1]));
-        Assert.Equal(source.Files[0], await File.ReadAllBytesAsync(paths[0]));
-        Assert.Equal(source.Files[2], await File.ReadAllBytesAsync(Path.Combine(paths[1], "inner.bin")));
+        Assert.Equal(source.Files[0], await File.ReadAllBytesAsync(paths[0], TestContext.Current.CancellationToken));
+        Assert.Equal(source.Files[2], await File.ReadAllBytesAsync(Path.Combine(paths[1], "inner.bin"), TestContext.Current.CancellationToken));
         Assert.False(Directory.Exists(Path.Combine(_root, "previous")));
     }
 

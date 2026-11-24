@@ -408,7 +408,7 @@ public sealed class MainWindowViewModelTests
 
         await store.SaveAsync(connection, "top-secret", true, "gateway-secret", true);
 
-        var json = await File.ReadAllTextAsync(AppDataPaths.ConnectionsFilePath);
+        var json = await File.ReadAllTextAsync(AppDataPaths.ConnectionsFilePath, TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("top-secret", json, StringComparison.Ordinal);
         Assert.DoesNotContain("gateway-secret", json, StringComparison.Ordinal);
@@ -424,11 +424,11 @@ public sealed class MainWindowViewModelTests
     {
         using var env = new TestConfigHome();
         var localConnectionPath = Path.Combine(AppContext.BaseDirectory, "connection.local.json");
-        var originalFile = File.Exists(localConnectionPath) ? await File.ReadAllTextAsync(localConnectionPath) : null;
+        var originalFile = File.Exists(localConnectionPath) ? await File.ReadAllTextAsync(localConnectionPath, TestContext.Current.CancellationToken) : null;
 
         try
         {
-            await File.WriteAllTextAsync(localConnectionPath, "{\"Host\":\"rdp.example.local\",\"Port\":3390}");
+            await File.WriteAllTextAsync(localConnectionPath, "{\"Host\":\"rdp.example.local\",\"Port\":3390}", TestContext.Current.CancellationToken);
             var store = new ConnectionStore(new FakeSecretStore());
             var method = typeof(ConnectionStore).GetMethod("TryImportLocalConnectionAsync", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(method);
@@ -445,7 +445,7 @@ public sealed class MainWindowViewModelTests
             }
             else
             {
-                await File.WriteAllTextAsync(localConnectionPath, originalFile);
+                await File.WriteAllTextAsync(localConnectionPath, originalFile, TestContext.Current.CancellationToken);
             }
         }
     }

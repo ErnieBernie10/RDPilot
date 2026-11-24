@@ -22,11 +22,11 @@ public sealed class PointerInputSenderTests
         var sender = new PointerInputSender(() => context.ViewModel, minimumInterval: TimeSpan.FromMilliseconds(40));
 
         sender.Move(10, 20);
-        await Task.Delay(5);
+        await Task.Delay(5, TestContext.Current.CancellationToken);
         sender.Move(30, 40);
         sender.Move(50, 60);
 
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
 
         Assert.Equal([(Move, (ushort)10, (ushort)20), (Move, (ushort)50, (ushort)60)], context.Native.MouseEvents);
     }
@@ -42,10 +42,10 @@ public sealed class PointerInputSenderTests
         }, TimeSpan.FromMilliseconds(40));
 
         sender.Move(10, 20);
-        await Task.Delay(5);
+        await Task.Delay(5, TestContext.Current.CancellationToken);
         sender.Move(30, 40);
 
-        await Task.Delay(150);
+        await Task.Delay(150, TestContext.Current.CancellationToken);
 
         Assert.True(sentAt.Count >= 2);
         Assert.True(Stopwatch.GetElapsedTime(sentAt[0], sentAt[1]) >= TimeSpan.FromMilliseconds(30));
