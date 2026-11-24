@@ -92,7 +92,7 @@ public sealed class RemoteFileReaderTests
         using var reader = new RemoteFileReader(source, 1, 0, content.Length);
         var buffer = new byte[10];
 
-        await reader.ReadAsync(buffer);
+        await reader.ReadAsync(buffer, TestContext.Current.CancellationToken);
         reader.Seek(RemoteFileReader.ChunkSize + 7);
         var rest = await ReadAllAsync(reader, 4096);
 

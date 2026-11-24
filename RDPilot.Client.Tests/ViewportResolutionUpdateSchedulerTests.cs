@@ -24,7 +24,7 @@ public sealed class ViewportResolutionUpdateSchedulerTests
         scheduler.Schedule(1000, 700, 1.0, Capture);
         scheduler.Schedule(1200, 800, 1.25, Capture);
 
-        await Task.Delay(80);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
 
         Assert.Equal([(1200, 800, 1.25)], applied);
         return;
@@ -45,10 +45,10 @@ public sealed class ViewportResolutionUpdateSchedulerTests
 
         scheduler.Schedule(1000, 700, 1.0, Capture);
         // Wait for the first callback so the second update cannot coalesce with it.
-        var firstSentAt = await firstSend.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var firstSentAt = await firstSend.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         scheduler.Schedule(1200, 800, 1.0, Capture);
 
-        var secondSentAt = await secondSend.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondSentAt = await secondSend.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         Assert.Equal(2, Volatile.Read(ref sendCount));
         Assert.True(Stopwatch.GetElapsedTime(firstSentAt, secondSentAt) >= TimeSpan.FromMilliseconds(50));
@@ -81,7 +81,7 @@ public sealed class ViewportResolutionUpdateSchedulerTests
         scheduler.Schedule(1000, 700, 1.0, Capture);
         scheduler.Cancel();
 
-        await Task.Delay(80);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
 
         Assert.Empty(applied);
         return;

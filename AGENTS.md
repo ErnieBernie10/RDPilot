@@ -210,6 +210,8 @@ Rules:
 
 Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Avalonia objects or code paths that use `Dispatcher.UIThread`.
 
+Tests run on xUnit v3 through `xunit.v3.mtp-off`, so `dotnet test` stays on VSTest with `xunit.runner.visualstudio` (the .NET 10 SDK rejects Microsoft Testing Platform projects in VSTest mode). xUnit v3 gives tests no `SynchronizationContext`, so `RunOnUiThreadAsync` hops back to the thread pool before resuming the test; resuming on the headless UI thread deadlocks the next `RunOnUiThread`.
+
 - Call `AvaloniaTestEnvironment.EnsureInitialized()` at the start of UI-sensitive tests.
 - Use `AvaloniaTestEnvironment.RunOnUiThread(Action)` and `RunOnUiThread<T>(Func<T>)` to create/dispose Avalonia objects and to invoke methods that must run on the real headless UI thread.
 - Use `RunPendingDispatcherJobs()` only to flush work that was queued with `Dispatcher.UIThread.Post` from a non-UI thread. This is important for race tests where the production code intentionally posts back to the UI thread.
