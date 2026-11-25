@@ -147,7 +147,7 @@ Clipboard redirection currently supports text and file copy/paste in both direct
 - Other platforms cannot paste virtual files, so `RemoteFileDownloader` writes the offer into `AppDataPaths.ClipboardCacheDirectory` (one directory per offer, previous ones deleted, partial downloads removed) and then publishes the paths. A remote text copy, a local copy, or a tab change cancels the download; an empty local clipboard is not announced while one runs.
 - Remote data requests are matched to responses FIFO (`remote_requests` queue); CLIPRDR responses carry no id. Every server format list bumps `remote_generation`; answers for an older generation are dropped, and outstanding file contents requests are failed. Never go back to a single "pending format id": back-to-back server copies then misparse text as a file descriptor (and vice versa) and drop the copy.
 - A failed remote data request is retried with backoff (25 ms … 800 ms) from the RDP loop; a file list that never renders falls back to the offered text. rdpclip fails requests while the source app still holds the server clipboard, and we fetch eagerly at exactly that moment.
-- The RDP loop runs `process_pending_clipboard` before `process_pending_input` and flushes channel writes (`freerdp_channels_check_fds`) when it queued a cliprdr PDU, so "copy locally, Ctrl+V in the session" reaches the server as format list then keystroke.
+- Each RDP loop iteration takes the queued input (`take_pending_input`), then runs `process_pending_clipboard` and flushes channel writes (`freerdp_channels_check_fds`) when it queued a cliprdr PDU, then sends the input (`send_input_batch`), so "copy locally, Ctrl+V in the session" reaches the server as format list then keystroke. Take the input before checking the clipboard: checking first lets a copy and a key queued in between go out key first.
 - The view also polls the local clipboard immediately on window activation, not only on the 500 ms timer.
 - Bitmap, HTML, and custom clipboard formats are not implemented yet.
 
@@ -210,6 +210,8 @@ Rules:
 
 Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Avalonia objects or code paths that use `Dispatcher.UIThread`.
 
+Tests run on xUnit v3 through `xunit.v3.mtp-off`, so `dotnet test` stays on VSTest with `xunit.runner.visualstudio` (the .NET 10 SDK rejects Microsoft Testing Platform projects in VSTest mode). xUnit v3 gives tests no `SynchronizationContext`, so `RunOnUiThreadAsync` hops back to the thread pool before resuming the test; resuming on the headless UI thread deadlocks the next `RunOnUiThread`.
+
 - Call `AvaloniaTestEnvironment.EnsureInitialized()` at the start of UI-sensitive tests.
 - Use `AvaloniaTestEnvironment.RunOnUiThread(Action)` and `RunOnUiThread<T>(Func<T>)` to create/dispose Avalonia objects and to invoke methods that must run on the real headless UI thread.
 - Use `RunPendingDispatcherJobs()` only to flush work that was queued with `Dispatcher.UIThread.Post` from a non-UI thread. This is important for race tests where the production code intentionally posts back to the UI thread.
@@ -230,6 +232,14 @@ Use `RDPilot.Client.Tests/AvaloniaTestEnvironment` for any test that touches Ava
 - `RdpSessionViewModel._renderScaling` owns coordinate scaling (pointer DIP coords × scaling → desktop coords) and `DisplayWidth`/`DisplayHeight`. `ManagedFramePresenter` keeps its own copy but never reads it.
 - `Window.LayoutUpdated` is monitored for render-scaling changes (e.g. window dragged to a different-DPI monitor). The handler triggers a resolution update with the new physical pixel size while keeping the connect-time DPI scale.
 - Skia (Avalonia's default renderer) **ignores bitmap DPI** — `IBitmap.Dpi` always returns 96 DPI regardless of the `Vector` passed to the `WriteableBitmap` constructor. This is why we use explicit `Image.Width`/`Height` binding + `Stretch="Fill"` instead of relying on bitmap DPI for display sizing.
+
+## Update Notes
+
+- `AppUpdateEnvironment.Detect` picks the channel: Inno installs on Windows (`unins000.exe` beside the exe) update in-app, other Linux installs only get a "use your package manager" notice, Flatpak and local `0.1.0` builds never check.
+- The in-app update runs the same Inno installer winget installs (same `AppId`, per-user), so the Add/Remove Programs version winget reads stays in sync. Never shell out to `winget upgrade`.
+- The installer is downloaded from the latest GitHub release and must match the release's `.sha256` asset before it runs. Installer and checksum asset names are coupled to `windows-installer.yml`.
+- The updater passes `/relaunch=1`; the `.iss` restarts the app only then, because winget also installs silently.
+- Tagged releases open the winget-pkgs PR through `winget-releaser`, which needs the `WINGET_TOKEN` secret (classic PAT, `public_repo`).
 
 ## Security Notes
 

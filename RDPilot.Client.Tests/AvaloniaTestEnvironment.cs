@@ -69,7 +69,7 @@ internal static class AvaloniaTestEnvironment
             await action();
             return;
         }
-        await _session!.Dispatch(async () =>
+        var dispatched = _session!.Dispatch(async () =>
         {
             InHeadlessSession.Value = true;
             try
@@ -79,5 +79,8 @@ internal static class AvaloniaTestEnvironment
             }
             finally { InHeadlessSession.Value = false; }
         }, CancellationToken.None);
+        // xUnit v3 runs tests without a SynchronizationContext; resuming inline would continue the test on the headless UI thread.
+        await dispatched.ContinueWith(static _ => { }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        await dispatched;
     }
 }

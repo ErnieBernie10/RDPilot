@@ -268,10 +268,13 @@ DWORD WINAPI wrapper_connection_thread(LPVOID lpParam) {
             fprintf(stderr, "RDP loop WaitForMultipleObjects failed: 0x%08X\n", (unsigned)GetLastError());
             break;
         }
-        // Announce a local clipboard change first, then drain input, then process channel data,
-        // then handle resize. Clipboard goes before input so that "copy locally, switch to the
-        // session, Ctrl+V" reaches the server as format list then keystroke; the other way round
-        // the remote app pastes the previous clipboard.
+        // Take queued input, announce a local clipboard change, send the input, then process
+        // channel data, then handle resize. Clipboard goes before input so that "copy locally,
+        // switch to the session, Ctrl+V" reaches the server as format list then keystroke; the
+        // other way round the remote app pastes the previous clipboard. Input is taken first so a
+        // clipboard change queued before a key is always announced no later than that key.
+        input_batch input;
+        take_pending_input(session, &input);
         ULONGLONG phase_start = GetTickCount64();
         if (process_pending_clipboard(session))
         {
@@ -281,7 +284,7 @@ DWORD WINAPI wrapper_connection_thread(LPVOID lpParam) {
         }
         UINT32 clipboard_ms = (UINT32)(GetTickCount64() - phase_start);
         phase_start = GetTickCount64();
-        process_pending_input(session);
+        send_input_batch(session, &input);
         UINT32 input_ms = (UINT32)(GetTickCount64() - phase_start);
         phase_start = GetTickCount64();
         BOOL fdsOk = freerdp_check_event_handles(session->instance->context);

@@ -16,7 +16,23 @@
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <views:QualitySettingsView DataContext="{Binding QualityEditor}" Margin="28,16,28,28"/>
+            <StackPanel Margin="28,16,28,28" Spacing="24">
+                <views:QualitySettingsView DataContext="{Binding QualityEditor}"/>
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="SectionTitle" Text="Updates"/>
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="14" ColumnSpacing="20">
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{Binding Updates.CurrentVersionText}"/>
+                            <TextBlock Classes="Caption" Text="{Binding Updates.CheckResult}" TextWrapping="Wrap"
+                                       IsVisible="{Binding Updates.CheckResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="Compact" VerticalAlignment="Center" Content="Check now"
+                                Command="{Binding Updates.CheckNowCommand}" IsVisible="{Binding Updates.IsSupported}"/>
+                        <CheckBox Grid.Row="1" Grid.ColumnSpan="2" Content="Check for updates automatically"
+                                  IsChecked="{Binding CheckForUpdatesAutomatically}" IsVisible="{Binding Updates.IsSupported}"/>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
         </ScrollViewer>
 
         <Border Grid.Row="2" Background="{DynamicResource RpCanvasBrush}" BorderBrush="{DynamicResource RpLineBrush}" BorderThickness="0,1,0,0" Padding="28,14">

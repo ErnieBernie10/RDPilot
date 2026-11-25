@@ -55,7 +55,7 @@
         </Grid>
 
         <Border x:Name="StatusBar" Grid.Row="1" Background="{DynamicResource RpChromeBrush}" Padding="14,5" BorderBrush="{DynamicResource RpLineBrush}" BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <Ellipse Classes="StatusDot"
                          Classes.StatusConnected="{Binding IsConnected}"
                          Classes.StatusConnecting="{Binding IsSelectedSessionConnecting}"
@@ -63,6 +63,21 @@
                          Classes.StatusDisconnected="{Binding IsSelectedSessionDisconnected}"
                          IsVisible="{Binding HasSelectedSession}"/>
                 <TextBlock Grid.Column="1" Classes="Caption" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <Button Grid.Column="2"
+                        Classes="Ghost"
+                        Padding="8,1"
+                        MinHeight="0"
+                        FontSize="12"
+                        Foreground="{DynamicResource RpAccentBrush}"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding Updates.IsNoticeVisible}"
+                        Content="{Binding Updates.NoticeText}">
+                    <Button.Flyout>
+                        <Flyout Placement="TopEdgeAlignedRight">
+                            <views:UpdatePanelView DataContext="{Binding Updates}"/>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
             </Grid>
         </Border>
     </Grid>

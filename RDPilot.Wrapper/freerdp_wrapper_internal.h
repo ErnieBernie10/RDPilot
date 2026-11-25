@@ -64,6 +64,12 @@ typedef struct {
     uint16_t code;
 } input_event;
 
+typedef struct {
+    input_event events[INPUT_QUEUE_CAPACITY];
+    UINT32 count;
+    UINT32 dropped;
+} input_batch;
+
 typedef enum {
     RENDERING_MODE_CLASSIC_GDI,
     RENDERING_MODE_GFX_GDI
@@ -242,7 +248,8 @@ void wrapper_frame_notify(rdp_session* session, rdpGdi* gdi, INT32 x, INT32 y, I
 void wrapper_frame_reset_dirty(rdp_session* session, rdpGdi* gdi);
 
 void queue_input_event(rdp_session* session, input_event event);
-void process_pending_input(rdp_session* session);
+void take_pending_input(rdp_session* session, input_batch* batch);
+void send_input_batch(rdp_session* session, const input_batch* batch);
 
 void register_pointer_class(rdpContext* context);
 void free_cursor_cache(rdp_session* session);
