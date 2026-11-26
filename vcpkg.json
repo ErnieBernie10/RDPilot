@@ -1,7 +1,7 @@
 {
   "name": "rdpilot-native-dependencies",
   "version-string": "0.1.0",
-  "builtin-baseline": "91f0baffae4e06a68a961d7f6493e8a1ca6775eb",
+  "builtin-baseline": "bbce5bf199a8c7d91822219515cb6c937ad98e39",
   "dependencies": [
     "openssl",
     {
