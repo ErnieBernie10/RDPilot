@@ -146,6 +146,11 @@ static bool setup_instance(rdp_session* session, const rdp_session_config* confi
     freerdp_settings_set_bool(settings, FreeRDP_SupportDynamicChannels, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportDisplayControl, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_SupportMonitorLayoutPdu, FALSE);
+    /* KRDP advertises AVC/YUV420 capabilities but closes sessions when this
+     * client cannot provide the matching codec path. Use legacy GFX codecs. */
+    freerdp_settings_set_bool(settings, FreeRDP_GfxH264, FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_GfxAVC444, FALSE);
+    freerdp_settings_set_bool(settings, FreeRDP_GfxAVC444v2, FALSE);
     freerdp_settings_set_uint32(settings, FreeRDP_LargePointerFlag, LARGE_POINTER_FLAG_96x96 | LARGE_POINTER_FLAG_384x384);
     wrapper_graphics_configure(settings, session->render_mode);
     freerdp_settings_set_bool(settings, FreeRDP_DynamicResolutionUpdate, TRUE);
@@ -166,6 +171,8 @@ static bool setup_instance(rdp_session* session, const rdp_session_config* confi
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardType, WINPR_KBD_TYPE_IBM_ENHANCED);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardSubType, 0);
     freerdp_settings_set_uint32(settings, FreeRDP_KeyboardFunctionKey, 12);
+    /* KRDP's supported FreeRDP path requires Unicode input capability. */
+    freerdp_settings_set_bool(settings, FreeRDP_UnicodeInput, TRUE);
     freerdp_settings_set_bool(settings, FreeRDP_AudioPlayback, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, FALSE);
     freerdp_settings_set_bool(settings, FreeRDP_CompressionEnabled, config->compression ? TRUE : FALSE);
@@ -302,8 +309,13 @@ DWORD WINAPI wrapper_connection_thread(LPVOID lpParam) {
         UINT32 resize_ms = (UINT32)(GetTickCount64() - phase_start);
         log_loop_stats_if_due(session, (UINT32)(GetTickCount64() - loop_start), input_ms, clipboard_ms, check_fds_ms, resize_ms);
     }
+    connection_error disconnect_error = { 0 };
+    capture_last_error(session->instance ? session->instance->context : NULL, &disconnect_error);
+    if (disconnect_error.code != 0)
+        fprintf(stderr, "[RDP-TRACE] loop disconnected: 0x%08X %s: %s\n", disconnect_error.code,
+                disconnect_error.name ? disconnect_error.name : "", disconnect_error.message ? disconnect_error.message : "");
     shutdown_instance(session);
     session->running = false;
-    emit_status(session, 3, NULL);
+    emit_status(session, 3, disconnect_error.code ? &disconnect_error : NULL);
     return 0;
 }

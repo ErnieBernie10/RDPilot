@@ -30,7 +30,8 @@ public partial class RdpViewportView : UserControl
             () => RdpImage.InvalidateVisual(),
             new ViewportResolutionService(),
             new ViewportResolutionUpdateScheduler(action => Dispatcher.UIThread.Post(action)),
-            new PointerInputSender(() => (DataContext as MainWindowViewModel)?.SelectedSession, action => Dispatcher.UIThread.Post(action)));
+            new PointerInputSender(() => (DataContext as MainWindowViewModel)?.SelectedSession,
+                () => ViewportHost.Bounds.Size, action => Dispatcher.UIThread.Post(action)));
         _clipboard = new ClipboardSync(
             () => TopLevel.GetTopLevel(this)?.Clipboard,
             CreateStorageItemsAsync,
@@ -229,6 +230,7 @@ public partial class RdpViewportView : UserControl
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        RdpImage.Focus();
         var pos = e.GetPosition(RdpImage);
         _presenter.HandlePointerPressed(pos.X, pos.Y, e.GetCurrentPoint(RdpImage).Properties);
     }

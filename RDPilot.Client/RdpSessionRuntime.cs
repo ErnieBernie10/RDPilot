@@ -216,7 +216,7 @@ internal sealed class RdpSessionRuntime : IRemoteFileContentSource, IDisposable
             _ => null
         };
         if (value is not { } typed) return;
-        var error = typed == RdpSessionStatus.Failed
+        var error = typed is RdpSessionStatus.Failed or RdpSessionStatus.Disconnected
             ? RdpSessionError.Create(errorCode, Marshal.PtrToStringUTF8(errorName), Marshal.PtrToStringUTF8(errorMessage))
             : null;
         // The view model posts to the UI thread and rechecks lifetime before applying the payload.
