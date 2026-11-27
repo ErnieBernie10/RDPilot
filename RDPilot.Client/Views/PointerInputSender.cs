@@ -10,17 +10,25 @@ internal sealed class PointerInputSender
 {
     private readonly object _gate = new();
     private readonly Func<RdpSessionViewModel?> _getTarget;
+    private readonly Func<Size> _getViewportSize;
     private readonly Action<Action> _post;
     private readonly TimeSpan _minimumInterval;
     private Point? _pendingMove;
     private bool _drainScheduled;
     private DateTimeOffset _lastMoveSentAtUtc = DateTimeOffset.MinValue;
 
-    public PointerInputSender(Func<RdpSessionViewModel?> getTarget, Action<Action>? post = null, TimeSpan? minimumInterval = null)
+    public PointerInputSender(Func<RdpSessionViewModel?> getTarget, Func<Size> getViewportSize, Action<Action>? post = null, TimeSpan? minimumInterval = null)
     {
         _getTarget = getTarget ?? throw new ArgumentNullException(nameof(getTarget));
+        _getViewportSize = getViewportSize ?? throw new ArgumentNullException(nameof(getViewportSize));
         _post = post ?? (action => action());
         _minimumInterval = minimumInterval ?? TimeSpan.FromMilliseconds(8);
+    }
+
+    // Compatibility overload for callers/tests that do not have a viewport measurement.
+    public PointerInputSender(Func<RdpSessionViewModel?> getTarget, Action<Action>? post = null, TimeSpan? minimumInterval = null)
+        : this(getTarget, static () => new Size(), post, minimumInterval)
+    {
     }
 
     public void Move(double dipX, double dipY)
@@ -140,7 +148,16 @@ internal sealed class PointerInputSender
         }
 
         var scaling = target.RenderScaling;
-        target.Send(new PointerInput(flags, ToDesktopPixel(dipX, scaling), ToDesktopPixel(dipY, scaling)));
+        var viewport = _getViewportSize();
+        var remoteWidth = target.DisplayWidth;
+        var remoteHeight = target.DisplayHeight;
+        var x = viewport.Width > 0 && remoteWidth > 0
+            ? ToDesktopPixel(dipX / viewport.Width * remoteWidth, scaling)
+            : ToDesktopPixel(dipX, scaling);
+        var y = viewport.Height > 0 && remoteHeight > 0
+            ? ToDesktopPixel(dipY / viewport.Height * remoteHeight, scaling)
+            : ToDesktopPixel(dipY, scaling);
+        target.Send(new PointerInput(flags, x, y));
     }
 
     private static ushort ToDesktopPixel(double dip, double scaling) => (ushort)Math.Clamp(dip * scaling, 0, 65535);

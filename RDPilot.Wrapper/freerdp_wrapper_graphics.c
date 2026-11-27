@@ -74,7 +74,7 @@ rendering_mode wrapper_graphics_mode(void)
     {
         fprintf(stderr, "[RENDER] Unknown RDPILOT_RENDERING_MODE='%s'; using gfx-gdi\n", value);
     }
-    return RENDERING_MODE_GFX_GDI;
+    return RENDERING_MODE_CLASSIC_GDI;
 }
 
 bool wrapper_graphics_uses_pipeline(rendering_mode mode)

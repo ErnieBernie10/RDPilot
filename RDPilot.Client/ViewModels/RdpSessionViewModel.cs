@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Input;
@@ -10,6 +11,12 @@ namespace RDPilot.Client.ViewModels;
 
 public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 {
+    internal static void Trace(string message)
+    {
+        var line = $"{DateTime.Now:O} {message}{Environment.NewLine}";
+        Console.Error.Write(line);
+        try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "rdpilot-trace.log"), line); } catch { }
+    }
     [ObservableProperty] private WriteableBitmap? _screen;
 
     public double DisplayWidth
@@ -89,7 +96,11 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
     public void Start(RdpSessionStartRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        Trace($"[RDP-TRACE] Start host={request.Connection.Host}:{request.Connection.Port} user={request.Connection.Username} size={request.Width}x{request.Height}");
         var error = _runtime.Start(request);
+        Trace(error == null
+            ? "[RDP-TRACE] Native session created; waiting for status callback"
+            : $"[RDP-TRACE] Native session start returned {error.NativeCode} {error.NativeName}: {error.Message}");
         LastError = error;
         Status = error == null ? RdpSessionStatus.Connecting : RdpSessionStatus.Failed;
     }
@@ -243,6 +254,9 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private void OnRuntimeStatusChanged(RdpSessionStatus status, RdpSessionError? error)
     {
+        Trace(error == null
+            ? $"[RDP-TRACE] Status callback: {status}"
+            : $"[RDP-TRACE] Status callback: {status} {error.NativeCode} {error.NativeName}: {error.Message}");
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (!_runtime.HasHandle || IsDisposeStarted) return;
@@ -253,6 +267,7 @@ public partial class RdpSessionViewModel : ViewModelBase, IDisposable
 
     private void OnFrameReceived(int width, int height)
     {
+        Trace($"[RDP-TRACE] Frame received {width}x{height}");
         if (!IsDisposeStarted) _framePresenter.EnqueueFrame(width, height);
     }
 

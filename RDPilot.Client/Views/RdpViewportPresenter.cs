@@ -101,6 +101,7 @@ internal sealed class RdpViewportPresenter
 
     public bool HandleKeyDown(object? source, object rdpImage, Key key)
     {
+        RdpSessionViewModel.Trace($"[RDP-TRACE] KeyDown {key} source={source?.GetType().Name ?? "<null>"}");
         if (!ShouldHandleKeyboardEvent(source, rdpImage))
         {
             return false;
@@ -127,6 +128,7 @@ internal sealed class RdpViewportPresenter
 
     public bool HandleKeyUp(object? source, object rdpImage, Key key)
     {
+        RdpSessionViewModel.Trace($"[RDP-TRACE] KeyUp {key} source={source?.GetType().Name ?? "<null>"}");
         if (!ShouldHandleKeyboardEvent(source, rdpImage))
         {
             return false;
@@ -250,9 +252,14 @@ internal sealed class RdpViewportPresenter
             return false;
         }
 
-        return ReferenceEquals(source, rdpImage) || _rdpKeyboardActive;
+        var vm = _getViewModel();
+        return ReferenceEquals(source, rdpImage) || _rdpKeyboardActive ||
+               vm?.SelectedSession?.IsConnected == true;
     }
 
-    private static void SendKey(MainWindowViewModel vm, ushort flags, ushort scancode) =>
+    private static void SendKey(MainWindowViewModel vm, ushort flags, ushort scancode)
+    {
+        RdpSessionViewModel.Trace($"[RDP-TRACE] SendKey flags=0x{flags:X4} scan=0x{scancode:X2} connected={vm.SelectedSession?.IsConnected}");
         vm.SelectedSession?.Send(new KeyInput(flags, scancode));
+    }
 }

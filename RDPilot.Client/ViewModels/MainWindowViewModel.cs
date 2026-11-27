@@ -376,10 +376,15 @@ public partial class MainWindowViewModel : ViewModelBase, ISelectedSessionSource
     {
         if (session == null) return;
 
+        RdpSessionViewModel.Trace($"[RDP-TRACE] Reconnect clicked: {session.Connection.Name} status={session.Status} error={session.ErrorText ?? "<none>"}");
+
         var oldSession = session;
         if (!Sessions.Contains(oldSession)) return;
 
         var newSession = await OpenSessionAsync(oldSession.Connection, "Reconnecting");
+        Console.Error.WriteLine(newSession == null
+            ? "[RDP-TRACE] Reconnect OpenSessionAsync returned null"
+            : "[RDP-TRACE] Reconnect OpenSessionAsync returned a new session");
         if (newSession == null) return;
         // A close can complete while credentials are being read. Never replace another tab.
         var index = Sessions.IndexOf(oldSession);
